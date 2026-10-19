@@ -15,11 +15,11 @@ class CPUBarItem: CustomButtonTouchBarItem {
 
     init(identifier: NSTouchBarItem.Identifier, refreshInterval: TimeInterval) {
         self.refreshInterval = refreshInterval
-        super.init(identifier: identifier, title: "⏳")
+        super.init(identifier: identifier, title: "CPU")
                 
         // Set default image
         if self.image == nil {
-            self.image = #imageLiteral(resourceName: "cpu").resize(maxSize: NSSize(width: 24, height: 24));
+            self.image = StudioControlStyle.image("cpu",fallback:#imageLiteral(resourceName: "cpu").resize(maxSize:NSSize(width:20,height:20)))
         }
         
         // Set default action

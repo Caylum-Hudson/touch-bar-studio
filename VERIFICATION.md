@@ -32,3 +32,14 @@ Version 0.1.0: package and lockfile metadata, native source/shipped plist and ap
 Version 0.1.1 permission fix: production/native build and state/native tests pass, including denied/granted permission gate tests using injected checks (no input events sent). Two native launches show the quiet notice with no automatic permission dialog. The explicit settings button opens Device Control and Data Access. The existing OS entry is On while the current process remains untrusted; no grants or permission records were changed by the agent.
 
 Version 0.2.0: production/native build passed with coordinate decode, width/clamping, overlap, JSON position round-trip and existing state/permission tests. In the running v0.2.0 UI the precise ruler, X input and width control are visible, and live drag changes update the JSON positions. Physical coordinate placement and submenu Back reserve still require device confirmation.
+
+## 0.3.0 control audit — 20 October 2026
+
+- Production frontend/native build passed. The inherited Vite bundle-size warning remains.
+- `local-build/check-controls.mjs`: all 41 catalog keys have unique entries, capability descriptions, matching macOS-symbol PNG assets, serializable defaults, and Date alias defaults.
+- Native generated fixtures: 36 retained controls decode without unknown fallbacks; five script/swipe controls are filtered. This is decoder coverage, not 36 end-to-end successes.
+- Native optional `--control-self-test local-build/control-fixtures.generated.json --include-widgets` passed: clock, battery, CPU, focus timer and volume slider initialize; no physical tap or setting-changing action was sent. AppKit checks need normal desktop process access; the tool shell sandbox could not register an AppKit process.
+- Existing nested-editing, profiles, undo/redo reducer, JSON round-trip, permission-gate and coordinate tests passed. Targeted lint passed for redesigned palette, preview, icon and catalog JavaScript. Whole-repository lint was not claimed.
+- UI: searched Date, added it, confirmed `MMM d`, removed the test entry and saved the original seven-item layout with Touch Bar Off. Cmd-Z in that test undid search text rather than the added item; native/menu focus routing still needs improvement.
+- Physical taps, keyboard/media delivery with permission granted, display/keyboard illumination response, actual slider writes, external services, Automation and private-system toggles remain unverified. Sleep and Display Sleep are unavailable; scripts/swipe remain export-only and cannot be newly added through the palette.
+- Saved before/after and unavailable-control screenshots: `docs/control-audit/`.

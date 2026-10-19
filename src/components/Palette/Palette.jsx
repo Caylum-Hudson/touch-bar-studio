@@ -1,160 +1,116 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
-import { elementCategories, getElementsByCategory } from '../../data/elementDefinitions';
+import { controlCatalog, advancedControlCatalog } from '../../data/controlCatalog';
+import ControlIcon from '../ControlIcon/ControlIcon';
 import './Palette.css';
 
 export default function Palette() {
   const { addItem, selectItem } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedCategories, setExpandedCategories] = useState(
-    Object.keys(elementCategories).reduce((acc, key) => {
-      acc[key] = true;
-      return acc;
-    }, {})
-  );
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState({});
 
-  const toggleCategory = (category) => {
-    setExpandedCategories((prev) => ({
-      ...prev,
-      [category]: !prev[category],
-    }));
+  const query = searchQuery.trim().toLowerCase();
+  const filterGroups = useMemo(() => (groups) => groups.map((group) => ({
+    ...group,
+    controls: group.controls.filter((control) => !query || [control.label, control.key, control.benefit, control.status]
+      .some((value) => value.toLowerCase().includes(query))),
+  })).filter((group) => group.controls.length > 0), [query]);
+  const commonGroups = filterGroups(controlCatalog);
+  const advancedGroups = filterGroups(advancedControlCatalog);
+
+  const toggleCategory = (id) => setExpandedCategories((previous) => ({ ...previous, [id]: previous[id] === false }));
+  const addControl = (key) => {
+    const item = addItem(key);
+    if (item) selectItem(item.id);
   };
-
-  const handleItemClick = (type) => {
-    const newItem = addItem(type);
-    if (newItem) {
-      selectItem(newItem.id);
-    }
-  };
-
-  // Filter elements based on search query
-  const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return Object.entries(elementCategories).map(([categoryKey, category]) => ({
-        categoryKey,
-        category,
-        elements: getElementsByCategory(categoryKey),
-      }));
-    }
-
-    const query = searchQuery.toLowerCase().trim();
-    return Object.entries(elementCategories)
-      .map(([categoryKey, category]) => {
-        const allElements = getElementsByCategory(categoryKey);
-        const filteredElements = allElements.filter(
-          (el) =>
-            el.label.toLowerCase().includes(query) ||
-            el.type.toLowerCase().includes(query) ||
-            (el.key && el.key.toLowerCase().includes(query))
-        );
-        return { categoryKey, category, elements: filteredElements };
-      })
-      .filter((cat) => cat.elements.length > 0);
-  }, [searchQuery]);
-
-  // Expand all categories when searching
-  const isSearching = searchQuery.trim().length > 0;
 
   return (
     <div className="palette">
       <div className="palette-header">
-        <div className="palette-search">
-          <span className="palette-search-icon">🔍</span>
-          <input
-            type="text"
-            className="palette-search-input"
-            placeholder="Search elements..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="palette-search-clear"
-              onClick={() => setSearchQuery('')}
-            >
-              ✕
-            </button>
-          )}
+        <div className="palette-heading">
+          <div><h2>Add controls</h2><p>Choose a control, then customize it.</p></div>
+          <span className="palette-count">{commonGroups.reduce((total, group) => total + group.controls.length, 0)}</span>
         </div>
+        <label className="palette-search">
+          <span className="palette-search-icon" aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            className="palette-search-input"
+            placeholder="Find a control"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            aria-label="Find a control"
+          />
+          {searchQuery && <button type="button" className="palette-search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">×</button>}
+        </label>
       </div>
       <div className="palette-content">
-        {filteredCategories.map(({ categoryKey, category, elements }) => (
-          <PaletteCategory
-            key={categoryKey}
-            categoryKey={categoryKey}
-            category={category}
-            elements={elements}
-            isExpanded={isSearching ? true : expandedCategories[categoryKey]}
-            onToggle={() => toggleCategory(categoryKey)}
-            onItemClick={handleItemClick}
-          />
+        <p className="palette-section-title">COMMON CONTROLS</p>
+        {commonGroups.map((group) => (
+          <PaletteCategory key={group.id} group={group} expanded={query || expandedCategories[group.id] !== false} onToggle={() => toggleCategory(group.id)} onAdd={addControl} />
         ))}
-        {filteredCategories.length === 0 && (
-          <div className="palette-no-results">
-            No elements found for "{searchQuery}"
-          </div>
+        {advancedGroups.length > 0 && (
+          <section className="palette-advanced">
+            <button className="palette-advanced-toggle" type="button" aria-expanded={advancedOpen || Boolean(query)} onClick={() => setAdvancedOpen((open) => !open)}>
+              <span><strong>Advanced & legacy</strong><small>Service setup, special actions and older controls</small></span>
+              <span className="advanced-chevron">{advancedOpen || query ? '−' : '+'}</span>
+            </button>
+            {(advancedOpen || query) && advancedGroups.map((group) => (
+              <PaletteCategory key={group.id} group={group} expanded={query || expandedCategories[group.id] !== false} onToggle={() => toggleCategory(group.id)} onAdd={addControl} />
+            ))}
+          </section>
         )}
+        {!commonGroups.length && !advancedGroups.length && <div className="palette-no-results">No controls match “{searchQuery}”.</div>}
       </div>
     </div>
   );
 }
 
-function PaletteCategory({ categoryKey, category, elements, isExpanded, onToggle, onItemClick }) {
-
+function PaletteCategory({ group, expanded, onToggle, onAdd }) {
   return (
-    <div className={`palette-category ${isExpanded ? 'expanded' : ''}`}>
-      <button className="palette-category-header" onClick={onToggle}>
-        <span className="category-icon">{isExpanded ? '▼' : '▶'}</span>
-        <span className="category-label">{category.label}</span>
-        <span className="category-count">{elements.length}</span>
+    <section className="palette-category">
+      <button type="button" className="palette-category-header" onClick={onToggle} aria-expanded={Boolean(expanded)}>
+        <span className={`category-chevron ${expanded ? 'is-expanded' : ''}`} aria-hidden="true">›</span>
+        <span className="category-heading"><strong>{group.label}</strong><small>{group.description}</small></span>
+        <span className="category-count">{group.controls.length}</span>
       </button>
-      {isExpanded && (
-        <div className="palette-items">
-          {elements.map((element) => {
-            const elementKey = element.key || element.type;
-            return (
-              <PaletteItem
-                key={elementKey}
-                element={element}
-                onClick={() => onItemClick(elementKey)}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
+      {expanded && <div className="palette-items">
+        {group.controls.map((control) => <PaletteItem key={control.key} control={control} onAdd={() => onAdd(control.key)} />)}
+      </div>}
+    </section>
   );
 }
 
-function PaletteItem({ element, onClick }) {
-  const elementKey = element.key || element.type;
+function PaletteItem({ control, onAdd }) {
+  const key = control.key || control.type;
+  const unavailable = control.status.startsWith('Unavailable');
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `palette-${elementKey}`,
-    data: {
-      type: 'palette-item',
-      elementType: element.type,
-      elementKey: elementKey,
-      defaultProps: element.defaultProps,
-    },
+    id: `palette-${key}`,
+    disabled: unavailable,
+    data: { type: 'palette-item', elementType: key, nativeType: control.type, elementKey: key, defaultProps: control.defaultProps },
   });
 
-  const style = {
-    opacity: isDragging ? 0.5 : 1,
-  };
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="palette-item"
-      onClick={onClick}
-      {...attributes}
-      {...listeners}
-    >
-      <span className="palette-item-icon">{element.icon}</span>
-      <span className="palette-item-label">{element.label}</span>
-    </div>
+    <article className={`palette-item ${isDragging ? 'is-dragging' : ''}`}>
+      <ControlIcon type={key} className="palette-item-icon" />
+      <span className="palette-item-copy">
+        <span className="palette-item-label">{control.label}</span>
+        <span className="palette-item-benefit">{control.benefit}</span>
+        <span className="palette-item-status">{control.status}</span>
+      </span>
+      <button type="button" className="palette-add" disabled={unavailable} onClick={onAdd} aria-label={`Add ${control.label}`} title={`Add ${control.label}`}>+</button>
+      <button
+        ref={setNodeRef}
+        type="button"
+        className="palette-drag"
+        disabled={unavailable}
+        aria-label={`Drag ${control.label} to the Touch Bar`}
+        title="Drag to the Touch Bar"
+        {...attributes}
+        {...listeners}
+      >⠿</button>
+    </article>
   );
 }

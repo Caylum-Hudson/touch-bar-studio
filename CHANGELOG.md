@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — Control library audit and redesign
+
+- Reorganise 41 addable controls around everyday sound, display, status and navigation tasks, with full labels and capability guidance.
+- Add consistent macOS symbol icons to the palette and preview, and native symbols for common buttons, CPU and focus timer.
+- Separate service-dependent and legacy controls; explain unavailable script/swipe and Sleep controls without claiming they work.
+- Replace fabricated preview readings with illustrative labels and an explicit editor-preview caption.
+- Add keyboard-accessible Add buttons, preserve Date defaults on drag, and label icon-only preview controls for accessibility.
+- Decode malformed native JSON without crashing and preserve explicitly configured images/alignment over defaults.
+- Add catalog coverage and native fixture checks, plus optional read-only widget initialization checks.
+
 ## 0.2.0 — 20 October 2026
 
 - Added precise Touch Bar placement: a 1085-unit ruler, free horizontal dragging, numeric X position, width control and overlap warnings.

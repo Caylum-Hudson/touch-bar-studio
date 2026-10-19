@@ -3,7 +3,8 @@ import Foundation
 
 extension Data {
     func barItemDefinitions() -> [BarItemDefinition]? {
-           return try! JSONDecoder().decode([BarItemDefinition].self, from: utf8string!.stripComments().data(using: .utf8)!)
+           guard let string = String(data:self,encoding:.utf8), let data = string.stripComments().data(using:.utf8) else { return nil }
+           return try? JSONDecoder().decode([BarItemDefinition].self, from:data)
     }
 }
 
@@ -36,7 +37,7 @@ struct BarItemDefinition: Decodable {
 
         if let result = try? parametersDecoder(decoder),
             case let (itemType, actions, action, longAction, parameters) = result {
-            parameters.forEach { additionalParameters[$0] = $1 }
+            parameters.forEach { if additionalParameters[$0] == nil { additionalParameters[$0] = $1 } }
             self.init(type: itemType, actions: actions, action: action, legacyLongAction: longAction, additionalParameters: additionalParameters)
         } else {
             self.init(type: .staticButton(title: "unknown"), actions: [], action: .none, legacyLongAction: .none, additionalParameters: additionalParameters)
@@ -75,7 +76,7 @@ class SupportedTypesHolder {
         ) },
 
         "brightnessUp": { _ in
-            let imageParameter = GeneralParameter.image(source: #imageLiteral(resourceName: "brightnessUp"))
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("brightnessUp",fallback:#imageLiteral(resourceName: "brightnessUp"))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -88,7 +89,7 @@ class SupportedTypesHolder {
         },
 
         "brightnessDown": { _ in
-            let imageParameter = GeneralParameter.image(source: #imageLiteral(resourceName: "brightnessDown"))
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("brightnessDown",fallback:#imageLiteral(resourceName: "brightnessDown"))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -101,7 +102,7 @@ class SupportedTypesHolder {
         },
 
         "illuminationUp": { _ in
-            let imageParameter = GeneralParameter.image(source: #imageLiteral(resourceName: "ill_up"))
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("illuminationUp",fallback:#imageLiteral(resourceName: "ill_up"))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -114,7 +115,7 @@ class SupportedTypesHolder {
         },
 
         "illuminationDown": { _ in
-            let imageParameter = GeneralParameter.image(source: #imageLiteral(resourceName: "ill_down"))
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("illuminationDown",fallback:#imageLiteral(resourceName: "ill_down"))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -127,7 +128,7 @@ class SupportedTypesHolder {
         },
 
         "volumeDown": { _ in
-            let imageParameter = GeneralParameter.image(source: NSImage(named: NSImage.touchBarVolumeDownTemplateName)!)
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("volumeDown",fallback:NSImage(named:NSImage.touchBarVolumeDownTemplateName))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -140,7 +141,7 @@ class SupportedTypesHolder {
         },
 
         "volumeUp": { _ in
-            let imageParameter = GeneralParameter.image(source: NSImage(named: NSImage.touchBarVolumeUpTemplateName)!)
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("volumeUp",fallback:NSImage(named:NSImage.touchBarVolumeUpTemplateName))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -153,7 +154,7 @@ class SupportedTypesHolder {
         },
 
         "mute": { _ in
-            let imageParameter = GeneralParameter.image(source: NSImage(named: NSImage.touchBarAudioOutputMuteTemplateName)!)
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("mute",fallback:NSImage(named:NSImage.touchBarAudioOutputMuteTemplateName))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -166,7 +167,7 @@ class SupportedTypesHolder {
         },
 
         "previous": { _ in
-            let imageParameter = GeneralParameter.image(source: NSImage(named: NSImage.touchBarRewindTemplateName)!)
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("previous",fallback:NSImage(named:NSImage.touchBarRewindTemplateName))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -179,7 +180,7 @@ class SupportedTypesHolder {
         },
 
         "play": { _ in
-            let imageParameter = GeneralParameter.image(source: NSImage(named: NSImage.touchBarPlayPauseTemplateName)!)
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("play",fallback:NSImage(named:NSImage.touchBarPlayPauseTemplateName))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -192,7 +193,7 @@ class SupportedTypesHolder {
         },
 
         "next": { _ in
-            let imageParameter = GeneralParameter.image(source: NSImage(named: NSImage.touchBarFastForwardTemplateName)!)
+            let imageParameter = GeneralParameter.image(source: StudioControlStyle.image("next",fallback:NSImage(named:NSImage.touchBarFastForwardTemplateName))!)
             return (
                 item: .staticButton(title: ""),
                 actions: [
@@ -205,7 +206,7 @@ class SupportedTypesHolder {
         },
 
         "sleep": { _ in (
-            item: .staticButton(title: "☕️"),
+            item: .staticButton(title: "Sleep unavailable"),
             actions: [
                 Action(trigger: .singleTap, value: .shellScript(executable: "/usr/bin/pmset", parameters: ["sleepnow"]))
             ],
@@ -215,7 +216,7 @@ class SupportedTypesHolder {
         ) },
 
         "displaySleep": { _ in (
-            item: .staticButton(title: "☕️"),
+            item: .staticButton(title: "Display sleep unavailable"),
             actions: [
                 Action(trigger: .singleTap, value: .shellScript(executable: "/usr/bin/pmset", parameters: ["displaysleepnow"]))
             ],

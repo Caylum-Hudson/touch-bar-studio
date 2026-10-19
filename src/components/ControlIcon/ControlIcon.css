@@ -1,0 +1,40 @@
+.control-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: rgba(154, 117, 255, 0.13);
+  color: #c7b5ff;
+  font: 600 15px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  letter-spacing: -0.04em;
+  object-fit: contain;
+  padding: 7px;
+}
+
+.touchbar-icon.control-icon,
+.slider-icon.control-icon {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: #e0e0e0;
+  font-size: 14px;
+}
+
+.touchbar-icon.control-icon {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+}
+
+.preview-marker {
+  margin-left: 2px;
+  color: #8f8999;
+  font: 600 7px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}

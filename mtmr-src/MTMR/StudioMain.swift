@@ -3,6 +3,10 @@ import Cocoa
 @main
 enum StudioMain {
     static func main() {
+        if let index = CommandLine.arguments.firstIndex(of:"--control-self-test"), CommandLine.arguments.count > index+1 {
+            do { try StudioControlChecks.run(path:CommandLine.arguments[index+1]) } catch { fatalError(error.localizedDescription) }
+            return
+        }
         if CommandLine.arguments.contains("--self-test") {
             let store = StudioStore.shared
             store.workspace = ["version":1,"profiles":["default":["items":[["type":"staticButton","title":"Default"]]],"finder":["bundleId":"com.apple.finder","enabled":true,"items":[["type":"group","title":"Finder","items":[["type":"staticButton","title":"Nested"]]]]]]]

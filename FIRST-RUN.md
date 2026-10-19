@@ -59,3 +59,7 @@ Preserve the original source notices: `mtmr-src/LICENSE` contains the MTMR MIT l
 ## Verification
 
 Automated checks cover recursive editing, moves and cycle prevention, undo/redo, full profile replacement, native app matching and disabled/unmatched fallback, recursive runtime decoding, script filtering, unknown-field round trips and JSON parsing. Native UI checks are recorded in `VERIFICATION.md`. A successful build or native decode is not proof of physical Touch Bar behavior.
+
+## Control library in 0.3.0
+
+Use Add controls → +, or drag the grip. Search can find entries in Advanced & legacy too. Read the status before adding: keyboard buttons need Accessibility, sliders depend on hardware, connected widgets need their own setup. CPU display works locally; its tap action needs Automation. Script and swipe controls remain export-only, and Sleep controls have no active action. The editor preview does not show live system readings.

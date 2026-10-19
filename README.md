@@ -6,11 +6,21 @@ Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bun
 
 ## Current release and versioning
 
-**[v0.2.0 — precise placement and refreshed editor](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.2.0)**
+**[v0.3.0 — clearer controls and a runtime audit](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.3.0)**
 
-The current build is `0.2.0`, adding precise placement and an updated editor. Bug fixes use `0.2.1`, feature updates use `0.3.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
+The current build is `0.3.0`, adding a redesigned control library and explicit availability guidance. Bug fixes use `0.3.1`, feature updates use `0.4.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
 
 ![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
+
+## Choosing useful controls
+
+The **Add controls** library groups everyday sound, display, time and navigation controls first. Each entry explains its use and whether it needs permission, hardware support or setup. Use **+** to add with the keyboard or mouse, or drag the grip to place it. Search includes advanced controls. **Advanced & legacy** holds service integrations and older features.
+
+![Version 0.3.0 control library and preview](docs/control-audit/02-redesigned.png)
+
+The editor is a design preview: CPU, battery and other dynamic tiles are illustrative labels, not live readings. The native widgets read their own data on the Touch Bar. Script/Swipe entries are import/export only. Sleep controls are currently unavailable. A label such as Built in means an implementation exists; it does not certify physical taps on every Mac.
+
+See the [control runtime audit](docs/CONTROL-RUNTIME-AUDIT.md) for all 41 entries and the [verification record](VERIFICATION.md) for the checks actually run.
 
 ## Precise Touch Bar placement
 

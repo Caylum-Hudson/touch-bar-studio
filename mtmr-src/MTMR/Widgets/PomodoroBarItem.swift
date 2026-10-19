@@ -36,7 +36,7 @@ class PomodoroBarItem: CustomButtonTouchBarItem, Widget {
         case none
     }
 
-    private let defaultTitle = "🍅 "
+    private let defaultTitle = "Focus"
     private let workTime: TimeInterval
     private let restTime: TimeInterval
     private var typeTime: TimeTypes = .none
@@ -51,6 +51,7 @@ class PomodoroBarItem: CustomButtonTouchBarItem, Widget {
         self.workTime = workTime
         self.restTime = restTime
         super.init(identifier: identifier, title: defaultTitle)
+        image = StudioControlStyle.image("pomodoro")
         actions.append(contentsOf: [
             ItemAction(trigger: .singleTap) { [weak self] in self?.startStopWork() },
             ItemAction(trigger: .longTap) { [weak self] in self?.startStopRest() }
@@ -110,7 +111,7 @@ class PomodoroBarItem: CustomButtonTouchBarItem, Widget {
         timeLeft -= 1
         DispatchQueue.main.async {
             if self.timeLeft >= 0 {
-                self.title = self.defaultTitle + " " + self.timeLeftString
+                self.title = self.timeLeftString
             } else {
                 self.finish()
             }

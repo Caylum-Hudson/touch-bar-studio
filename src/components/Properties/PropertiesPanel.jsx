@@ -3,11 +3,13 @@ import { useApp } from '../../context/AppContext';
 import { getElementDefinition, commonProperties, actionTypes, actionTriggers } from '../../data/elementDefinitions';
 import './Properties.css';
 import {BAR_WIDTH,itemWidth,clampPosition} from '../../utils/positionLayout';
+import {getControlInfo} from '../../data/controlCatalog';
 
 export default function PropertiesPanel() {
   const { getSelectedItem, updateItem, removeItem, selectedItemId } = useApp();
   const item = getSelectedItem();
   const definition = item ? getElementDefinition(item.type) : null;
+  const control = item ? getControlInfo(item.type) : null;
 
   if (!item || !definition) {
     return (
@@ -29,6 +31,8 @@ export default function PropertiesPanel() {
         <span className="properties-type">{definition.label}</span>
       </div>
       <div className="properties-content">
+        {control && <section className="control-runtime-note" aria-label="Control availability"><strong>{control.status}</strong><p>{control.benefit}</p></section>}
+
         <PropertySection title="Placement">
           <PropertyInput label="X position (0–1085)" type="number" value={item.studioPosition ?? ''} placeholder="Automatic" onChange={value=>updateItem(item.id,{studioPosition:value===''?undefined:clampPosition(value,itemWidth(item)),width:itemWidth(item)})}/>
           <p className="placement-help">Set an exact leading edge, or use Precise placement above the preview. Drag controls along the ruler.</p>
@@ -98,6 +102,7 @@ export default function PropertiesPanel() {
         {/* Actions */}
         {definition.supportsActions && (
           <PropertySection title="Actions">
+            <p className="placement-help">Keyboard actions need macOS permission. Shell and AppleScript actions are kept for export and do not run in this app.</p>
             <ActionsEditor item={item} updateItem={updateItem} />
           </PropertySection>
         )}

@@ -104,11 +104,23 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private override init() {
         super.init()
+        Self.registerNavigationControls(dismiss: { [weak self] in self?.dismissTouchBar() }, back: { [weak self] in self?.leaveSubmenu() })
+
+        blacklistAppIdentifiers = AppSettings.blacklistedAppIds
+
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didLaunchApplicationNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didTerminateApplicationNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
+
+        reloadStandardConfig()
+    }
+
+    static func registerNavigationControls(dismiss: @escaping () -> Void, back: @escaping () -> Void) {
         SupportedTypesHolder.sharedInstance.register(
             typename: "exitTouchbar",
             item: .staticButton(title: "exit"),
             actions: [
-                Action(trigger: .singleTap, value: .custom(closure: { [weak self] in self?.dismissTouchBar() }))
+                Action(trigger: .singleTap, value: .custom(closure: dismiss))
             ],
             legacyAction: .none,
             legacyLongAction: .none
@@ -118,23 +130,13 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             (
                 item: .staticButton(title: ""),
                 actions: [
-                    Action(trigger: .singleTap, value: .custom(closure: { [weak self] in
-                        guard let `self` = self else { return }
-                        self.leaveSubmenu()
-                    }))
+                    Action(trigger: .singleTap, value: .custom(closure: back))
                 ],
                 legacyAction: .none,
                 legacyLongAction: .none,
                 parameters: [.width: .width(30), .image: .image(source: (NSImage(named: NSImage.stopProgressFreestandingTemplateName))!)])
         }
 
-        blacklistAppIdentifiers = AppSettings.blacklistedAppIds
-
-        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didLaunchApplicationNotification, object: nil)
-        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didTerminateApplicationNotification, object: nil)
-        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
-
-        reloadStandardConfig()
     }
 
     func createAndUpdatePreset(newJsonItems: [BarItemDefinition]) {

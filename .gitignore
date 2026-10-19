@@ -45,3 +45,6 @@ local-build/AppIcon.iconset/
 *.app/
 *.dmg
 *.zip
+
+local-build/export-control-icons
+local-build/*.generated.json

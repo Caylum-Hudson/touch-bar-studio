@@ -1,52 +1,8 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { getElementDefinition } from '../../data/elementDefinitions';
+import ControlIcon from '../ControlIcon/ControlIcon';
 import './TouchBar.css';
-
-// Icon mappings for different element types
-const typeIcons = {
-  escape: 'esc',
-  exitTouchbar: '←',
-  brightnessUp: '☀️',
-  brightnessDown: '🔅',
-  brightness: '☀️',
-  illuminationUp: '💡',
-  illuminationDown: '🔅',
-  volumeUp: '🔊',
-  volumeDown: '🔉',
-  volume: '🔊',
-  mute: '🔇',
-  delete: '⌦',
-  sleep: '☕️',
-  displaySleep: '💤',
-  previous: '⏮',
-  play: '▶️',
-  next: '⏭',
-  battery: '🔋',
-  timeButton: '🕐',
-  dateButton: '📅',
-  weather: '🌤',
-  yandexWeather: '🌡',
-  cpu: '💻',
-  currency: '💱',
-  music: '🎵',
-  dock: '🖥',
-  nightShift: '🌙',
-  dnd: '🔕',
-  darkMode: '🌓',
-  pomodoro: '🍅',
-  network: '📶',
-  inputsource: '⌨',
-  upnext: '📅',
-  group: '📦',
-  close: '✕',
-  staticButton: null,
-  appleScriptTitledButton: null,
-  shellScriptTitledButton: null,
-  memoryButton: '🧠',
-  activeAppButton: '📱',
-  swipe: '👆',
-};
 
 // Get display content for an item based on its type
 function getItemDisplay(item, definition) {
@@ -67,72 +23,72 @@ function getItemDisplay(item, definition) {
     case 'escape':
       return { type: 'text', content: 'esc' };
     case 'exitTouchbar':
-      return { type: 'icon', content: '←' };
+      return { type: 'icon', controlType: type };
     case 'brightnessUp':
-      return { type: 'icon', content: '☀️' };
+      return { type: 'icon', controlType: type };
     case 'brightnessDown':
-      return { type: 'icon', content: '🔅' };
+      return { type: 'icon', controlType: type };
     case 'brightness':
-      return { type: 'slider', icon: '☀️' };
+      return { type: 'slider', controlType: type };
     case 'illuminationUp':
-      return { type: 'icon', content: '💡' };
+      return { type: 'icon', controlType: type };
     case 'illuminationDown':
-      return { type: 'icon', content: '🔅' };
+      return { type: 'icon', controlType: type };
     case 'volumeUp':
-      return { type: 'icon', content: '🔊' };
+      return { type: 'icon', controlType: type };
     case 'volumeDown':
-      return { type: 'icon', content: '🔉' };
+      return { type: 'icon', controlType: type };
     case 'volume':
-      return { type: 'slider', icon: '🔊' };
+      return { type: 'slider', controlType: type };
     case 'mute':
-      return { type: 'icon', content: '🔇' };
+      return { type: 'icon', controlType: type };
     case 'delete':
       return { type: 'text', content: 'del' };
     case 'sleep':
-      return { type: 'icon', content: '☕️' };
+      return { type: 'icon', controlType: type };
     case 'displaySleep':
-      return { type: 'icon', content: '💤' };
+      return { type: 'icon', controlType: type };
     case 'previous':
-      return { type: 'icon', content: '⏮' };
+      return { type: 'icon', controlType: type };
     case 'play':
-      return { type: 'icon', content: '▶️' };
+      return { type: 'icon', controlType: type };
     case 'next':
-      return { type: 'icon', content: '⏭' };
+      return { type: 'icon', controlType: type };
     case 'battery':
-      return { type: 'battery', icon: '🔋', percentage: '100%' };
+      return { type: 'sample', controlType: type, content: 'Battery' };
     case 'timeButton':
-      return { type: 'time', content: getCurrentTime(item.formatTemplate, item.timeZone, item.locale) };
+      return { type: 'sample', controlType: type, content: getCurrentTime(item.formatTemplate, item.timeZone) };
     case 'weather':
     case 'yandexWeather':
-      return { type: 'weather', icon: '🌤', temp: '72°' };
+      return { type: 'sample', controlType: type, content: 'Weather' };
     case 'cpu':
-      return { type: 'text', content: 'CPU 15%' };
+      return { type: 'sample', controlType: type, content: 'CPU' };
     case 'currency':
       return { type: 'text', content: `${item.from || 'BTC'}→${item.to || 'USD'}` };
     case 'music':
-      return { type: 'music', content: '♪ Now Playing' };
+      return { type: 'sample', controlType: type, content: 'Music' };
     case 'dock':
       return { type: 'dock' };
     case 'nightShift':
-      return { type: 'icon', content: '🌙' };
+      return { type: 'icon', controlType: type };
     case 'dnd':
-      return { type: 'icon', content: '🔕' };
+      return { type: 'icon', controlType: type };
     case 'darkMode':
-      return { type: 'icon', content: '🌓' };
+      return { type: 'icon', controlType: type };
     case 'pomodoro':
-      return { type: 'text', content: '🍅 25:00' };
+      return { type: 'sample', controlType: type, content: 'Focus' };
     case 'network':
-      return { type: 'text', content: '↑↓ 0 KB/s' };
+      return { type: 'sample', controlType: type, content: 'Network' };
     case 'inputsource':
-      return { type: 'text', content: 'EN' };
+      return { type: 'sample', controlType: type, content: 'Input source' };
     case 'upnext':
-      return { type: 'text', content: '📅 Next Event' };
+      return { type: 'sample', controlType: type, content: 'Up next' };
     case 'close':
-      return { type: 'icon', content: '✕' };
+      return { type: 'icon', controlType: type };
     case 'group':
       return { type: 'group', content: item.title || 'Group', count: item.items?.length || 0 };
     case 'swipe':
-      return { type: 'icon', content: '👆' };
+      return { type: 'icon', controlType: type };
     case 'staticButton':
     case 'appleScriptTitledButton':
     case 'shellScriptTitledButton':
@@ -143,7 +99,7 @@ function getItemDisplay(item, definition) {
 }
 
 // Get current time formatted
-function getCurrentTime(format, timeZone, locale) {
+function getCurrentTime(format, timeZone) {
   if (!format) {
     format = 'HH:mm';
   }
@@ -331,7 +287,7 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
     if (display.type === 'slider') {
       return (
         <>
-          <span className="slider-icon">{display.icon}</span>
+          <ControlIcon type={display.controlType} className="slider-icon" />
           <div className="slider-indicator">
             <div className="slider-track"></div>
           </div>
@@ -339,34 +295,14 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
       );
     }
 
-    // Battery display
-    if (display.type === 'battery') {
+    // Dynamic values are illustrative labels, never fabricated live readings.
+    if (display.type === 'sample') {
       return (
         <>
-          <span className="battery-icon">{display.icon}</span>
-          <span className="battery-percentage">{display.percentage}</span>
+          <ControlIcon type={display.controlType} className="touchbar-icon" />
+          <span className="touchbar-item-title">{display.content}</span>
         </>
       );
-    }
-
-    // Time display
-    if (display.type === 'time') {
-      return <span className="time-display">{display.content}</span>;
-    }
-
-    // Weather display
-    if (display.type === 'weather') {
-      return (
-        <>
-          <span className="weather-icon">{display.icon}</span>
-          <span className="weather-temp">{display.temp}</span>
-        </>
-      );
-    }
-
-    // Music display
-    if (display.type === 'music') {
-      return <span className="music-display">{display.content}</span>;
     }
 
     // Group display
@@ -385,18 +321,18 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
     if (display.type === 'dock') {
       return (
         <div className="dock-preview">
-          <span className="dock-app">🔍</span>
-          <span className="dock-app">📧</span>
-          <span className="dock-app">🌐</span>
-          <span className="dock-app active">📝</span>
-          <span className="dock-app">📁</span>
+          <ControlIcon type="dock" className="dock-app" />
+          <ControlIcon type="music" className="dock-app" />
+          <ControlIcon type="network" className="dock-app" />
+          <ControlIcon type="staticButton" className="dock-app active" />
+          <ControlIcon type="group" className="dock-app" />
         </div>
       );
     }
 
     // Icon display
     if (display.type === 'icon') {
-      return <span className="touchbar-icon">{display.content}</span>;
+      return <ControlIcon type={display.controlType} className="touchbar-icon" />;
     }
 
     // Default text display
@@ -412,6 +348,7 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
       onContextMenu={onContextMenu}
       {...attributes}
       {...listeners}
+      aria-label={`${definition.label}${item.title ? `: ${item.title}` : ''} — editor preview`}
     >
       {renderContent()}
       {isSelected && <div className="selection-indicator" />}
