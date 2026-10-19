@@ -3,3 +3,5 @@
 .compact-launcher .studio-header,.compact-launcher .studio-status,.compact-launcher .tile-manager,.compact-launcher .page-heading>div>div,.compact-launcher .page-heading>div:last-child{display:none}.compact-launcher .workspace-page{padding:20px}.compact-launcher h1{font-size:24px;letter-spacing:-.5px}.compact-launcher .page-heading{margin:0 0 20px}.compact-launcher .launch-tile{min-height:100px}.compact-launcher .tile-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
 
 .studio-shell .runtime-toggle[aria-pressed=true]{border-color:var(--studio-accent);color:var(--studio-accent)}
+
+.permission-notice{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:10px 26px;background:#a78bfa12;border-bottom:1px solid #a78bfa30;color:#c7bfdc;font-size:12px}.compact-launcher .permission-notice{display:none}

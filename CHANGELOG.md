@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 — 20 October 2026
+
+- Removed the unconditional macOS permission prompt at every launch.
+- Added a silent permission status and an explicit Open permission settings button/menu command.
+- Keyboard and media-key events are blocked when this build is not trusted, preventing event attempts from triggering more permission requests.
+- Added an optional `STUDIO_SIGNING_IDENTITY` for builds using an existing reusable signing certificate. Ad-hoc builds can still require a fresh manual grant after an update.
+
+
 ## 0.1.0 — 20 October 2026
 
 Initial Touch Bar Studio prerelease, based on MTMR Designer and the bundled MTMR runtime.

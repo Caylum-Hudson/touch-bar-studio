@@ -17,7 +17,11 @@ Open **Touch Bar Studio.app** in the folder above this repository. It is built l
 
 The editor keeps local drafts. Apply & Save writes the actual runtime workspace. The native save is atomic and keeps the previous successful workspace as a backup. Script controls remain in imported/exported JSON, but custom AppleScript, shell and swipe scripts are disabled in this build. Unknown JSON fields and unknown item types survive editor import/export; native Apply reports an error for types it cannot decode.
 
-Accessibility permission is needed for synthetic key controls. If macOS asks, grant it yourself in Privacy & Security → Accessibility. No Full Disk Access or changes to system protections are required. Touch Bar presentation retains the upstream private framework APIs, which Apple can change; physical display/navigation must still be checked on the Mac's actual Touch Bar.
+Permission is needed for synthetic keyboard/media controls. Version 0.1.1 checks silently and never requests it on launch. Use **Open permission settings** in the app, or **Keyboard Control Permission…** in its menu, then grant access yourself under Privacy & Security → Device Control and Data Access (called Accessibility on earlier macOS versions). If an old grant does not match the latest ad-hoc build, remove the old Touch Bar Studio entry and add the current `Touch Bar Studio.app` from the folder above this repository. Quit and reopen the app after granting.
+
+![Quiet permission notice in version 0.1.1](docs/screenshots/permission-notice.png)
+
+Local ad-hoc signatures identify a specific build; rebuilding can invalidate the old grant. To retain an identity across updates, supply an existing signing certificate using `STUDIO_SIGNING_IDENTITY='certificate name' ./build-local.sh`. The build does not create certificates, change certificate trust or modify macOS permission records. No Full Disk Access or changes to system protections are required. Touch Bar presentation retains the upstream private framework APIs, which Apple can change; physical display/navigation must still be checked on the Mac's actual Touch Bar.
 
 ## Storage and reset
 

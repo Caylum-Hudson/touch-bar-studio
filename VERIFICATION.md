@@ -28,3 +28,5 @@ The macOS 27 SDK reports deprecation warnings in inherited MTMR code. The binary
 On/off update: rebuilt successfully; UI button toggles Off, app-menu command toggles On and synchronizes the button; Off survives app restart; Apply & Save leaves the runtime Off. Physical Touch Bar restoration still requires hands-on confirmation.
 
 Version 0.1.0: package and lockfile metadata, native source/shipped plist and app header agree. Local release build and state/native checks passed. Screenshots show the versioned app; the versioning illustration was rendered separately for the documentation.
+
+Version 0.1.1 permission fix: production/native build and state/native tests pass, including denied/granted permission gate tests using injected checks (no input events sent). Two native launches show the quiet notice with no automatic permission dialog. The explicit settings button opens Device Control and Data Access. The existing OS entry is On while the current process remains untrusted; no grants or permission records were changed by the agent.

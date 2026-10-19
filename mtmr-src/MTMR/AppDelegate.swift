@@ -37,6 +37,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainTouchBarToggle = touchBarToggle
         let services = NSMenuItem(title:"Services",action:nil,keyEquivalent:"")
         services.submenu = NSMenu(title:"Services")
+        appMenu.addItem(withTitle:"Keyboard Control Permission…",action:#selector(openKeyboardPermissionSettings(_:)),keyEquivalent:"").target = self
         appMenu.addItem(services)
         NSApp.servicesMenu = services.submenu
         appMenu.addItem(.separator())
@@ -58,11 +59,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         StudioLauncher.shared.configure()
         NSLog("MTMR 2026: Menu Created.")
 
-        // 2. Accessibility check
-        NSLog("MTMR 2026: Checking Accessibility Permissions...")
-        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString: true] as NSDictionary
-        let accessibilityEnabled = AXIsProcessTrustedWithOptions(options)
-        NSLog("MTMR 2026: Accessibility Enabled: %@", accessibilityEnabled ? "true" : "false")
+        // Permission status is checked silently; never prompt on launch.
+        NSLog("Touch Bar Studio: Keyboard permission: %@", StudioPermissions.keyboardAccess ? "granted" : "not granted")
 
         // 4. Touch Bar setup (deferred — uses private APIs that may fail)
         DispatchQueue.main.async {
@@ -269,6 +267,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LaunchAtLoginController().setLaunchAtLogin(!LaunchAtLoginController().launchAtLogin, for: NSURL.fileURL(withPath: Bundle.main.bundlePath))
         createMenu()
     }
+
+    @objc func openKeyboardPermissionSettings(_: Any?) { _ = StudioPermissions.openSettings() }
 
     @objc func toggleCustomTouchBar(_: Any?) {
         TouchBarController.shared.setEnabled(!AppSettings.touchBarEnabled)

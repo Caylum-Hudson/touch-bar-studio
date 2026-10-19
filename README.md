@@ -6,13 +6,15 @@ Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bun
 
 ## Current release and versioning
 
-**[v0.1.0 — initial prerelease](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.1.0)**
+**[v0.1.1 — permission-prompt fix](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.1.1)**
 
-The current build is `0.1.0`. Bug fixes use `0.1.1`, feature updates use `0.2.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
+The current build is `0.1.1`, a bug-fix update to `0.1.0`. Feature updates use `0.2.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
 
 ![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
 
 ## Screenshots and usage
+
+The screenshots below show the initial `0.1.0` interface. In `0.1.1`, a quiet permission notice and settings button appear if keyboard access is missing; startup no longer requests permission. See [permission troubleshooting](FIRST-RUN.md).
 
 ### Layout editor and on/off control
 

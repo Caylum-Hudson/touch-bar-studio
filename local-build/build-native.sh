@@ -46,5 +46,6 @@ body=b''.join(chunks)
 (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
 PY
 cp mtmr-src/LICENSE "$APP/Contents/Resources/MTMR-LICENSE.txt"
-codesign --force --deep --sign - "$APP"
+# A reusable certificate preserves identity across updates; default local builds are ad-hoc.
+codesign --force --deep --sign "${STUDIO_SIGNING_IDENTITY:--}" "$APP"
 echo "$APP"

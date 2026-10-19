@@ -17,6 +17,12 @@ enum StudioMain {
             precondition(store.activeProfile == "default")
             let sanitized = store.safeItems([["type":"shellScriptTitledButton","source":["inline":"touch /tmp/never"]],["type":"staticButton","action":"shellScript","actions":[["action":"shellScript"],["action":"openUrl","url":"https://example.com"]]]])
             precondition(sanitized.count == 1 && sanitized[0]["action"] == nil && (sanitized[0]["actions"] as! [[String:Any]]).count == 1)
+            var sent = false
+            precondition(!StudioPermissions.performKeyboardAction(isTrusted:{false}) { sent = true })
+            precondition(!sent)
+            precondition(StudioPermissions.performKeyboardAction(isTrusted:{true}) { sent = true })
+            precondition(sent)
+            print("PASS: missing permission blocks input; granted permission allows the action, without prompting.")
             print("PASS: native full profile replacement, unmatched and disabled fallback, recursive runtime decoding, script filtering.")
             return
         }

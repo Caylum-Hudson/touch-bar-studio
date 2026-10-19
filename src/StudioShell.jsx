@@ -24,6 +24,7 @@ export default function StudioShell() {
   const [active,setActive] = useState('default');
   const [enabled,setEnabled] = useState(null);
   const [toggling,setToggling] = useState(false);
+  const [keyboardAccess,setKeyboardAccess] = useState(null);
   useEffect(()=>{
     if(enabled===null)return;
     setStatus(previous=>previous.startsWith('Custom Touch Bar')?(enabled?'Custom Touch Bar on':'Custom Touch Bar off · macOS controls restored'):previous);
@@ -36,9 +37,9 @@ export default function StudioShell() {
   useEffect(()=>{localStorage.setItem('studio-settings',JSON.stringify(settings));},[settings]);
   useEffect(()=>{
     if(!native)return;
-    api('studio').then(r=>{if(r.workspace?.profiles?.default){app.restoreWorkspace(r.workspace);if(r.workspace.settings)setSettings({...defaults,...r.workspace.settings});} setActive(r.activeProfile);setEnabled(r.enabled);}).catch(e=>setStatus(e.message));
+    api('studio').then(r=>{if(r.workspace?.profiles?.default){app.restoreWorkspace(r.workspace);if(r.workspace.settings)setSettings({...defaults,...r.workspace.settings});} setActive(r.activeProfile);setEnabled(r.enabled);setKeyboardAccess(r.keyboardAccess);}).catch(e=>setStatus(e.message));
     api('apps').then(r=>setApps(r.apps)).catch(()=>{});
-    const timer=setInterval(()=>{api('studio').then(r=>{setActive(r.activeProfile);setEnabled(r.enabled);}).catch(()=>{});if(!document.documentElement.classList.contains('compact-launcher'))api('pending-photos').then(r=>{if(r.photos){setPendingPhotos(r);setTab('Photos');}}).catch(()=>{});},2000);
+    const timer=setInterval(()=>{api('studio').then(r=>{setActive(r.activeProfile);setEnabled(r.enabled);setKeyboardAccess(r.keyboardAccess);}).catch(()=>{});if(!document.documentElement.classList.contains('compact-launcher'))api('pending-photos').then(r=>{if(r.photos){setPendingPhotos(r);setTab('Photos');}}).catch(()=>{});},2000);
     const navigate=e=>setTab(e.detail || 'Launcher'); window.addEventListener('studio-tab',navigate);
     return ()=>{clearInterval(timer);window.removeEventListener('studio-tab',navigate);};
   },[]);
@@ -71,6 +72,7 @@ export default function StudioShell() {
   return <div className="studio-shell" style={{'--studio-accent':settings.accent,'--studio-bg':settings.background,backgroundImage:settings.image?`linear-gradient(#101018cc,#101018ee),url(${settings.image})`:undefined}} data-motion={settings.motion}>
     <header className="studio-header"><div><strong>Touch Bar Studio</strong><small>v{appMetadata.version} · Your Mac, within reach.</small></div><nav>{['Launcher','Studio','Photos','Appearance'].map(t=><button key={t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><button className="runtime-toggle" aria-pressed={enabled===true} disabled={!native||enabled===null||toggling} onClick={toggleTouchBar}>{enabled===null?'Checking Touch Bar…':enabled?'Touch Bar: On':'Touch Bar: Off'}</button><button className="primary" onClick={save}>Apply & Save</button></header>
     <div className="studio-status" role="status">{status}<span>Touch Bar: {enabled===false?'Off (macOS controls)':app.profiles[active]?.name || 'Default'}</span></div>
+    {native && keyboardAccess===false && <div className="permission-notice" role="status"><span>Keyboard controls need macOS permission. The editor, launcher and photos still work.</span><button onClick={()=>run(async()=>{await api('keyboard-permission',{});})}>Open permission settings</button></div>}
     {tab==='Studio'&&<>
       <div className="profile-strip"><label>Editing <select value={app.profileId} onChange={e=>app.switchProfile(e.target.value)}>{Object.entries(app.profiles).map(([id,p])=><option key={id} value={id}>{p.name}{p.enabled===false?' (disabled)':''}</option>)}</select></label>
       {app.profileId!=='default'&&<><input aria-label="Profile name" value={profile.name} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,name:e.target.value}})}/><label><input type="checkbox" checked={profile.enabled} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,enabled:e.target.checked}})}/>Enabled</label><button onClick={()=>{const id=app.profileId;app.switchProfile('default');const p={...app.profiles};delete p[id];app.setProfiles(p);}}>Delete profile</button></>}
