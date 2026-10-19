@@ -1,14 +1,15 @@
 {
   "name": "mtmr-designer",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "nodemon server/server.js",
     "build": "vite build",
     "start": "node server/server.js",
     "lint": "eslint .",
-    "docs": "vite --config vite.docs.config.js"
+    "docs": "vite --config vite.docs.config.js",
+    "version:set": "python3 scripts/set-version.py"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

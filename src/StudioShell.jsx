@@ -3,6 +3,7 @@ import { useApp } from './context/AppContext';
 import { AppContent } from './App';
 import { generateJSON } from './utils/jsonGenerator';
 import './StudioShell.css';
+import appMetadata from '../package.json';
 const native = location.protocol === 'mtmr-app:';
 async function api(route, data) {
   if (!native) throw new Error('Open Touch Bar Studio.app to use Mac integration.');
@@ -68,7 +69,7 @@ export default function StudioShell() {
   });
   const updateTile=(id,patch)=>setSettings({...settings,tiles:settings.tiles.map(t=>t.id===id?{...t,...patch}:t)});
   return <div className="studio-shell" style={{'--studio-accent':settings.accent,'--studio-bg':settings.background,backgroundImage:settings.image?`linear-gradient(#101018cc,#101018ee),url(${settings.image})`:undefined}} data-motion={settings.motion}>
-    <header className="studio-header"><div><strong>Touch Bar Studio</strong><small>Your Mac, within reach.</small></div><nav>{['Launcher','Studio','Photos','Appearance'].map(t=><button key={t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><button className="runtime-toggle" aria-pressed={enabled===true} disabled={!native||enabled===null||toggling} onClick={toggleTouchBar}>{enabled===null?'Checking Touch Bar…':enabled?'Touch Bar: On':'Touch Bar: Off'}</button><button className="primary" onClick={save}>Apply & Save</button></header>
+    <header className="studio-header"><div><strong>Touch Bar Studio</strong><small>v{appMetadata.version} · Your Mac, within reach.</small></div><nav>{['Launcher','Studio','Photos','Appearance'].map(t=><button key={t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><button className="runtime-toggle" aria-pressed={enabled===true} disabled={!native||enabled===null||toggling} onClick={toggleTouchBar}>{enabled===null?'Checking Touch Bar…':enabled?'Touch Bar: On':'Touch Bar: Off'}</button><button className="primary" onClick={save}>Apply & Save</button></header>
     <div className="studio-status" role="status">{status}<span>Touch Bar: {enabled===false?'Off (macOS controls)':app.profiles[active]?.name || 'Default'}</span></div>
     {tab==='Studio'&&<>
       <div className="profile-strip"><label>Editing <select value={app.profileId} onChange={e=>app.switchProfile(e.target.value)}>{Object.entries(app.profiles).map(([id,p])=><option key={id} value={id}>{p.name}{p.enabled===false?' (disabled)':''}</option>)}</select></label>

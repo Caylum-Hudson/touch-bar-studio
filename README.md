@@ -4,6 +4,34 @@ A local macOS app for designing Touch Bar layouts, switching complete layouts by
 
 Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime. Upstream history and source notices are retained. This is an early working version.
 
+## Current release and versioning
+
+**[v0.1.0 — initial prerelease](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.1.0)**
+
+The current build is `0.1.0`. Bug fixes use `0.1.1`, feature updates use `0.2.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
+
+![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
+
+## Screenshots and usage
+
+### Layout editor and on/off control
+
+![Version 0.1.0 layout editor showing the profile picker, palette, preview, JSON and off switch](docs/screenshots/studio.png)
+
+Choose the profile under **Editing**, drag or click controls in the palette, and use **Apply & Save** to activate the layout. **Touch Bar: On/Off** takes effect immediately and remembers your choice. In this screenshot the custom bar is Off, so the editor remains available while macOS controls are in use. These are app screenshots, not photographs of the physical Touch Bar.
+
+### Nested submenus
+
+![Submenu editor showing the Default root / Apps path and Back control](docs/screenshots/submenus.png)
+
+A **Group** opens a submenu. **Open Apps** enters this example, the breadcrumb shows the current path, and **Back** returns to the parent. Add another Group inside a submenu to create another depth. The native runtime also adds Back navigation; physical touch navigation is still awaiting confirmation.
+
+### Appearance and shortcuts
+
+![Appearance panel showing theme colors, motion settings and launcher shortcut](docs/screenshots/appearance.png)
+
+Preview accent and background colors, choose a still background image, and keep motion Off or use a subtle fade. Reduced Motion follows macOS. Choose the compact launcher shortcut here, then **Apply & Save** to retain these settings.
+
 ## Features
 
 - Custom Touch Bar on/off switch in the app and menu bar; the choice survives restart.

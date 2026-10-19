@@ -14,10 +14,14 @@ cp -R dist/. "$APP/Contents/Resources/WebApp/"
 cp mtmr-src/MTMR/defaultPreset.json "$APP/Contents/Resources/"
 find mtmr-src/MTMR/Assets.xcassets -type f \( -name '*.png' -o -name '*.pdf' \) -exec cp {} "$APP/Contents/Resources/" \;
 python3 - "$APP" <<'PY'
-import plistlib,sys
+import json,plistlib,sys
 from pathlib import Path
 app=Path(sys.argv[1])
-info=dict(CFBundleExecutable='TouchBarStudio',CFBundleIdentifier='nz.caylum.touchbarstudio',CFBundleName='Touch Bar Studio',CFBundleVersion='1',CFBundleShortVersionString='0.1.0',CFBundlePackageType='APPL',LSMinimumSystemVersion='13.0',NSHighResolutionCapable=True,NSAppleEventsUsageDescription='User-configured controls can send commands to other apps.',NSCalendarsUsageDescription='Optional calendar widget.',NSLocationWhenInUseUsageDescription='Optional weather widget.')
+version=json.loads(Path('package.json').read_text())['version']
+source_info=plistlib.loads(Path('mtmr-src/MTMR/Info.plist').read_bytes())
+if source_info['CFBundleShortVersionString'] != version:
+ raise SystemExit('Version mismatch. Run npm run version:set -- ' + version)
+info=dict(CFBundleExecutable='TouchBarStudio',CFBundleIdentifier='nz.caylum.touchbarstudio',CFBundleName='Touch Bar Studio',CFBundleVersion=source_info['CFBundleVersion'],CFBundleShortVersionString=version,CFBundlePackageType='APPL',LSMinimumSystemVersion='13.0',NSHighResolutionCapable=True,NSAppleEventsUsageDescription='User-configured controls can send commands to other apps.',NSCalendarsUsageDescription='Optional calendar widget.',NSLocationWhenInUseUsageDescription='Optional weather widget.')
 info['NSServices']=[{'NSMenuItem':{'default':'Open in Photo Workspace'},'NSMessage':'openPhotoWorkspace','NSPortName':'Touch Bar Studio','NSSendTypes':['NSFilenamesPboardType','public.file-url'],'NSRequiredContext':{'NSServiceCategory':'public.image'}}]
 info['CFBundleDocumentTypes']=[{'CFBundleTypeName':'Photo files','CFBundleTypeRole':'Viewer','LSHandlerRank':'Alternate','LSItemContentTypes':['public.image','public.folder']}]
 import shutil
