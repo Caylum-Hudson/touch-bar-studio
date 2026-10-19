@@ -19,7 +19,8 @@ export const generateJSON = (items) => {
 const generateItemJSON = (item) => {
   if (!item || !item.type) return null;
 
-  const result = { type: item.type };
+  const { id: _editorId, ...preserved } = item;
+  const result = { ...preserved, type: item.type };
 
   // Add common properties if they have values
   if (item.width !== undefined && item.width !== null) {
@@ -156,7 +157,9 @@ const addTypeSpecificProperties = (result, item) => {
  * Generate JSON for an action
  */
 const generateActionJSON = (action) => {
+  const { id: _editorId, ...preserved } = action;
   const result = {
+    ...preserved,
     trigger: action.trigger,
     action: action.action,
   };
@@ -276,7 +279,25 @@ const stripComments = (str) => {
  */
 const removeTrailingCommas = (str) => {
   // Remove trailing commas before ] or }
-  return str.replace(/,\s*([\]}])/g, '$1');
+  let output = '', inString = false, escaped = false;
+  for (let i=0;i<str.length;i++) {
+    const c=str[i];
+    if (inString) {
+      output+=c;
+      if(escaped) escaped=false;
+      else if(c==='\\') escaped=true;
+      else if(c==='"') inString=false;
+      continue;
+    }
+    if(c==='"') inString=true;
+    if(c===',') {
+      let next=i+1;
+      while(/\s/.test(str[next] || '') && next<str.length) next++;
+      if(str[next]===']'||str[next]==='}')continue;
+    }
+    output+=c;
+  }
+  return output;
 };
 
 /**
@@ -295,7 +316,15 @@ export const parseJSON = (jsonString) => {
       return { items: [], error: 'Invalid format: expected an array of items' };
     }
 
-    const items = parsed.map((item, index) => parseItem(item, index)).filter(Boolean);
+    const check = list => list.forEach(item => {
+      if(!item || typeof item !== 'object' || typeof item.type !== 'string' || !item.type) throw new Error('Every control needs a type. No controls were imported.');
+      if(item.type==='group') {
+        if(item.items!==undefined && !Array.isArray(item.items)) throw new Error('Group items must be an array.');
+        check(item.items || []);
+      }
+    });
+    check(parsed);
+    const items = parsed.map((item, index) => parseItem(item, index));
     return { items, error: null };
   } catch (e) {
     return { items: [], error: `JSON parse error: ${e.message}` };
@@ -312,6 +341,7 @@ const parseItem = (item, index) => {
   }
 
   const result = {
+    ...item,
     id: `item-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
     type: item.type,
   };

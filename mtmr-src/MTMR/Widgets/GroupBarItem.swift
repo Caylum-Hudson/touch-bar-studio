@@ -32,31 +32,7 @@ class GroupBarItem: NSPopoverTouchBarItem, NSTouchBarDelegate {
     deinit {}
 
     @objc override func showPopover(_: Any?) {
-        itemDefinitions = [:]
-        items = [:]
-        leftIdentifiers = []
-        centerItems = []
-        rightIdentifiers = []
-
-        loadItemDefinitions(jsonItems: jsonItems)
-        createItems()
-
-        centerItems = centerIdentifiers.compactMap({ (identifier) -> NSTouchBarItem? in
-            items[identifier]
-        })
-
-        centerScrollArea = NSTouchBarItem.Identifier("com.toxblh.mtmr.scrollArea.".appending(UUID().uuidString))
-        scrollArea = ScrollViewItem(identifier: centerScrollArea, items: centerItems)
-
-        TouchBarController.shared.touchBar.delegate = self
-        TouchBarController.shared.touchBar.defaultItemIdentifiers = []
-        TouchBarController.shared.touchBar.defaultItemIdentifiers = leftIdentifiers + [centerScrollArea] + rightIdentifiers
-
-        if AppSettings.showControlStripState {
-            presentSystemModal(TouchBarController.shared.touchBar, systemTrayItemIdentifier: .controlStripItem)
-        } else {
-            presentSystemModal(TouchBarController.shared.touchBar, placement: 1, systemTrayItemIdentifier: .controlStripItem)
-        }
+        TouchBarController.shared.enterSubmenu(jsonItems)
     }
 
     func touchBar(_: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {

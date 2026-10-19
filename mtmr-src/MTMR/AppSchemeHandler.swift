@@ -26,6 +26,62 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         let path = url.path
+        if path == "/api/touchbar" {
+            if taskMethod(urlSchemeTask) == "POST" {
+                guard let data = urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream),
+                      let json = try? JSONSerialization.jsonObject(with:data) as? [String:Any],
+                      let enabled = json["enabled"] as? Bool else {
+                    respondJSON(urlSchemeTask,dict:["success":false,"error":"Expected an enabled boolean."],statusCode:400)
+                    return
+                }
+                TouchBarController.shared.setEnabled(enabled)
+            }
+            respondJSON(urlSchemeTask,dict:["success":true,"enabled":AppSettings.touchBarEnabled])
+            return
+        }
+        if path == "/api/studio" {
+            do {
+                if taskMethod(urlSchemeTask) == "POST" {
+                    guard let data = urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream), let json = try JSONSerialization.jsonObject(with:data) as? [String:Any] else { throw URLError(.badServerResponse) }
+                    try StudioStore.shared.save(json)
+                }
+                respondJSON(urlSchemeTask,dict:["success":true,"workspace":StudioStore.shared.workspace,"activeProfile":StudioStore.shared.activeProfile,"enabled":AppSettings.touchBarEnabled])
+            } catch { respondJSON(urlSchemeTask,dict:["success":false,"error":error.localizedDescription],statusCode:400) }
+            return
+        }
+        let query = URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
+        func value(_ name: String) -> String { query.first { $0.name == name }?.value ?? "" }
+        if path == "/api/apps" {
+            var apps: [[String:Any]] = []
+            for root in ["/Applications", "/System/Applications", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications").path] {
+                for url in (try? FileManager.default.contentsOfDirectory(at:URL(fileURLWithPath:root),includingPropertiesForKeys:nil)) ?? [] where url.pathExtension == "app" {
+                    if let id = Bundle(url:url)?.bundleIdentifier { apps.append(["name":url.deletingPathExtension().lastPathComponent,"bundleId":id]) }
+                }
+            }
+            respondJSON(urlSchemeTask,dict:["success":true,"apps":apps.sorted { ($0["name"] as? String ?? "") < ($1["name"] as? String ?? "") }]); return
+        }
+        if path == "/api/choose" { respondJSON(urlSchemeTask,dict:StudioStore.shared.choose(kind:value("kind"))); return }
+        if path == "/api/pending-photos" {
+            let selected = StudioStore.shared.pendingPhotoFiles
+            StudioStore.shared.pendingPhotoFiles = []
+            if selected.isEmpty { respondJSON(urlSchemeTask,dict:["success":true]); return }
+            var isDirectory: ObjCBool = false
+            if selected.count == 1, FileManager.default.fileExists(atPath:selected[0],isDirectory:&isDirectory),isDirectory.boolValue {
+                var result = StudioStore.shared.photos(folder:selected[0]); result["folder"] = selected[0]; respondJSON(urlSchemeTask,dict:result)
+            } else {
+                var result = StudioStore.shared.photos(folder:"",selected:selected); result["folder"] = "Selected Finder photos"; respondJSON(urlSchemeTask,dict:result)
+            }
+            return
+        }
+        if path == "/api/photos" { respondJSON(urlSchemeTask,dict:StudioStore.shared.photos(folder:value("folder"))); return }
+        if path == "/api/thumbnail" {
+            if let data = StudioStore.shared.thumbnail(id:value("id")) { respond(urlSchemeTask,data:data,mimeType:"image/jpeg",statusCode:200) } else { respond(urlSchemeTask,data:Data(),mimeType:"text/plain",statusCode:404) }; return
+        }
+        if path == "/api/open" {
+            let path = value("path")
+            let ok = path.hasPrefix("/") && NSWorkspace.shared.open(URL(fileURLWithPath:path))
+            respondJSON(urlSchemeTask,dict:["success":ok]); return
+        }
 
         if path.hasPrefix("/api/") {
             handleAPIRequest(urlSchemeTask, path: path)
@@ -38,6 +94,8 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         // No-op: requests complete synchronously or on the main queue
     }
 
+    private func taskMethod(_ task: WKURLSchemeTask) -> String { task.request.httpMethod ?? "GET" }
+
     // MARK: - Static File Serving
 
     private func serveStaticFile(_ task: WKURLSchemeTask, path: String) {
@@ -46,7 +104,8 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
 
         // Remove leading slash for path construction
         let relativePath = String(filePath.dropFirst())
-        let fileURL = webRoot.appendingPathComponent(relativePath)
+        let fileURL = webRoot.appendingPathComponent(relativePath).standardizedFileURL
+        guard fileURL.path.hasPrefix(webRoot.standardizedFileURL.path + "/") else { respond(task,data:Data(),mimeType:"text/plain",statusCode:403); return }
 
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let data = try? Data(contentsOf: fileURL) else {

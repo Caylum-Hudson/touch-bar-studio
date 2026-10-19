@@ -78,6 +78,16 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
 
     fileprivate var lastPresetPath = ""
     var jsonItems: [BarItemDefinition] = []
+    var navigationStack: [[BarItemDefinition]] = []
+    func enterSubmenu(_ items: [BarItemDefinition]) {
+        guard AppSettings.touchBarEnabled else { return }
+        navigationStack.append(jsonItems)
+        let back = BarItemDefinition(type: .staticButton(title: "‹ Back"), actions: [Action(trigger:.singleTap,value:.custom(closure:{ [weak self] in self?.leaveSubmenu() }))], action:.none, legacyLongAction:.none, additionalParameters:[:])
+        createAndUpdatePreset(newJsonItems:[back] + items)
+    }
+    func leaveSubmenu() {
+        if let previous = navigationStack.popLast() { createAndUpdatePreset(newJsonItems:previous) }
+    }
     var itemDefinitions: [NSTouchBarItem.Identifier: BarItemDefinition] = [:]
     var items: [NSTouchBarItem.Identifier: NSTouchBarItem] = [:]
     var leftIdentifiers: [NSTouchBarItem.Identifier] = []
@@ -110,7 +120,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
                 actions: [
                     Action(trigger: .singleTap, value: .custom(closure: { [weak self] in
                         guard let `self` = self else { return }
-                        self.reloadPreset(path: self.lastPresetPath)
+                        self.leaveSubmenu()
                     }))
                 ],
                 legacyAction: .none,
@@ -134,6 +144,9 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         touchBar = NSTouchBar()
         jsonItems = newJsonItems
         itemDefinitions = [:]
+        leftIdentifiers = []
+        centerIdentifiers = []
+        rightIdentifiers = []
 
         loadItemDefinitions(jsonItems: jsonItems)
         
@@ -200,10 +213,33 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     @objc func activeApplicationChanged(_: Notification) {
+        if let items = StudioStore.shared.selectedItems(bundle: frontmostApplicationIdentifier) {
+            navigationStack = []
+            createAndUpdatePreset(newJsonItems:items)
+            return
+        }
         updateActiveApp()
     }
 
+    func setEnabled(_ enabled: Bool) {
+        AppSettings.touchBarEnabled = enabled
+        navigationStack = []
+        DFRSystemModalShowsCloseBoxWhenFrontMost(!enabled)
+        if enabled {
+            reloadStandardConfig()
+        } else if let bar = touchBar {
+            NSTouchBar.dismissSystemModalTouchBar(bar)
+        }
+        updateControlStripPresence()
+        (NSApp.delegate as? AppDelegate)?.createMenu()
+    }
+
     func updateActiveApp() {
+        guard AppSettings.touchBarEnabled else {
+            if let bar = touchBar { NSTouchBar.dismissSystemModalTouchBar(bar) }
+            updateControlStripPresence()
+            return
+        }
         if frontmostApplicationIdentifier != nil && blacklistAppIdentifiers.firstIndex(of: frontmostApplicationIdentifier!) != nil {
             dismissTouchBar()
         } else {
@@ -221,6 +257,10 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func reloadStandardConfig() {
+        if let items = StudioStore.shared.selectedItems(bundle:frontmostApplicationIdentifier) {
+            createAndUpdatePreset(newJsonItems:items)
+            return
+        }
         let presetPath = standardConfigPath
         if !FileManager.default.fileExists(atPath: presetPath) {
             try? FileManager.default.createDirectory(atPath: appSupportDirectory, withIntermediateDirectories: true, attributes: nil)
@@ -269,7 +309,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             
             if let frontApp = frontmostApplicationIdentifier {
                 if case let .matchAppId(regexString)? = definition.additionalParameters[.matchAppId] {
-                    let regex = try! NSRegularExpression(pattern: regexString)
+                    guard let regex = try? NSRegularExpression(pattern: regexString) else { continue }
                     let range = NSRange(location: 0, length: frontApp.count)
                     if regex.firstMatch(in: frontApp, range: range) == nil {
                         show = false
@@ -289,7 +329,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     @objc func setupControlStripPresence() {
-        DFRSystemModalShowsCloseBoxWhenFrontMost(false)
+        DFRSystemModalShowsCloseBoxWhenFrontMost(!AppSettings.touchBarEnabled)
         let item = NSCustomTouchBarItem(identifier: .controlStripItem)
         item.view = NSButton(image: #imageLiteral(resourceName: "StatusImage"), target: self, action: #selector(presentTouchBar))
         NSTouchBarItem.addSystemTrayItem(item)
@@ -297,11 +337,12 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func updateControlStripPresence() {
-        let showMtmrButtonOnControlStrip = touchBarContainsAnyItems()
+        let showMtmrButtonOnControlStrip = AppSettings.touchBarEnabled && touchBarContainsAnyItems()
         DFRElementSetControlStripPresenceForIdentifier(.controlStripItem, showMtmrButtonOnControlStrip)
     }
 
     @objc private func presentTouchBar() {
+        guard AppSettings.touchBarEnabled else { return }
         if AppSettings.showControlStripState {
             presentSystemModal(touchBar, systemTrayItemIdentifier: .controlStripItem)
         } else {
@@ -336,9 +377,9 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         case let .staticButton(title: title):
             barItem = CustomButtonTouchBarItem(identifier: identifier, title: title)
         case let .appleScriptTitledButton(source: source, refreshInterval: interval, alternativeImages: alternativeImages):
-            barItem = AppleScriptTouchBarItem(identifier: identifier, source: source, interval: interval, alternativeImages: alternativeImages)
+            barItem = CustomButtonTouchBarItem(identifier:identifier,title:"Script disabled")
         case let .shellScriptTitledButton(source: source, refreshInterval: interval):
-            barItem = ShellScriptTouchBarItem(identifier: identifier, source: source, interval: interval)
+            barItem = CustomButtonTouchBarItem(identifier:identifier,title:"Script disabled")
         case let .timeButton(formatTemplate: template, timeZone: timeZone, locale: locale):
             barItem = TimeTouchBarItem(identifier: identifier, formatTemplate: template, timeZone: timeZone, locale: locale)
         case .battery:
@@ -390,7 +431,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         case .darkMode:
             barItem = DarkModeBarItem(identifier: identifier)
         case let .swipe(direction: direction, fingers: fingers, minOffset: minOffset, sourceApple: sourceApple, sourceBash: sourceBash):
-            barItem = SwipeItem(identifier: identifier, direction: direction, fingers: fingers, minOffset: minOffset, sourceApple: sourceApple, sourceBash: sourceBash)
+            barItem = CustomButtonTouchBarItem(identifier:identifier,title:"Script disabled")
         case let .upnext(from: from, to: to, maxToShow: maxToShow, autoResize: autoResize):
             barItem = UpNextScrubberTouchBarItem(identifier: identifier, interval: 60, from: from, to: to, maxToShow: maxToShow, autoResize: autoResize)
         }
@@ -435,27 +476,10 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             return { HIDPostAuxKey(keycode) }
         case let .keyPress(keycode: keycode):
             return { GenericKeyPress(keyCode: CGKeyCode(keycode)).send() }
-        case let .appleScript(source: source):
-            guard let appleScript = source.appleScript else {
-                print("cannot create apple script for item \(action)")
-                return {}
-            }
-            return {
-                DispatchQueue.appleScriptQueue.async {
-                    var error: NSDictionary?
-                    appleScript.executeAndReturnError(&error)
-                    if let error = error {
-                        print("error \(error) when handling \(action) ")
-                    }
-                }
-            }
-        case let .shellScript(executable: executable, parameters: parameters):
-            return {
-                let task = Process()
-                task.launchPath = executable
-                task.arguments = parameters
-                task.launch()
-            }
+        case .appleScript:
+            return nil
+        case .shellScript:
+            return nil
         case let .openUrl(url: url):
             return {
                 if let url = URL(string: url), NSWorkspace.shared.open(url) {
@@ -479,27 +503,10 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             return { HIDPostAuxKey(keycode) }
         case let .keyPress(keycode: keycode):
             return { GenericKeyPress(keyCode: CGKeyCode(keycode)).send() }
-        case let .appleScript(source: source):
-            guard let appleScript = source.appleScript else {
-                print("cannot create apple script for item \(item)")
-                return {}
-            }
-            return {
-                DispatchQueue.appleScriptQueue.async {
-                    var error: NSDictionary?
-                    appleScript.executeAndReturnError(&error)
-                    if let error = error {
-                        print("error \(error) when handling \(item) ")
-                    }
-                }
-            }
-        case let .shellScript(executable: executable, parameters: parameters):
-            return {
-                let task = Process()
-                task.launchPath = executable
-                task.arguments = parameters
-                task.launch()
-            }
+        case .appleScript:
+            return nil
+        case .shellScript:
+            return nil
         case let .openUrl(url: url):
             return {
                 if let url = URL(string: url), NSWorkspace.shared.open(url) {
@@ -523,25 +530,10 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             return { HIDPostAuxKey(keycode) }
         case let .keyPress(keycode: keycode):
             return { GenericKeyPress(keyCode: CGKeyCode(keycode)).send() }
-        case let .appleScript(source: source):
-            guard let appleScript = source.appleScript else {
-                print("cannot create apple script for item \(item)")
-                return {}
-            }
-            return {
-                var error: NSDictionary?
-                appleScript.executeAndReturnError(&error)
-                if let error = error {
-                    print("error \(error) when handling \(item) ")
-                }
-            }
-        case let .shellScript(executable: executable, parameters: parameters):
-            return {
-                let task = Process()
-                task.launchPath = executable
-                task.arguments = parameters
-                task.launch()
-            }
+        case .appleScript:
+            return nil
+        case .shellScript:
+            return nil
         case let .openUrl(url: url):
             return {
                 if let url = URL(string: url), NSWorkspace.shared.open(url) {

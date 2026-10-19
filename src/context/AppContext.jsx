@@ -1,11 +1,24 @@
-import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useReducer, useCallback, useEffect, useState } from 'react';
 import { createElement, getElementDefinition } from '../data/elementDefinitions';
 import { generateJSON, parseJSON } from '../utils/jsonGenerator';
 import { loadFromMTMR as loadFromMTMRFile, saveToMTMR as saveToMTMRFile, isServerRunning } from '../utils/mtmrFileSystem';
 
+const findItem = (items, id) => {
+  for (const item of items) {
+    if (item.id === id) return item;
+    const nested = item.items && findItem(item.items, id);
+    if (nested) return nested;
+  }
+  return null;
+};
+const mapTree = (items, fn) => items.map(item => fn(item.items ? {...item, items: mapTree(item.items, fn)} : item)).filter(Boolean);
+const seed = [createElement('escape'), createElement('timeButton'), createElement('group', {title: 'Apps', items: [createElement('staticButton', {title: 'Safari', actions: [{trigger:'singleTap', action:'openUrl', url:'https://www.apple.com'}]})]}), createElement('volumeDown'), createElement('volumeUp')];
 // Initial state
 const initialState = {
-  items: [],
+  items: seed,
+  profiles: {default: {id: "default", name: "Default", enabled: true, items: seed}},
+  profileId: "default",
   selectedItemId: null,
   activePreset: null, // Track which preset is currently loaded
   myPresets: [], // User's saved presets
@@ -50,6 +63,33 @@ const ActionTypes = {
 
 // Reducer
 function appReducer(state, action) {
+  if (action.type === 'PROFILE_SWITCH') {
+    const profiles = {...state.profiles, [state.profileId]: {...state.profiles[state.profileId], items: state.items}};
+    return {...state, profiles, profileId: action.payload, items: profiles[action.payload].items, selectedItemId:null, history:{past:[],future:[]}};
+  }
+  if (action.type === 'PROFILE_SET') return {...state, profiles:action.payload};
+  if (action.type === 'WORKSPACE_LOAD') {
+    const profiles = Object.fromEntries(Object.entries(action.payload.profiles).map(([id,p])=>[id,{...p,items:parseJSON(JSON.stringify(p.items)).items}]));
+    return {...state, profiles, profileId:'default', items: profiles.default.items, selectedItemId:null, history:{past:[],future:[]}};
+  }
+  if (['ADD_ITEM', 'REMOVE_ITEM', 'UPDATE_ITEM', 'ADD_ITEM_TO_GROUP', 'REMOVE_ITEM_FROM_GROUP', 'REORDER_GROUP_ITEMS', 'UPDATE_GROUP_ITEM'].includes(action.type)) {
+    let items = state.items;
+    const p = action.payload;
+    if (action.type === 'ADD_ITEM') items = p.parentId ? mapTree(items, i => i.id === p.parentId ? {...i, items:[...(i.items || []),p.item]} : i) : [...items,p.item];
+    if (action.type === 'REMOVE_ITEM') items = mapTree(items, i => i.id === p ? null : i);
+    if (action.type === 'UPDATE_ITEM') items = mapTree(items, i => i.id === p.id ? {...i,...p.updates} : i);
+    if (action.type === 'ADD_ITEM_TO_GROUP') items = mapTree(items, i => i.id === p.groupId ? {...i,items:[...(i.items || []),p.item]} : i);
+    if (action.type === 'REORDER_GROUP_ITEMS') items = mapTree(items, i => i.id === p.groupId ? {...i,items:p.items} : i);
+    if (action.type === 'MOVE_ITEM') return state;
+    return {...state, items, isDirty:true, selectedItemId:action.type === 'ADD_ITEM' ? p.item.id : state.selectedItemId, history:{past:[...state.history.past,state.items],future:[]}};
+  }
+  if (action.type === 'MOVE_ITEM') {
+    const item = findItem(state.items, action.payload.id);
+    if (!item || item.id === action.payload.target || findItem(item.items || [], action.payload.target)) return state;
+    let items = mapTree(state.items, i => i.id === item.id ? null : i);
+    items = action.payload.target ? mapTree(items, i => i.id === action.payload.target ? {...i,items:[...(i.items || []),item]} : i) : [...items,item];
+    return {...state,items,isDirty:true,history:{past:[...state.history.past,state.items],future:[]}};
+  }
   switch (action.type) {
     case ActionTypes.ADD_ITEM: {
       const newItems = [...state.items, action.payload];
@@ -138,6 +178,7 @@ function appReducer(state, action) {
       return {
         ...state,
         items: previous,
+        isDirty: true,
         history: {
           past: newPast,
           future: [...future, state.items],
@@ -153,6 +194,7 @@ function appReducer(state, action) {
       return {
         ...state,
         items: next,
+        isDirty: true,
         history: {
           past: [...past, state.items],
           future: newFuture,
@@ -349,11 +391,26 @@ const AppContext = createContext(null);
 
 // Provider component
 export function AppProvider({ children }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, dispatch] = useReducer(appReducer, initialState, base => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('touchbar-studio-profiles'));
+      if (saved?.default?.items) return {...base, profiles:saved, items:saved.default.items, autoLoad:false};
+    } catch { /* Start from defaults if storage is damaged. */ }
+    return {...base, autoLoad:false};
+  });
+  const [groupPath, setGroupPath] = useState([]);
+  const parentId = groupPath.at(-1);
+  const currentItems = parentId ? (findItem(state.items,parentId)?.items || []) : state.items;
+  const profiles = {...state.profiles, [state.profileId]: {...state.profiles[state.profileId], items:state.items}};
+  useEffect(() => {
+    const saved = {...state.profiles,[state.profileId]:{...state.profiles[state.profileId],items:state.items}};
+    localStorage.setItem('touchbar-studio-profiles',JSON.stringify(saved));
+  }, [state.items, state.profiles, state.profileId]);
 
   // Load items on mount: from MTMR (if autoLoad) or localStorage
   useEffect(() => {
     const loadInitialItems = async () => {
+      if (state.profiles.default.items !== seed) { loadMyPresets(); return; }
       if (state.autoLoad) {
         // Try loading from MTMR items.json
         try {
@@ -416,13 +473,13 @@ export function AppProvider({ children }) {
   }, [state.items, state.settings.autoSave]);
 
   // Actions
-  const addItem = useCallback((type, overrides = {}) => {
+  const addItem = useCallback((type, overrides = {}, targetParent = parentId) => {
     const item = createElement(type, overrides);
     if (item) {
-      dispatch({ type: ActionTypes.ADD_ITEM, payload: item });
+      dispatch({ type: ActionTypes.ADD_ITEM, payload: {item, parentId:targetParent} });
     }
     return item;
-  }, []);
+  }, [parentId]);
 
   const removeItem = useCallback((id) => {
     dispatch({ type: ActionTypes.REMOVE_ITEM, payload: id });
@@ -433,8 +490,8 @@ export function AppProvider({ children }) {
   }, []);
 
   const reorderItems = useCallback((items) => {
-    dispatch({ type: ActionTypes.REORDER_ITEMS, payload: items });
-  }, []);
+    dispatch(parentId ? {type: ActionTypes.REORDER_GROUP_ITEMS, payload:{groupId:parentId,items}} : { type: ActionTypes.REORDER_ITEMS, payload: items });
+  }, [parentId]);
 
   const selectItem = useCallback((id) => {
     dispatch({ type: ActionTypes.SELECT_ITEM, payload: id });
@@ -461,17 +518,7 @@ export function AppProvider({ children }) {
 
   const getSelectedItem = useCallback(() => {
     if (!state.selectedItemId) return null;
-    // Check main items
-    let item = state.items.find((i) => i.id === state.selectedItemId);
-    if (item) return item;
-    // Check group items
-    for (const groupItem of state.items) {
-      if (groupItem.type === 'group' && groupItem.items) {
-        item = groupItem.items.find((i) => i.id === state.selectedItemId);
-        if (item) return item;
-      }
-    }
-    return null;
+    return findItem(state.items, state.selectedItemId);
   }, [state.items, state.selectedItemId]);
 
   const importJSON = useCallback((jsonString) => {
@@ -505,7 +552,7 @@ export function AppProvider({ children }) {
     const key = `my-preset-${Date.now()}`;
     const items = state.items.map((item) => {
       // Strip IDs to create clean preset data
-      const { id, ...rest } = item;
+      const { id: _id, ...rest } = item;
       return rest;
     });
     dispatch({ type: ActionTypes.SAVE_MY_PRESET, payload: { key, name, items } });
@@ -516,7 +563,7 @@ export function AppProvider({ children }) {
     const existing = state.myPresets.find((p) => p.key === key);
     if (!existing) return;
     const items = state.items.map((item) => {
-      const { id, ...rest } = item;
+      const { id: _id, ...rest } = item;
       return rest;
     });
     dispatch({ type: ActionTypes.SAVE_MY_PRESET, payload: { key, name: existing.name, items } });
@@ -626,7 +673,18 @@ export function AppProvider({ children }) {
 
   const value = {
     // State
-    items: state.items,
+    items: currentItems,
+    rootItems: state.items,
+    profiles,
+    profileId: state.profileId,
+    switchProfile: id => {setGroupPath([]); dispatch({type:'PROFILE_SWITCH',payload:id});},
+    setProfiles: profiles => dispatch({type:'PROFILE_SET',payload:profiles}),
+    restoreWorkspace: data => {setGroupPath([]); dispatch({type:'WORKSPACE_LOAD',payload:data});},
+    groupPath,
+    enterGroup: id => setGroupPath([...groupPath,id]),
+    leaveGroup: () => setGroupPath(groupPath.slice(0,-1)),
+    groupNames: groupPath.map(id => findItem(state.items,id)?.title || 'Submenu'),
+    moveItem: (id,target) => dispatch({type:'MOVE_ITEM',payload:{id,target}}),
     selectedItemId: state.selectedItemId,
     canUndo,
     canRedo,

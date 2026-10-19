@@ -25,3 +25,23 @@ dist-ssr
 
 # Added by pubsafe
 CLAUDE.md
+
+local-build/objects/
+local-build/module-cache/
+local-build/*.generated.mjs
+
+local-build/AppIcon.iconset/
+
+# Local-only configuration, credentials and build outputs
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+*.xcuserstate
+**/xcuserdata/
+*.app/
+*.dmg
+*.zip

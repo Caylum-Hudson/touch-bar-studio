@@ -1,205 +1,51 @@
-<p align="center">
-  <img src="docs/assets/logo.svg" alt="MTMR Designer" width="80" />
-</p>
+# Touch Bar Studio
 
-<h1 align="center">MTMR Designer</h1>
+A local macOS app for designing Touch Bar layouts, switching complete layouts by app, launching apps and folders, and browsing photos.
 
-<p align="center">
-  <strong>A visual drag-and-drop designer for macOS Touch Bar presets</strong>
-</p>
-
-<p align="center">
-  Build, preview, and export custom <a href="https://github.com/Toxblh/MTMR">MTMR</a> Touch Bar configurations — no JSON by hand.
-</p>
-
-<p align="center">
-  <a href="https://github.com/josmanvis/mtmr-designer/releases/latest">Download</a> &middot;
-  <a href="#installation">Installation</a> &middot;
-  <a href="#features">Features</a> &middot;
-  <a href="#architecture">Architecture</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/react-19-61dafb?style=flat-square&logo=react" alt="React 19" />
-  <img src="https://img.shields.io/badge/vite-7-646cff?style=flat-square&logo=vite" alt="Vite 7" />
-  <img src="https://img.shields.io/badge/node-%E2%89%A518-339933?style=flat-square&logo=nodedotjs" alt="Node >= 18" />
-  <img src="https://img.shields.io/badge/platform-macOS-000?style=flat-square&logo=apple" alt="macOS" />
-  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT License" />
-</p>
-
----
-
-<p align="center">
-  <img src="docs/assets/preview.png" alt="MTMR Designer Preview" width="100%" />
-</p>
+Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime. Upstream history and source notices are retained. This is an early working version.
 
 ## Features
 
-**Visual Editor** — See your Touch Bar layout in real-time. Drag elements from the palette, reorder with drag-and-drop, right-click for context menus.
+- Custom Touch Bar on/off switch in the app and menu bar; the choice survives restart.
+- Default and app-specific replacement profiles, matched by bundle identifier.
+- Recursive submenus with a Back stack, plus the original visual palette, properties, presets, JSON import/export, and undo/redo.
+- Configurable app/folder launcher tiles and a compact launcher.
+- App themes, still-image backgrounds, and optional reduced-motion-aware fades.
+- Folder photo grid, filename/type/dimension/orientation/date filters, and a basic metadata inspector. Originals stay unchanged.
+- Finder Open With support and a macOS Service declaration.
 
-**39 Element Types** — Buttons, media keys, native plugins (weather, CPU, battery, music, network, etc.), sliders, groups, and custom script buttons across 6 categories.
+## Build from source
 
-**Rich Property Editor** — Configure titles, images, colors, widths, alignment, actions, and type-specific settings for every element.
+Requires macOS, Apple's Command Line Tools, Node.js 22 or newer, npm, and Python 3. Full Xcode is not required by the local build script.
 
-**Action System** — Assign tap actions (single, double, triple, long press) with HID keycodes, AppleScript, shell scripts, or URL triggers.
-
-**JSON Editor** — Live syntax-highlighted JSON preview with inline editing, validation, import/export, and click-to-select sync.
-
-**Preset System** — 5 built-in presets, 26 community presets, plus save and manage your own custom presets with overwrite support.
-
-**MTMR Integration** — Load and save directly to your MTMR config file at `~/Library/Application Support/MTMR/items.json`.
-
-**Undo & Redo** — Full history support with keyboard shortcuts. Your work auto-saves to localStorage.
-
-## Installation
-
-### Download (Recommended)
-
-Download the latest DMG from [GitHub Releases](https://github.com/josmanvis/mtmr-designer/releases/latest).
-
-1. Download `MTMR-2026-<version>.dmg` from the latest release
-2. Open the DMG and drag **MTMR 2026** to your Applications folder
-3. Launch MTMR 2026 from Applications or Spotlight
-
-The app is self-contained — no server, no dependencies, no setup required. A new release is published automatically with every update merged into `main`.
-
-> **Note:** The app is currently unsigned. On first launch, right-click the app and select "Open", then click "Open" in the dialog to bypass Gatekeeper.
-
-### Build from Source
-
-#### Web App (Browser)
-
-```bash
-git clone https://github.com/josmanvis/mtmr-designer.git
-cd mtmr-designer
-
-# Install dependencies
-pnpm install
-cd server && npm install && cd ..
-
-# Start the development server
-pnpm run dev
+```sh
+git clone https://github.com/Caylum-Hudson/touch-bar-studio.git
+cd touch-bar-studio
+npm ci --ignore-scripts
+./build-local.sh
 ```
 
-Open **http://localhost:3001** in your browser.
+The app is written to `../Touch Bar Studio.app`. Close a running copy before rebuilding, then open the resulting app. It is locally ad-hoc signed; it is not notarized. No prebuilt upstream DMG or Sparkle updater is used.
 
-#### Native App (Xcode)
+Use **Apply & Save** to activate layout changes. The separate **Touch Bar: On/Off** button takes effect immediately. Off returns control to macOS while keeping the launcher and editor available.
 
-To build the native macOS app yourself:
+See [first-run instructions](FIRST-RUN.md) for profiles, menus, permissions, saved configuration, reset and launcher shortcuts. See [verification notes](VERIFICATION.md) for checks and remaining limitations.
 
-```bash
-# Build the web app for bundling
-./build-webapp.sh
+## Checks
 
-# Open in Xcode and build
-open mtmr-src/MTMR.xcodeproj
+```sh
+node local-build/check-state.mjs
+"../Touch Bar Studio.app/Contents/MacOS/TouchBarStudio" --self-test
 ```
 
-Select the **MTMR** scheme and press **Cmd+R** to build and run.
+The build script runs both checks. A manual GitHub Actions build is available; it does not publish releases.
 
-The app works in two modes:
-- **Bundled mode**: Uses built files from `mtmr-src/MTMR/WebApp/` (no server needed)
-- **Development mode**: Falls back to `localhost:3001` if no bundled files exist
+## Current limitations
 
-## Architecture
+Physical Touch Bar pixels, touch navigation, app-switch presentation and global shortcut delivery still need hands-on confirmation. The runtime uses upstream private Touch Bar APIs that Apple may change. Custom shell, AppleScript and swipe scripts are disabled; unknown imported fields remain available for export. A dedicated Finder Quick Action extension, resize-copy tool, recursive photo browsing and full EXIF inspection are not included.
 
-```
-mtmr-designer/
-├── src/                          # React frontend
-│   ├── components/
-│   │   ├── TouchBar/             # Visual Touch Bar canvas
-│   │   ├── Palette/              # Element type catalog (left sidebar)
-│   │   ├── Properties/           # Property editors (right sidebar)
-│   │   └── JsonOutput/           # JSON preview/editor panel
-│   ├── context/AppContext.jsx    # Global state (useReducer + localStorage)
-│   ├── data/
-│   │   ├── elementDefinitions.js # 39 element types, categories, defaults
-│   │   └── presets.js            # Built-in + community preset configs
-│   └── utils/
-│       ├── jsonGenerator.js      # JSON serialization / parsing
-│       └── mtmrFileSystem.js     # Server API wrappers
-├── server/server.js              # Express + Vite backend
-├── mtmr-src/                     # MTMR 2026 Swift app (Xcode)
-└── public/presets/                # 26 community preset JSON files
-```
+The command-line build script is the supported build path for this version. The inherited Xcode project and older upstream instructions have not been updated for all new source files.
 
-### Frontend
+## Attribution and licensing
 
-**React 19 + Vite.** Three-panel layout: element palette (left), Touch Bar canvas + JSON editor (center), property editor (right, shown on selection). State managed with `useReducer` in a single context, auto-persisted to `localStorage`. Drag-and-drop powered by `@dnd-kit`.
-
-### Backend
-
-**Express** integrated with Vite via `vite-express`. Exposes API routes for filesystem operations:
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/load-mtmr` | GET | Read MTMR config from disk |
-| `/api/save-mtmr` | POST | Write MTMR config to disk |
-| `/api/config-path` | GET | Get config file path |
-| `/api/health` | GET | Server health check |
-
-Uses `comment-json` to parse MTMR configs that contain JavaScript-style comments.
-
-### MTMR 2026 (Optional)
-
-Bundled fork of the MTMR Swift macOS app. Build with Xcode from `mtmr-src/MTMR.xcodeproj`. Bundle ID: `com.mtmr-designer.mtmr2026`.
-
-## Supported Elements
-
-| Category | Elements |
-|---|---|
-| **Buttons** | `escape` `exitTouchbar` `brightnessUp` `brightnessDown` `illuminationUp` `illuminationDown` `volumeUp` `volumeDown` `mute` |
-| **Native Plugins** | `timeButton` `battery` `cpu` `currency` `weather` `yandexWeather` `inputsource` `music` `dock` `nightShift` `dnd` `darkMode` `pomodoro` `network` `upnext` |
-| **Media Keys** | `previous` `play` `next` |
-| **Custom** | `staticButton` `appleScriptTitledButton` `shellScriptTitledButton` |
-| **Sliders** | `brightness` `volume` |
-| **Special** | `group` `close` `swipe` |
-
-## Preset System
-
-| Type | Source | Save | Edit |
-|---|---|---|---|
-| **Built-in** | 5 curated presets | Fork to My Presets | Fork to My Presets |
-| **Community** | 26 presets from contributors | Fork to My Presets | Fork to My Presets |
-| **My Presets** | Your saved configurations | Overwrite in place | Direct |
-
-- **File > Save** overwrites the active personal preset, or opens "Save as" for others
-- **File > Save as Preset...** always creates a new entry in My Presets
-
-## Adding a New Element Type
-
-1. Add an entry to `elementTypes` in `src/data/elementDefinitions.js`
-2. The Palette picks it up automatically
-3. For custom property editors, add handling in `PropertiesPanel.jsx`
-4. For special JSON output, update `jsonGenerator.js`
-
-## Commands
-
-```bash
-pnpm run dev      # Development server (Express + Vite hot reload)
-pnpm run build    # Production build
-pnpm start        # Production server
-pnpm run lint     # ESLint
-```
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| UI | React 19 |
-| Build | Vite 7 |
-| Drag & Drop | @dnd-kit |
-| State | useReducer + Context |
-| Syntax Highlighting | react-syntax-highlighter |
-| Server | Express + vite-express |
-| JSON | comment-json |
-| Native App | Swift / Xcode (optional) |
-
-## Credits
-
-- [MTMR](https://github.com/Toxblh/MTMR) by [Anton Palgunov](https://github.com/Toxblh)
-- Community preset contributors from the [MTMR-presets](https://github.com/Toxblh/MTMR-presets) repository
-
-## License
-
-MIT
+The original MTMR Designer documentation is preserved in [docs/UPSTREAM-README.md](docs/UPSTREAM-README.md). The bundled MTMR license is in [mtmr-src/LICENSE](mtmr-src/LICENSE). Preserve all file-level notices as well: some inherited bridge code has other license terms, including GPL and LaunchAtLogin notices. This repository is not a separately reviewed binary redistribution package.

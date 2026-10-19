@@ -11,6 +11,8 @@ import WebKit
 
 class DesignerWindowController: NSObject, NSWindowDelegate {
     static let shared = DesignerWindowController()
+    static let launcher: DesignerWindowController = { let controller = DesignerWindowController(); controller.compact = true; return controller }()
+    var compact = false
 
     private var window: NSWindow?
     private var webView: WKWebView?
@@ -41,6 +43,9 @@ class DesignerWindowController: NSObject, NSWindowDelegate {
 
         // Create WKWebView with preferences
         let config = WKWebViewConfiguration()
+        if compact {
+            config.userContentController.addUserScript(WKUserScript(source:"document.documentElement.classList.add('compact-launcher');",injectionTime:.atDocumentEnd,forMainFrameOnly:true))
+        }
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
         // Register custom scheme handler for bundled mode
@@ -58,17 +63,17 @@ class DesignerWindowController: NSObject, NSWindowDelegate {
 
         // Create window
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
+            contentRect: NSRect(x: 0, y: 0, width: compact ? 700 : 1280, height: compact ? 480 : 820),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
-        window.title = "MTMR Designer"
-        window.minSize = NSSize(width: 900, height: 600)
+        window.title = compact ? "Launcher" : "Touch Bar Studio"
+        window.minSize = NSSize(width: compact ? 500 : 900, height: compact ? 300 : 600)
         window.delegate = self
         window.contentView = webView
         window.center()
-        window.setFrameAutosaveName("MTMRDesignerWindow")
+        window.setFrameAutosaveName(compact ? "StudioLauncher" : "MTMRDesignerWindow")
 
         // Dark title bar to match the designer UI
         window.titlebarAppearsTransparent = true

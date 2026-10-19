@@ -7,12 +7,13 @@
 //
 
 import Cocoa
-import Sparkle
 
-@NSApplicationMain
+
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     var isBlockedApp: Bool = false
+    private var mainTouchBarToggle: NSMenuItem?
 
     private var fileSystemSource: DispatchSourceFileSystemObject?
 
@@ -27,7 +28,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             NSLog("MTMR 2026: ERROR — Status Item Button is nil!")
         }
+        let mainMenu = NSMenu()
+        let appMenu = NSMenu(title:"Touch Bar Studio")
+        appMenu.addItem(withTitle:"Open Studio",action:#selector(openDesigner(_:)),keyEquivalent:"0").target = self
+        let touchBarToggle = NSMenuItem(title:"",action:#selector(toggleCustomTouchBar(_:)),keyEquivalent:"")
+        touchBarToggle.target = self
+        appMenu.addItem(touchBarToggle)
+        mainTouchBarToggle = touchBarToggle
+        let services = NSMenuItem(title:"Services",action:nil,keyEquivalent:"")
+        services.submenu = NSMenu(title:"Services")
+        appMenu.addItem(services)
+        NSApp.servicesMenu = services.submenu
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle:"Quit Touch Bar Studio",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
+        let appEntry = NSMenuItem(title:"Touch Bar Studio",action:nil,keyEquivalent:"")
+        appEntry.submenu = appMenu
+        mainMenu.addItem(appEntry)
+        let editMenu = NSMenu(title:"Edit")
+        for (title, selector, key) in [("Undo","undo:","z"),("Redo","redo:","Z"),("Cut","cut:","x"),("Copy","copy:","c"),("Paste","paste:","v"),("Select All","selectAll:","a")] {
+            editMenu.addItem(withTitle:title,action:Selector(selector),keyEquivalent:key)
+        }
+        let editEntry = NSMenuItem(title:"Edit",action:nil,keyEquivalent:"")
+        editEntry.submenu = editMenu
+        mainMenu.addItem(editEntry)
+        NSApp.mainMenu = mainMenu
+        NSApp.servicesProvider = self
+        NSUpdateDynamicServices()
         createMenu()
+        StudioLauncher.shared.configure()
         NSLog("MTMR 2026: Menu Created.")
 
         // 2. Accessibility check
@@ -35,15 +63,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString: true] as NSDictionary
         let accessibilityEnabled = AXIsProcessTrustedWithOptions(options)
         NSLog("MTMR 2026: Accessibility Enabled: %@", accessibilityEnabled ? "true" : "false")
-
-        // 3. Sparkle (deferred — old framework may crash on macOS 26)
-        DispatchQueue.main.async {
-            NSLog("MTMR 2026: Configuring Sparkle...")
-            SUUpdater.shared().automaticallyDownloadsUpdates = false
-            SUUpdater.shared().automaticallyChecksForUpdates = true
-            SUUpdater.shared().checkForUpdatesInBackground()
-            NSLog("MTMR 2026: Sparkle configured.")
-        }
 
         // 4. Touch Bar setup (deferred — uses private APIs that may fail)
         DispatchQueue.main.async {
@@ -53,7 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // 5. File watching and notifications
-        reloadOnDefaultConfigChanged()
+        // Studio saves trigger explicit runtime reloads; legacy presets stay untouched.
         NSLog("MTMR 2026: Default Config Watcher Started.")
 
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(updateIsBlockedApp), name: NSWorkspace.didLaunchApplicationNotification, object: nil)
@@ -69,6 +88,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_: Notification) {}
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        DesignerWindowController.shared.showWindow()
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        StudioStore.shared.pendingPhotoFiles = filenames
+        DesignerWindowController.shared.showWindow()
+        sender.reply(toOpenOrPrint:.success)
+    }
+
+    @objc func openPhotoWorkspace(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        let paths = (pasteboard.readObjects(forClasses:[NSURL.self], options:nil) as? [URL])?.map { $0.path } ?? pasteboard.propertyList(forType:NSPasteboard.PasteboardType("NSFilenamesPboardType")) as? [String] ?? []
+        StudioStore.shared.pendingPhotoFiles = paths
+        DesignerWindowController.shared.showWindow()
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
@@ -104,6 +140,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         image.isTemplate = true
         return image
     }
+
+    @objc func openLauncher(_: Any?) { StudioLauncher.shared.open() }
 
     @objc func openDesigner(_: Any?) {
         DesignerWindowController.shared.showWindow()
@@ -232,8 +270,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         createMenu()
     }
 
+    @objc func toggleCustomTouchBar(_: Any?) {
+        TouchBarController.shared.setEnabled(!AppSettings.touchBarEnabled)
+    }
+
     func createMenu() {
         let menu = NSMenu()
+        let toggleTitle = AppSettings.touchBarEnabled ? "Turn Custom Touch Bar Off" : "Turn Custom Touch Bar On"
+        mainTouchBarToggle?.title = toggleTitle
+        let touchBarToggle = NSMenuItem(title:toggleTitle,action:#selector(toggleCustomTouchBar(_:)),keyEquivalent:"")
+        touchBarToggle.target = self
+        menu.addItem(touchBarToggle)
+        menu.addItem(.separator())
 
         let startAtLogin = NSMenuItem(title: "Start at login", action: #selector(toggleStartAtLogin(_:)), keyEquivalent: "L")
         startAtLogin.state = LaunchAtLoginController().launchAtLogin ? .on : .off
@@ -253,11 +301,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let settingSeparator = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
         settingSeparator.isEnabled = false
 
+        menu.addItem(withTitle: "Launcher", action: #selector(openLauncher(_:)), keyEquivalent: " ")
         menu.addItem(withTitle: "Open Designer", action: #selector(openDesigner(_:)), keyEquivalent: "D")
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Preferences", action: #selector(openPreferences(_:)), keyEquivalent: ",")
         menu.addItem(withTitle: "Open preset", action: #selector(openPreset(_:)), keyEquivalent: "O")
-        menu.addItem(withTitle: "Check for Updates...", action: #selector(SUUpdater.checkForUpdates(_:)), keyEquivalent: "").target = SUUpdater.shared()
 
         menu.addItem(NSMenuItem.separator())
         menu.addItem(settingSeparator)

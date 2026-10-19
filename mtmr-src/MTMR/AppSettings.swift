@@ -1,6 +1,9 @@
 import Foundation
 
 struct AppSettings {
+    @UserDefault(key: "nz.caylum.touchbarstudio.touchBarEnabled", defaultValue: true)
+    static var touchBarEnabled: Bool
+
     @UserDefault(key: "com.toxblh.mtmr.settings.showControlStrip", defaultValue: false)
     static var showControlStripState: Bool
     

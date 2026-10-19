@@ -23,9 +23,9 @@ import { getElementDefinition, createElement } from './data/elementDefinitions';
 import { getPreset, getPresetList, communityPresets, fetchCommunityPreset } from './data/presets';
 import './App.css';
 
-function AppContent() {
+export function AppContent() {
   const {
-    addItem, selectItem, items, reorderItems, selectedItemId, removeItem, loadItems, clearAll,
+    addItem, selectItem, items, reorderItems, moveItem, selectedItemId, removeItem, loadItems, clearAll,
     activePreset, setActivePreset, myPresets, saveMyPreset, overwriteMyPreset, deleteMyPreset,
     loadFromMTMR, saveToMTMR, isDirty, shouldEnableSave, autoLoad, toggleAutoLoad
   } = useApp();
@@ -201,6 +201,7 @@ function AppContent() {
   };
 
   const handleUpdateMTMR = async () => {
+    if (location.protocol === 'mtmr-app:') {closeMenus();window.dispatchEvent(new Event('studio-save'));return;}
     closeMenus();
     try {
       const result = await saveToMTMR();
@@ -243,12 +244,15 @@ function AppContent() {
     if (active.data.current?.type === 'palette-item') {
       if (over) {
         const elementType = active.data.current.elementType;
-        const newItem = addItem(elementType);
+        const target = items.find(i=>i.id===over.id && i.type==='group');
+        const newItem = addItem(elementType, {}, target?.id);
         if (newItem) {
           selectItem(newItem.id);
         }
       }
     } else if (over && active.id !== over.id) {
+      const target = items.find(i=>i.id===over.id && i.type==='group');
+      if(target){moveItem(active.id,target.id);setActiveId(null);setActiveType(null);return;}
       const oldIndex = items.findIndex((item) => item.id === active.id);
       const newIndex = items.findIndex((item) => item.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
