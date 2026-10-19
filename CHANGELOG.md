@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — 20 October 2026
+
+- Added precise Touch Bar placement: a 1085-unit ruler, free horizontal dragging, numeric X position, width control and overlap warnings.
+- Added native coordinate decoding and placement so saved positions affect the runtime, including submenu layouts with space reserved for Back.
+- Kept automatic alignment available for existing MTMR layouts. Precise fields survive import/export; older MTMR runtimes may ignore the Touch Bar Studio extension.
+- Modernised editor menus, palette tiles, preview controls, property fields and JSON surfaces with darker panels, lighter borders and accent highlights.
+- Added frontend/native tests for coordinates, widths, bounds and JSON round trips.
+
+
 ## 0.1.1 — 20 October 2026
 
 - Removed the unconditional macOS permission prompt at every launch.

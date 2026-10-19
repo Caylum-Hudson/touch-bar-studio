@@ -6,11 +6,19 @@ Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bun
 
 ## Current release and versioning
 
-**[v0.1.1 — permission-prompt fix](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.1.1)**
+**[v0.2.0 — precise placement and refreshed editor](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.2.0)**
 
-The current build is `0.1.1`, a bug-fix update to `0.1.0`. Feature updates use `0.2.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
+The current build is `0.2.0`, adding precise placement and an updated editor. Bug fixes use `0.2.1`, feature updates use `0.3.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
 
 ![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
+
+## Precise Touch Bar placement
+
+Click **Precise placement** above the preview. Drag a control along the ruler, or select it and set its **X position** and **Width** in Properties. X marks the leading edge in a 1085-unit design canvas; the runtime scales that canvas to the custom Touch Bar area macOS makes available. Submenus reserve a separate Back control before scaling their content. Positions near either edge are clamped to keep the control inside the canvas. Overlapping controls show a warning; move them apart to keep each one reachable.
+
+![Precise placement in the refreshed editor](docs/screenshots/precise-placement.png)
+
+Use **Apply & Save** to activate positions. **Use automatic alignment** removes the position overrides for the current screen. This changes only the screen you are editing, so profiles and submenus can be arranged independently. The `studioPosition` JSON field is an extension for this app; older MTMR runtimes can ignore it.
 
 ## Screenshots and usage
 

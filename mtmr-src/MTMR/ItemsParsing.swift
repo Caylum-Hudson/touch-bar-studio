@@ -653,6 +653,7 @@ enum LegacyLongActionType: Decodable {
 }
 
 enum GeneralParameter {
+    case studioPosition(_: CGFloat)
     case width(_: CGFloat)
     case image(source: SourceProtocol)
     case align(_: Align)
@@ -666,6 +667,7 @@ struct GeneralParameters: Decodable {
     let parameters: [GeneralParameters.CodingKeys: GeneralParameter]
 
     enum CodingKeys: String, CodingKey {
+        case studioPosition
         case width
         case image
         case align
@@ -678,6 +680,10 @@ struct GeneralParameters: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         var result: [GeneralParameters.CodingKeys: GeneralParameter] = [:]
+
+        if let value = try container.decodeIfPresent(CGFloat.self, forKey: .studioPosition), value.isFinite {
+            result[.studioPosition] = .studioPosition(value)
+        }
 
         if let value = try container.decodeIfPresent(CGFloat.self, forKey: .width) {
             result[.width] = .width(value)

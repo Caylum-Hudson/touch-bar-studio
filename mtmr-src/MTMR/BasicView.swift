@@ -21,14 +21,18 @@ class BasicView: NSCustomTouchBarItem, NSGestureRecognizerDelegate {
     var legacyPrevPositions: [Int: CGFloat] = [2:0, 3:0, 4:0]
     var legacyGesturesEnabled = false
 
-    init(identifier: NSTouchBarItem.Identifier, items: [NSTouchBarItem], swipeItems: [SwipeItem]) {
+    init(identifier: NSTouchBarItem.Identifier, items: [NSTouchBarItem], swipeItems: [SwipeItem], frames: [CGRect]? = nil) {
         super.init(identifier: identifier)
         self.swipeItems = swipeItems
         let views = items.compactMap { $0.view }
         let stackView = NSStackView(views: views)
         stackView.spacing = 8
         stackView.orientation = .horizontal
-        view = stackView
+        if let frames = frames {
+            view = StudioPositionedView(views:views,frames:frames)
+        } else {
+            view = stackView
+        }
 
         twofingers = NSPanGestureRecognizer(target: self, action: #selector(twofingersHandler(_:)))
         twofingers.numberOfTouchesRequired = 2

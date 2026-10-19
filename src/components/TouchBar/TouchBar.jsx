@@ -7,9 +7,12 @@ import { useDroppable } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
 import TouchBarItem from './TouchBarItem';
 import './TouchBar.css';
+import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems} from '../../utils/positionLayout';
 
 export default function TouchBar() {
-  const { items, selectItem, selectedItemId, removeItem, addItem } = useApp();
+  const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems } = useApp();
+  const precise=isPrecise(items);
+  const frames=layoutFrames(items);
   const [contextMenu, setContextMenu] = useState(null);
   const containerRef = useRef(null);
 
@@ -62,7 +65,9 @@ export default function TouchBar() {
 
   return (
     <div className="touchbar-container" ref={containerRef}>
-      <div className={`touchbar-frame ${isOver ? 'drag-over' : ''}`}>
+      <div className="layout-toolbar"><div><strong>Touch Bar layout</strong><span>{precise?'Drag freely or type an X position in Properties':'Automatic left, centre and right alignment'}</span></div><button aria-pressed={precise} onClick={()=>reorderItems(items.map(item=>{if(precise){const {studioPosition:_position,...rest}=item;return rest;}return {...item,studioPosition:frames.get(item.id).x,width:frames.get(item.id).width};}))}>{precise?'Use automatic alignment':'Precise placement'}</button></div>
+      {precise&&<><div className="position-help">1085-unit ruler · scales to the available Touch Bar width · width and X are editable in Properties</div><div className="precise-scroll"><div className="position-ruler" style={{width:BAR_WIDTH}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div><div id="precise-touchbar-canvas" className="precise-canvas" style={{width:BAR_WIDTH}} ref={setNodeRef}><SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{items.map(item=><div className="positioned-control" key={item.id} style={{left:frames.get(item.id).x,width:frames.get(item.id).width}}><TouchBarItem item={{...item,width:frames.get(item.id).width}} isSelected={selectedItemId===item.id} onSelect={()=>selectItem(item.id)} onContextMenu={e=>handleContextMenu(e,item.id)}/></div>)}</SortableContext></div></div>{overlappingItems(items)&&<p className="layout-warning" role="status">Some controls overlap. Move them apart or reduce their widths so each control stays reachable.</p>}</>}
+      {!precise&&<div className={`touchbar-frame ${isOver ? 'drag-over' : ''}`}>
         <div className="touchbar-screen" ref={setNodeRef}>
           <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
             <div className="touchbar-items">
@@ -117,6 +122,7 @@ export default function TouchBar() {
         </div>
       </div>
 
+      }
       {/* Context Menu */}
       {contextMenu && (
         <div

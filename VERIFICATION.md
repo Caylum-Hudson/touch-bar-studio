@@ -30,3 +30,5 @@ On/off update: rebuilt successfully; UI button toggles Off, app-menu command tog
 Version 0.1.0: package and lockfile metadata, native source/shipped plist and app header agree. Local release build and state/native checks passed. Screenshots show the versioned app; the versioning illustration was rendered separately for the documentation.
 
 Version 0.1.1 permission fix: production/native build and state/native tests pass, including denied/granted permission gate tests using injected checks (no input events sent). Two native launches show the quiet notice with no automatic permission dialog. The explicit settings button opens Device Control and Data Access. The existing OS entry is On while the current process remains untrusted; no grants or permission records were changed by the agent.
+
+Version 0.2.0: production/native build passed with coordinate decode, width/clamping, overlap, JSON position round-trip and existing state/permission tests. In the running v0.2.0 UI the precise ruler, X input and width control are visible, and live drag changes update the JSON positions. Physical coordinate placement and submenu Back reserve still require device confirmation.

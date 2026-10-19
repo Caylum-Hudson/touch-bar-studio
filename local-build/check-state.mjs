@@ -32,3 +32,11 @@ console.log('PASS: nested editing, cycle prevention, root moves, undo/redo, comp
 assert.equal(parseJSON('[{"type":"staticButton","title":",] and ,}"}]').items[0].title,',] and ,}');
 assert.ok(parseJSON('[{"title":"missing type"}]').error);
 console.log('PASS: trailing commas do not corrupt strings; invalid controls produce an import error.');
+
+const {layoutFrames,clampPosition,overlappingItems}=await import('../src/utils/positionLayout.js');
+const positioned=[{id:'left',type:'staticButton',align:'left',width:50,studioPosition:120},{id:'right',type:'staticButton',align:'right',width:100,studioPosition:985}];
+assert.deepEqual(layoutFrames(positioned).get('left'),{x:120,width:50});
+assert.equal(clampPosition(1080,100),985);assert.equal(clampPosition(-20,64),0);
+assert.equal(overlappingItems(positioned),false);assert.equal(overlappingItems([...positioned,{id:'overlap',width:50,studioPosition:130}]),true);
+const roundtrip=JSON.parse(generateJSON(parseJSON(JSON.stringify(positioned)).items));assert.equal(roundtrip[0].studioPosition,120);
+console.log('PASS: precise positions, boundary clamping, overlap detection and JSON position round trip.');

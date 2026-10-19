@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getElementDefinition, commonProperties, actionTypes, actionTriggers } from '../../data/elementDefinitions';
 import './Properties.css';
+import {BAR_WIDTH,itemWidth,clampPosition} from '../../utils/positionLayout';
 
 export default function PropertiesPanel() {
   const { getSelectedItem, updateItem, removeItem, selectedItemId } = useApp();
@@ -28,13 +29,18 @@ export default function PropertiesPanel() {
         <span className="properties-type">{definition.label}</span>
       </div>
       <div className="properties-content">
+        <PropertySection title="Placement">
+          <PropertyInput label="X position (0–1085)" type="number" value={item.studioPosition ?? ''} placeholder="Automatic" onChange={value=>updateItem(item.id,{studioPosition:value===''?undefined:clampPosition(value,itemWidth(item)),width:itemWidth(item)})}/>
+          <p className="placement-help">Set an exact leading edge, or use Precise placement above the preview. Drag controls along the ruler.</p>
+          {Number.isFinite(item.studioPosition)&&<input aria-label="Position on Touch Bar" type="range" min="0" max={BAR_WIDTH-itemWidth(item)} step="1" value={item.studioPosition} onChange={e=>updateItem(item.id,{studioPosition:+e.target.value})}/>}
+        </PropertySection>
         {/* Common Properties */}
         <PropertySection title="General">
           <PropertyInput
             label="Width"
             type="number"
             value={item.width || ''}
-            onChange={(value) => updateItem(item.id, { width: value ? Number(value) : undefined })}
+            onChange={(value) => updateItem(item.id, { width: value ? Math.min(1085,Math.max(24,Number(value))) : undefined, ...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,Number(value)||64)}:{}) })}
             placeholder="Auto"
           />
           <PropertySelect

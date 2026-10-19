@@ -17,6 +17,12 @@ enum StudioMain {
             precondition(store.activeProfile == "default")
             let sanitized = store.safeItems([["type":"shellScriptTitledButton","source":["inline":"touch /tmp/never"]],["type":"staticButton","action":"shellScript","actions":[["action":"shellScript"],["action":"openUrl","url":"https://example.com"]]]])
             precondition(sanitized.count == 1 && sanitized[0]["action"] == nil && (sanitized[0]["actions"] as! [[String:Any]]).count == 1)
+            let layoutData = "[{\"type\":\"staticButton\",\"title\":\"One\",\"width\":50,\"studioPosition\":120},{\"type\":\"staticButton\",\"title\":\"Two\",\"width\":100,\"studioPosition\":1080}]".data(using:.utf8)!
+            let definitions = layoutData.barItemDefinitions()!
+            precondition(StudioLayout.precise(definitions))
+            let frames = StudioLayout.frames(definitions)
+            precondition(frames[0].minX == 120 && frames[0].width == 50 && frames[1].minX == 985)
+            print("PASS: native coordinate decode, width and right-edge clamping.")
             var sent = false
             precondition(!StudioPermissions.performKeyboardAction(isTrusted:{false}) { sent = true })
             precondition(!sent)

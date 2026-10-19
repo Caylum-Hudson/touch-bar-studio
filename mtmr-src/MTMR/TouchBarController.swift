@@ -82,7 +82,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     func enterSubmenu(_ items: [BarItemDefinition]) {
         guard AppSettings.touchBarEnabled else { return }
         navigationStack.append(jsonItems)
-        let back = BarItemDefinition(type: .staticButton(title: "‹ Back"), actions: [Action(trigger:.singleTap,value:.custom(closure:{ [weak self] in self?.leaveSubmenu() }))], action:.none, legacyLongAction:.none, additionalParameters:[:])
+        let back = BarItemDefinition(type: .staticButton(title: "‹ Back"), actions: [Action(trigger:.singleTap,value:.custom(closure:{ [weak self] in self?.leaveSubmenu() }))], action:.none, legacyLongAction:.none, additionalParameters:[.align:.align(.left),.width:.width(54)])
         createAndUpdatePreset(newJsonItems:[back] + items)
     }
     func leaveSubmenu() {
@@ -209,7 +209,24 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         })
 
         basicView = BasicView(identifier: basicViewIdentifier, items:leftItems + [scrollArea] + rightItems, swipeItems: swipeItems)
+        let orderedIdentifiers = leftIdentifiers + centerIdentifiers + rightIdentifiers
+        let visibleIdentifiers = orderedIdentifiers.filter { items[$0] != nil }
+        let definitions = visibleIdentifiers.compactMap { itemDefinitions[$0] }
+        if StudioLayout.precise(definitions) {
+            basicView = BasicView(identifier:basicViewIdentifier,items:visibleIdentifiers.compactMap { items[$0] },swipeItems:swipeItems,frames:preciseFrames(definitions))
+        }
         basicView?.legacyGesturesEnabled = AppSettings.multitouchGestures
+    }
+
+    func preciseFrames(_ definitions:[BarItemDefinition]) -> [CGRect] {
+        if !navigationStack.isEmpty && !definitions.isEmpty {
+            let scale = (StudioLayout.width-62)/StudioLayout.width
+            let children = StudioLayout.frames(Array(definitions.dropFirst())).map { frame in
+                CGRect(x:62+frame.minX*scale,y:0,width:frame.width*scale,height:30)
+            }
+            return [CGRect(x:0,y:0,width:54,height:30)] + children
+        }
+        return StudioLayout.frames(definitions)
     }
 
     @objc func activeApplicationChanged(_: Notification) {

@@ -22,10 +22,11 @@ import JsonOutput from './components/JsonOutput/JsonOutput';
 import { getElementDefinition, createElement } from './data/elementDefinitions';
 import { getPreset, getPresetList, communityPresets, fetchCommunityPreset } from './data/presets';
 import './App.css';
+import {isPrecise, layoutFrames, clampPosition} from './utils/positionLayout';
 
 export function AppContent() {
   const {
-    addItem, selectItem, items, reorderItems, moveItem, selectedItemId, removeItem, loadItems, clearAll,
+    addItem, selectItem, items, reorderItems, moveItem, updateItem, selectedItemId, removeItem, loadItems, clearAll,
     activePreset, setActivePreset, myPresets, saveMyPreset, overwriteMyPreset, deleteMyPreset,
     loadFromMTMR, saveToMTMR, isDirty, shouldEnableSave, autoLoad, toggleAutoLoad
   } = useApp();
@@ -241,11 +242,22 @@ export function AppContent() {
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
+    const positioned = isPrecise(items);
+    const dragged = items.find(item=>item.id===active.id);
+    if(positioned && dragged) {
+      const frame=layoutFrames(items).get(dragged.id);
+      updateItem(dragged.id,{studioPosition:clampPosition(frame.x+event.delta.x,frame.width),width:frame.width});
+      setActiveId(null);setActiveType(null);return;
+    }
     if (active.data.current?.type === 'palette-item') {
       if (over) {
         const elementType = active.data.current.elementType;
         const target = items.find(i=>i.id===over.id && i.type==='group');
-        const newItem = addItem(elementType, {}, target?.id);
+        const canvas=document.getElementById('precise-touchbar-canvas');
+        const translated=active.rect.current.translated;
+        const x=canvas&&translated?translated.left-canvas.getBoundingClientRect().left:0;
+        const overrides=positioned?{studioPosition:clampPosition(x,64),width:64}:{};
+        const newItem = addItem(elementType, overrides, positioned?undefined:target?.id);
         if (newItem) {
           selectItem(newItem.id);
         }
