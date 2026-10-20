@@ -2,6 +2,38 @@ import Cocoa
 
 /// Read-only runtime checks: decode defaults and render local status controls without sending actions.
 enum StudioControlChecks {
+    static func runNativeSliderChecks() {
+        let selected = BrightnessDisplaySelection.builtInDisplay(from: [101, 202, 303]) { $0 == 202 }
+        precondition(selected == 202, "Brightness selection should choose the active built-in display")
+        precondition(BrightnessDisplaySelection.builtInDisplay(from: [101, 303]) { _ in false } == nil,
+                     "Brightness selection should report no built-in display when none is present")
+
+        _ = NSApplication.shared
+        let fakeSlider = NSSlider(frame: .zero)
+        var backCount = 0
+        let item = ExpandedNativeSliderTouchBarItem(
+            identifier: .init("test.expandedSlider"),
+            slider: fakeSlider,
+            minimumSymbol: "sun.min.fill",
+            maximumSymbol: "sun.max.fill",
+            onBack: { backCount += 1 }
+        )
+        item.view.layoutSubtreeIfNeeded()
+        precondition(item.sliderRow.arrangedSubviews.count == 3,
+                     "Expanded slider should contain minimum endpoint, slider, and maximum endpoint")
+        precondition(item.sliderRow.arrangedSubviews[0] is NSImageView &&
+                     item.sliderRow.arrangedSubviews[1] === fakeSlider &&
+                     item.sliderRow.arrangedSubviews[2] is NSImageView,
+                     "Expanded slider endpoints should flank the native slider")
+        precondition(abs(item.sliderRow.frame.midX - StudioLayout.width / 2) < 1,
+                     "Expanded slider should be centered in the full-width Touch Bar item")
+        precondition(item.backButton.frame.minX >= 11,
+                     "Expanded slider Back button should remain at the leading edge")
+        item.backButton.performClick(nil)
+        precondition(backCount == 1, "Expanded slider Back button should invoke its callback once")
+        print("PASS: built-in display selection, no-display handling, centered slider endpoints and Back callback.")
+    }
+
     static func run(path: String) throws {
         TouchBarController.registerNavigationControls(dismiss:{},back:{})
         let data = try Data(contentsOf:URL(fileURLWithPath:path))

@@ -29,7 +29,7 @@ function getItemDisplay(item, definition) {
     case 'brightnessDown':
       return { type: 'icon', controlType: type };
     case 'brightness':
-      return { type: 'slider', controlType: type };
+      return { type: 'icon', controlType: type };
     case 'illuminationUp':
       return { type: 'icon', controlType: type };
     case 'illuminationDown':
@@ -39,7 +39,7 @@ function getItemDisplay(item, definition) {
     case 'volumeDown':
       return { type: 'icon', controlType: type };
     case 'volume':
-      return { type: 'slider', controlType: type };
+      return { type: 'icon', controlType: type };
     case 'mute':
       return { type: 'icon', controlType: type };
     case 'delete':

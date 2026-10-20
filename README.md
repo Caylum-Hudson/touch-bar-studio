@@ -6,9 +6,9 @@ Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bun
 
 ## Current release and versioning
 
-**[v0.3.0 — clearer controls and a runtime audit](https://github.com/Caylum-Hudson/touch-bar-studio/releases/tag/v0.3.0)**
+**v0.4.0 — expanded native sliders and spacing controls (prerelease)**
 
-The current build is `0.3.0`, adding a redesigned control library and explicit availability guidance. Bug fixes use `0.3.1`, feature updates use `0.4.0`, and `1.0.0` marks a tested everyday-use release. See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
+The source version is `0.4.0`. This update adds expanded native volume and brightness sliders, a control library in place of the JSON panel, and configurable spacing with local snapping. The build, editor checks, native layout checks, and a reversible built-in-display brightness round-trip passed. Physical Touch Bar taps and volume adjustment remain unverified; see the [0.4.0 release notes](docs/releases/0.4.0.md) and [verification record](VERIFICATION.md). See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
 
 ![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
 
@@ -24,7 +24,7 @@ See the [control runtime audit](docs/CONTROL-RUNTIME-AUDIT.md) for all 41 entrie
 
 ## Precise Touch Bar placement
 
-Click **Precise placement** above the preview. Drag a control along the ruler, or select it and set its **X position** and **Width** in Properties. X marks the leading edge in a 1085-unit design canvas; the runtime scales that canvas to the custom Touch Bar area macOS makes available. Submenus reserve a separate Back control before scaling their content. Positions near either edge are clamped to keep the control inside the canvas. Overlapping controls show a warning; move them apart to keep each one reachable.
+Click **Precise placement** above the preview. Drag a control along the ruler, or select it and set its **X position** and **Width** in Properties. X marks the leading edge in a 1085-unit design canvas; the runtime scales that canvas to the custom Touch Bar area macOS makes available. Submenus reserve a separate Back control before scaling their content. Positions near either edge are clamped to keep the control inside the canvas. Overlapping controls show a warning; move them apart to keep each one reachable. In 0.4.0, the spacing option sets a shared edge gap, and nearby placements can snap to that gap; placements farther away remain free.
 
 ![Precise placement in the refreshed editor](docs/screenshots/precise-placement.png)
 

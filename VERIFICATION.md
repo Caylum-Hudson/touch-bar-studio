@@ -1,5 +1,13 @@
 # Verification — 20 October 2026
 
+## 0.4.0 — 20 October 2026
+
+- Production frontend and native builds passed. Frontend state/catalog and native expanded-layout, Back-navigation, and built-in-display-selection checks passed.
+- App UI checks passed for adding volume and brightness, setting a 12-unit gap, opening and closing both expanded previews, and removing the temporary profile while restoring the original three-control Off layout.
+- Position helper checks passed for local snapping and free placement. The UI was not physically dragged; saved spacing/position reload was not separately confirmed.
+- Brightness round-trip passed on the active built-in display using the DisplayServices backend: display ID 1 changed from `0.5093718` to `0.5393718`, read back as `0.5393718`, then returned to `0.5093718` and was read back. The former CoreDisplay path returned a misleading `1.0` and did not write the observed value; it was replaced.
+- Physical Touch Bar taps and volume hardware adjustment remain unverified. UI previews and native layout checks do not establish physical presentation or touch delivery.
+
 Source: josmanvis/mtmr-designer, upstream commit `97670cb`.
 
 Passed:

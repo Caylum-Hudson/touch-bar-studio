@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — Expanded sliders and spacing (prerelease)
+
+- Represent volume and brightness controls as compact icons on the Touch Bar; tapping opens a full-width native slider view with Back and minimum/maximum endpoints.
+- Resolve brightness reads and writes against the active built-in display instead of display ID `0`.
+- Replace the JSON editor panel with the control library below the Touch Bar preview, and move the library out of the left sidebar.
+- Add a configurable edge-gap option, local snapping within 10 design units, free placement beyond that distance, and saved numeric item positions.
+- Build, editor and native layout checks, and a reversible built-in-display brightness round-trip passed. Physical Touch Bar taps and volume adjustment remain unverified; see `docs/releases/0.4.0.md` and `VERIFICATION.md`.
+
 ## 0.3.0 — Control library audit and redesign
 
 - Reorganise 41 addable controls around everyday sound, display, status and navigation tasks, with full labels and capability guidance.

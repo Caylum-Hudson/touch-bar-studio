@@ -440,7 +440,7 @@ export const elementTypes = {
     label: 'Brightness Slider',
     icon: '☀️',
     defaultTitle: '☀',
-    defaultProps: {},
+    defaultProps: { width: 40 },
   },
   volume: {
     type: 'volume',
@@ -448,7 +448,7 @@ export const elementTypes = {
     label: 'Volume Slider',
     icon: '🔊',
     defaultTitle: '🔊',
-    defaultProps: {},
+    defaultProps: { width: 40 },
   },
 
   // Special Elements

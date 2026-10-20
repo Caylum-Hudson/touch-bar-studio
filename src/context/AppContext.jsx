@@ -2,6 +2,7 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, useState } from 'react';
 import { createElement, getElementDefinition } from '../data/elementDefinitions';
 import { generateJSON, parseJSON } from '../utils/jsonGenerator';
+import {spacingGap,nextSpacedPosition,itemWidth} from '../utils/positionLayout';
 import { loadFromMTMR as loadFromMTMRFile, saveToMTMR as saveToMTMRFile, isServerRunning } from '../utils/mtmrFileSystem';
 
 const findItem = (items, id) => {
@@ -476,10 +477,19 @@ export function AppProvider({ children }) {
   const addItem = useCallback((type, overrides = {}, targetParent = parentId) => {
     const item = createElement(type, overrides);
     if (item) {
+      const siblings = targetParent === parentId ? currentItems : (targetParent ? findItem(state.items,targetParent)?.items || [] : state.items);
+      const gap = spacingGap(siblings);
+      if (gap !== null) {
+        item.studioGap = gap;
+        if (!Number.isFinite(item.studioPosition)) {
+          const x = nextSpacedPosition(siblings,itemWidth(item),gap);
+          if (x !== null) { item.studioPosition = x; item.width = itemWidth(item); }
+        }
+      }
       dispatch({ type: ActionTypes.ADD_ITEM, payload: {item, parentId:targetParent} });
     }
     return item;
-  }, [parentId]);
+  }, [parentId, currentItems, state.items]);
 
   const removeItem = useCallback((id) => {
     dispatch({ type: ActionTypes.REMOVE_ITEM, payload: id });

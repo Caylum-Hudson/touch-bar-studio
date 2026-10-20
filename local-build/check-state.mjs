@@ -40,3 +40,17 @@ assert.equal(clampPosition(1080,100),985);assert.equal(clampPosition(-20,64),0);
 assert.equal(overlappingItems(positioned),false);assert.equal(overlappingItems([...positioned,{id:'overlap',width:50,studioPosition:130}]),true);
 const roundtrip=JSON.parse(generateJSON(parseJSON(JSON.stringify(positioned)).items));assert.equal(roundtrip[0].studioPosition,120);
 console.log('PASS: precise positions, boundary clamping, overlap detection and JSON position round trip.');
+
+const {setConsistentSpacing,snapPosition,spacingGap,nextSpacedPosition}=await import('../src/utils/positionLayout.js');
+const spaced=setConsistentSpacing([{id:'a',width:40,studioPosition:0},{id:'b',width:60,studioPosition:300},{id:'c',width:40,studioPosition:600}],12);
+assert.deepEqual(spaced.map(item=>item.studioPosition),[0,52,124]);
+assert.equal(spacingGap(spaced),12);
+assert.deepEqual(snapPosition(spaced,'b',57,60),{x:52,snapped:true});
+assert.deepEqual(snapPosition(spaced,'b',400,60),{x:400,snapped:false});
+const detached=[{id:'a',width:40,studioPosition:0,studioGap:12},{id:'b',width:40,studioPosition:52,studioGap:12},{id:'c',width:40,studioPosition:500,studioGap:12}];
+assert.deepEqual(snapPosition(detached,null,558,40),{x:552,snapped:true});
+assert.deepEqual(setConsistentSpacing(detached,20).map(item=>item.studioPosition),[0,60,500]);
+assert.equal(nextSpacedPosition(spaced,40),176);
+assert.throws(()=>setConsistentSpacing([{id:'a',width:600,studioPosition:0},{id:'b',width:600,studioPosition:200}],20),/Not enough room/);
+assert.equal(JSON.parse(generateJSON(spaced.map(item=>({...item,type:"staticButton"}))))[0].studioGap,12);
+console.log('PASS: equal edge gaps, local cluster snapping, free placement, detached anchors, insertion, overflow and spacing persistence.');

@@ -96,6 +96,12 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     var basicViewIdentifier = NSTouchBarItem.Identifier("com.toxblh.mtmr.scrollView.".appending(UUID().uuidString))
     var basicView: BasicView?
     var swipeItems: [SwipeItem] = []
+    private var expandedNativeSliderItem: NSTouchBarItem?
+    private var expandedNativeSliderController: NSCustomTouchBarItem?
+    private var barBeforeExpandedNativeSlider: NSTouchBar?
+    var expandedBrightnessStatus: String? {
+        (expandedNativeSliderController as? BrightnessViewController)?.lastBrightnessStatus
+    }
 
     var blacklistAppIdentifiers: [String] = []
     var frontmostApplicationIdentifier: String? {
@@ -140,6 +146,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func createAndUpdatePreset(newJsonItems: [BarItemDefinition]) {
+        cancelExpandedNativeSlider(restorePreviousBar: false)
         if let oldBar = self.touchBar {
             minimizeSystemModal(oldBar)
         }
@@ -232,6 +239,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     @objc func activeApplicationChanged(_: Notification) {
+        cancelExpandedNativeSlider(restorePreviousBar: false)
         if let items = StudioStore.shared.selectedItems(bundle: frontmostApplicationIdentifier) {
             navigationStack = []
             createAndUpdatePreset(newJsonItems:items)
@@ -241,6 +249,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func setEnabled(_ enabled: Bool) {
+        if !enabled { cancelExpandedNativeSlider(restorePreviousBar: false) }
         AppSettings.touchBarEnabled = enabled
         navigationStack = []
         DFRSystemModalShowsCloseBoxWhenFrontMost(!enabled)
@@ -362,7 +371,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
 
     @objc private func presentTouchBar() {
         guard AppSettings.touchBarEnabled else { return }
-        if AppSettings.showControlStripState {
+        if AppSettings.showControlStripState && expandedNativeSliderItem == nil {
             presentSystemModal(touchBar, systemTrayItemIdentifier: .controlStripItem)
         } else {
             presentSystemModal(touchBar, placement: 1, systemTrayItemIdentifier: .controlStripItem)
@@ -383,6 +392,9 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func touchBar(_: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
+        if let expandedNativeSliderItem, expandedNativeSliderItem.identifier == identifier {
+            return expandedNativeSliderItem
+        }
         if identifier == basicViewIdentifier {
             return basicView
         }
@@ -416,17 +428,25 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
                 barItem = AppScrubberTouchBarItem(identifier: identifier, autoResize: autoResize)
             }
         case .volume:
-            if case let .image(source)? = item.additionalParameters[.image] {
-                barItem = VolumeViewController(identifier: identifier, image: source.image)
-            } else {
-                barItem = VolumeViewController(identifier: identifier)
-            }
+            let button = CustomButtonTouchBarItem(identifier: identifier, title: "")
+            button.image = item.additionalParameters[.image].flatMap { parameter in
+                if case let .image(source) = parameter { return source.image }
+                return nil
+            } ?? sliderEntrySymbol("speaker.wave.2.fill", label: "Volume")
+            button.actions.append(ItemAction(trigger: .singleTap) { [weak self] in
+                self?.presentExpandedNativeSlider(kind: .volume)
+            })
+            barItem = button
         case let .brightness(refreshInterval: interval):
-            if case let .image(source)? = item.additionalParameters[.image] {
-                barItem = BrightnessViewController(identifier: identifier, refreshInterval: interval, image: source.image)
-            } else {
-                barItem = BrightnessViewController(identifier: identifier, refreshInterval: interval)
-            }
+            let button = CustomButtonTouchBarItem(identifier: identifier, title: "")
+            button.image = item.additionalParameters[.image].flatMap { parameter in
+                if case let .image(source) = parameter { return source.image }
+                return nil
+            } ?? sliderEntrySymbol("sun.max.fill", label: "Brightness")
+            button.actions.append(ItemAction(trigger: .singleTap) { [weak self] in
+                self?.presentExpandedNativeSlider(kind: .brightness(refreshInterval: interval))
+            })
+            barItem = button
         case let .weather(interval: interval, units: units, api_key: api_key, icon_type: icon_type):
             barItem = WeatherBarItem(identifier: identifier, interval: interval, units: units, api_key: api_key, icon_type: icon_type)
         case let .yandexWeather(interval: interval):
@@ -516,6 +536,68 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         }
     }
 
+    private enum ExpandedSliderKind {
+        case volume
+        case brightness(refreshInterval: Double)
+    }
+
+    private func presentExpandedNativeSlider(kind: ExpandedSliderKind) {
+        guard AppSettings.touchBarEnabled, expandedNativeSliderItem == nil, let currentBar = touchBar else { return }
+        let identifier = NSTouchBarItem.Identifier("com.toxblh.mtmr.expandedSlider.\(UUID().uuidString)")
+        let sliderController: NSCustomTouchBarItem
+        let minimumSymbol: String
+        let maximumSymbol: String
+        switch kind {
+        case .volume:
+            sliderController = VolumeViewController(identifier: identifier)
+            minimumSymbol = "speaker.fill"
+            maximumSymbol = "speaker.wave.3.fill"
+        case let .brightness(refreshInterval):
+            sliderController = BrightnessViewController(identifier: identifier, refreshInterval: refreshInterval)
+            minimumSymbol = "sun.min.fill"
+            maximumSymbol = "sun.max.fill"
+        }
+
+        let expandedItem = ExpandedNativeSliderTouchBarItem(
+            identifier: identifier,
+            slider: sliderController.view,
+            minimumSymbol: minimumSymbol,
+            maximumSymbol: maximumSymbol,
+            onBack: { [weak self] in self?.cancelExpandedNativeSlider(restorePreviousBar: true) }
+        )
+        expandedNativeSliderItem = expandedItem
+        expandedNativeSliderController = sliderController
+        barBeforeExpandedNativeSlider = currentBar
+        minimizeSystemModal(currentBar)
+
+        let expandedBar = NSTouchBar()
+        expandedBar.delegate = self
+        expandedBar.defaultItemIdentifiers = [identifier]
+        touchBar = expandedBar
+        presentTouchBar()
+    }
+
+    private func sliderEntrySymbol(_ name: String, label: String) -> NSImage? {
+        NSImage(systemSymbolName: name, accessibilityDescription: label)?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+        )
+    }
+
+    private func cancelExpandedNativeSlider(restorePreviousBar: Bool) {
+        guard expandedNativeSliderItem != nil else { return }
+        if let activeBar = touchBar { minimizeSystemModal(activeBar) }
+        let previousBar = barBeforeExpandedNativeSlider
+        expandedNativeSliderItem = nil
+        expandedNativeSliderController = nil
+        barBeforeExpandedNativeSlider = nil
+        if restorePreviousBar, let previousBar {
+            touchBar = previousBar
+            presentTouchBar()
+        } else if let previousBar {
+            touchBar = previousBar
+        }
+    }
+
     func action(forItem item: BarItemDefinition) -> (() -> Void)? {
         switch item.legacyAction {
         case let .hidKey(keycode: keycode):
@@ -594,4 +676,67 @@ extension BarItemDefinition {
         }
         return .center
     }
+}
+
+final class ExpandedNativeSliderTouchBarItem: NSCustomTouchBarItem {
+    private let onBack: () -> Void
+    private(set) var backButton: NSButton!
+    private(set) var sliderRow: NSStackView!
+
+    init(identifier: NSTouchBarItem.Identifier, slider: NSView?, minimumSymbol: String, maximumSymbol: String, onBack: @escaping () -> Void) {
+        self.onBack = onBack
+        super.init(identifier: identifier)
+
+        backButton = NSButton(title: "Back", target: self, action: #selector(goBack))
+        backButton.bezelStyle = .rounded
+        backButton.setAccessibilityLabel("Back to Touch Bar")
+
+        let minimum = endpointView(symbol: minimumSymbol, label: "Minimum")
+        let maximum = endpointView(symbol: maximumSymbol, label: "Maximum")
+        let slider = slider ?? NSSlider()
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.widthAnchor.constraint(equalToConstant: 340).isActive = true
+
+        sliderRow = NSStackView(views: [minimum, slider, maximum])
+        sliderRow.orientation = .horizontal
+        sliderRow.alignment = .centerY
+        sliderRow.distribution = .fill
+        sliderRow.spacing = 14
+        sliderRow.translatesAutoresizingMaskIntoConstraints = false
+
+        // Give the centered slider its own column, with Back anchored at the
+        // leading edge of the full-width Touch Bar item.
+        let fullWidthView = NSView(frame: CGRect(x: 0, y: 0, width: StudioLayout.width, height: 30))
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        sliderRow.translatesAutoresizingMaskIntoConstraints = false
+        fullWidthView.addSubview(backButton)
+        fullWidthView.addSubview(sliderRow)
+        let preferredWidth = fullWidthView.widthAnchor.constraint(equalToConstant: StudioLayout.width)
+        preferredWidth.priority = .defaultLow
+        NSLayoutConstraint.activate([
+            preferredWidth,
+            fullWidthView.heightAnchor.constraint(equalToConstant: 30),
+            backButton.leadingAnchor.constraint(equalTo: fullWidthView.leadingAnchor, constant: 12),
+            backButton.centerYAnchor.constraint(equalTo: fullWidthView.centerYAnchor),
+            sliderRow.centerXAnchor.constraint(equalTo: fullWidthView.centerXAnchor),
+            sliderRow.centerYAnchor.constraint(equalTo: fullWidthView.centerYAnchor)
+        ])
+        view = fullWidthView
+    }
+
+    required init?(coder _: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func endpointView(symbol: String, label: String) -> NSImageView {
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+        ) ?? NSImage()
+        let imageView = NSImageView(image: image)
+        imageView.imageScaling = .scaleProportionallyDown
+        imageView.setAccessibilityLabel(label)
+        imageView.widthAnchor.constraint(equalToConstant: 18).isActive = true
+        imageView.heightAnchor.constraint(equalToConstant: 18).isActive = true
+        return imageView
+    }
+
+    @objc private func goBack() { onBack() }
 }

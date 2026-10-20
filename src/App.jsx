@@ -18,11 +18,10 @@ import TouchBar from './components/TouchBar/TouchBar';
 import TouchBarItem from './components/TouchBar/TouchBarItem';
 import Palette from './components/Palette/Palette';
 import PropertiesPanel from './components/Properties/PropertiesPanel';
-import JsonOutput from './components/JsonOutput/JsonOutput';
 import { getElementDefinition, createElement } from './data/elementDefinitions';
 import { getPreset, getPresetList, communityPresets, fetchCommunityPreset } from './data/presets';
 import './App.css';
-import {isPrecise, layoutFrames, clampPosition} from './utils/positionLayout';
+import {isPrecise, layoutFrames, snapPosition, spacingGap, itemWidth} from './utils/positionLayout';
 
 export function AppContent() {
   const {
@@ -41,7 +40,6 @@ export function AppContent() {
   const [saveMode, setSaveMode] = useState('new'); // 'new' or 'override'
   const [selectedPresetToOverride, setSelectedPresetToOverride] = useState('');
   const [errorToast, setErrorToast] = useState(null);
-  const [showJsonSection, setShowJsonSection] = useState(true);
   const presetList = getPresetList();
 
   // Keyboard shortcut for Save to MTMR (Cmd+S / Ctrl+S)
@@ -150,14 +148,6 @@ export function AppContent() {
     }
   };
 
-  const openSaveModal = () => {
-    setSaveMode('new');
-    setPresetName('');
-    setSelectedPresetToOverride('');
-    setShowSaveModal(true);
-    closeMenus();
-  };
-
   const canSave = (saveMode === 'new' && presetName.trim()) || 
                   (saveMode === 'override' && selectedPresetToOverride);
 
@@ -246,7 +236,8 @@ export function AppContent() {
     const dragged = items.find(item=>item.id===active.id);
     if(positioned && dragged) {
       const frame=layoutFrames(items).get(dragged.id);
-      updateItem(dragged.id,{studioPosition:clampPosition(frame.x+event.delta.x,frame.width),width:frame.width});
+      const placement=snapPosition(items,dragged.id,frame.x+event.delta.x,frame.width);
+      updateItem(dragged.id,{studioPosition:placement.x,width:frame.width});
       setActiveId(null);setActiveType(null);return;
     }
     if (active.data.current?.type === 'palette-item') {
@@ -256,7 +247,9 @@ export function AppContent() {
         const canvas=document.getElementById('precise-touchbar-canvas');
         const translated=active.rect.current.translated;
         const x=canvas&&translated?translated.left-canvas.getBoundingClientRect().left:0;
-        const overrides=positioned?{studioPosition:clampPosition(x,64),width:64}:{};
+        const width=itemWidth(createElement(elementType));
+        const placement=snapPosition(items,null,x,width);
+        const overrides=positioned?{studioPosition:placement.x,width,...(spacingGap(items)!==null?{studioGap:spacingGap(items)}:{})}:{};
         const newItem = addItem(elementType, overrides, positioned?undefined:target?.id);
         if (newItem) {
           selectItem(newItem.id);
@@ -458,32 +451,6 @@ export function AppContent() {
               )}
             </div>
 
-            {/* View Menu */}
-            <div className="menu-wrapper">
-              <button
-                type="button"
-                className={`menu-trigger ${openMenu === 'view' ? 'open' : ''}`}
-                onClick={() => toggleMenu('view')}
-                onMouseEnter={() => handleMenuHover('view')}
-              >
-                View
-              </button>
-              {openMenu === 'view' && (
-                <div className="menu-dropdown">
-                  <button
-                    type="button"
-                    className="menu-dropdown-item"
-                    onClick={() => {
-                      setShowJsonSection(!showJsonSection);
-                      closeMenus();
-                    }}
-                  >
-                    {showJsonSection ? '✓' : ''} {showJsonSection ? 'Hide' : 'Show'} JSON
-                  </button>
-                </div>
-              )}
-            </div>
-
             {/* Help Menu */}
             <div className="menu-wrapper">
               <button
@@ -535,15 +502,11 @@ export function AppContent() {
         </header>
 
         <main className="app-main">
-          <aside className="sidebar-left">
-            <Palette />
-          </aside>
-
           <section className="content-center">
-            <div className={`touchbar-wrapper ${!showJsonSection ? 'fullscreen' : ''}`}>
+            <div className="touchbar-wrapper">
               <TouchBar />
             </div>
-            {showJsonSection && <JsonOutput />}
+            <div className="control-library"><Palette /></div>
           </section>
 
           {selectedItemId && (

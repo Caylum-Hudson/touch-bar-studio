@@ -1,12 +1,14 @@
-# Touch Bar Studio — first working version
+# Touch Bar Studio — first-run guide
 
 Open **Touch Bar Studio.app** in the folder above this repository. It is built locally from source and contains the web editor and native MTMR runtime; no browser server is required.
 
 ## Use it
 
+Version 0.4.0 introduces expanded native volume and brightness sliders. On the Touch Bar, each appears as an icon; tapping it opens a full-width slider with Back and minimum/maximum symbols. The editor preview shows this expanded state. The control library sits below the preview, replacing the JSON panel. The built-in display brightness write/readback was verified and restored; physical Touch Bar taps and volume adjustment still need confirmation. See [the 0.4.0 release notes](docs/releases/0.4.0.md).
+
 - **On/off:** click **Touch Bar: On/Off** beside Apply & Save, or choose **Turn Custom Touch Bar Off/On** from the app menu or menu bar icon. Off dismisses the custom bar and restores macOS controls. The choice takes effect immediately and survives restart; saving layouts does not turn it back on. The launcher and editor remain available.
 
-- **Exact placement:** choose **Precise placement**, drag controls horizontally or type **X position** and **Width** in Properties. The 1085-unit canvas scales to the available bar width, with Back reserved on submenu screens. The editor warns about overlaps. Apply & Save activates the placement; automatic alignment remains available.
+- **Exact placement:** choose **Precise placement**, drag controls horizontally or type **X position** and **Width** in Properties. The 1085-unit canvas scales to the available bar width, with Back reserved on submenu screens. Set the spacing option to choose an edge gap; placement within 10 design units of a neighboring gap can snap locally, while farther placement remains free. The editor warns about overlaps. Apply & Save activates the placement; automatic alignment remains available.
 - **Studio:** drag or click controls from the palette. Choose **Apply & Save** to activate the full workspace on the Touch Bar.
 - **App profiles:** expand **Add an app profile**, choose an installed app, then **Duplicate Default**. Select the new profile from the Editing picker. Its layout completely replaces Default while that bundle ID is frontmost. Disabled and unmatched apps fall back to Default.
 - **Submenus:** add a Group and give it a title. Use **Open [name]** to edit its children. Groups can contain more groups. Drag onto a group to move a control into it; the move selector can move selected controls back to the root. The physical runtime adds **‹ Back** at every depth. Editing the preview does not change the physical layout until Apply & Save.

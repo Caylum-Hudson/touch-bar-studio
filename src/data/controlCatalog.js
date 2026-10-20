@@ -6,7 +6,7 @@ const commonGroups = [
     id: 'sound-media', label: 'Sound & media', description: 'Control playback and listening level.',
     controls: [
       ['volumeUp', 'Permission needed', 'Raise system volume.'], ['volumeDown', 'Permission needed', 'Lower system volume.'],
-      ['mute', 'Permission needed', 'Toggle system mute.'], ['volume', 'Hardware dependent', 'Adjust volume with a slider.'],
+      ['mute', 'Permission needed', 'Toggle system mute.'], ['volume', 'Hardware dependent', 'Tap to open a full-bar volume slider.'],
       ['previous', 'Permission needed', 'Go to the previous track.'], ['play', 'Permission needed', 'Play or pause media.'], ['next', 'Permission needed', 'Skip to the next track.'],
     ],
   },
@@ -14,7 +14,7 @@ const commonGroups = [
     id: 'display-keyboard', label: 'Display & keyboard', description: 'Adjust screen and keyboard lighting.',
     controls: [
       ['brightnessUp', 'Permission + hardware', 'Increase display brightness.'], ['brightnessDown', 'Permission + hardware', 'Decrease display brightness.'],
-      ['brightness', 'Hardware dependent', 'Adjust display brightness with a slider.'], ['illuminationUp', 'Permission + hardware', 'Increase keyboard backlight.'],
+      ['brightness', 'Hardware dependent', 'Tap to open a full-bar brightness slider.'], ['illuminationUp', 'Permission + hardware', 'Increase keyboard backlight.'],
       ['illuminationDown', 'Permission + hardware', 'Decrease keyboard backlight.'],
     ],
   },
