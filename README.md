@@ -6,15 +6,15 @@ Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bun
 
 ## Current release and versioning
 
-**v0.4.0 — expanded native sliders and spacing controls (prerelease)**
+**v0.5.0 — macOS Control Strip and live permission status (prerelease)**
 
-The source version is `0.4.0`. This update adds expanded native volume and brightness sliders, a control library in place of the JSON panel, and configurable spacing with local snapping. The build, editor checks, native layout checks, and a reversible built-in-display brightness round-trip passed. Physical Touch Bar taps and volume adjustment remain unverified; see the [0.4.0 release notes](docs/releases/0.4.0.md) and [verification record](VERIFICATION.md). See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
+The source version is `0.5.0`. This update adds a setting to keep macOS's Control Strip available, updates keyboard-control labels from a live process check, and preserves an open submenu or expanded slider when the same profile is selected again. The frontend/native build and focused state, Control Strip, slider, and fixture checks passed. The setting persisted across an app restart while the custom Touch Bar remained On. The macOS permission row still refers to an earlier ad-hoc build, so the current app reports no Accessibility or event-posting access until the user grants access to this build. Physical Control Strip expansion and visible focus behavior remain unverified. See the [0.5.0 release notes](docs/releases/0.5.0.md) and [verification record](VERIFICATION.md). See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
 
 ![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
 
 ## Choosing useful controls
 
-The **Add controls** library groups everyday sound, display, time and navigation controls first. Each entry explains its use and whether it needs permission, hardware support or setup. Use **+** to add with the keyboard or mouse, or drag the grip to place it. Search includes advanced controls. **Advanced & legacy** holds service integrations and older features.
+The **Add controls** library groups everyday sound, display, time and navigation controls first. Each entry explains its use and whether it needs permission, hardware support or setup. Keyboard-control labels use the permission status reported by the running app when available; hardware and Automation needs remain separate. Use **+** to add with the keyboard or mouse, or drag the grip to place it. Search includes advanced controls. **Advanced & legacy** holds service integrations and older features.
 
 ![Version 0.3.0 control library and preview](docs/control-audit/02-redesigned.png)
 

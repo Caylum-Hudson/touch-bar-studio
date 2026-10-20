@@ -217,8 +217,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func toggleControlStrip(_ item: NSMenuItem) {
         item.state = item.state == .on ? .off : .on
-        AppSettings.showControlStripState = item.state == .off
-        TouchBarController.shared.resetControlStrip()
+        do {
+            try StudioStore.shared.setKeepControlStrip(item.state == .off)
+            TouchBarController.shared.resetControlStrip()
+        } catch {
+            NSLog("Could not save Control Strip preference: %@", error.localizedDescription)
+            item.state = AppSettings.showControlStripState ? .off : .on
+        }
     }
 
     @objc func toggleBlackListedApp(_: Any?) {

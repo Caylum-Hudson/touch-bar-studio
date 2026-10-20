@@ -5,17 +5,17 @@ const commonGroups = [
   {
     id: 'sound-media', label: 'Sound & media', description: 'Control playback and listening level.',
     controls: [
-      ['volumeUp', 'Permission needed', 'Raise system volume.'], ['volumeDown', 'Permission needed', 'Lower system volume.'],
-      ['mute', 'Permission needed', 'Toggle system mute.'], ['volume', 'Hardware dependent', 'Tap to open a full-bar volume slider.'],
-      ['previous', 'Permission needed', 'Go to the previous track.'], ['play', 'Permission needed', 'Play or pause media.'], ['next', 'Permission needed', 'Skip to the next track.'],
+      ['volumeUp', 'Accessibility required', 'Raise system volume.'], ['volumeDown', 'Accessibility required', 'Lower system volume.'],
+      ['mute', 'Accessibility required', 'Toggle system mute.'], ['volume', 'Hardware dependent', 'Tap to open a full-bar volume slider.'],
+      ['previous', 'Accessibility required', 'Go to the previous track.'], ['play', 'Accessibility required', 'Play or pause media.'], ['next', 'Accessibility required', 'Skip to the next track.'],
     ],
   },
   {
     id: 'display-keyboard', label: 'Display & keyboard', description: 'Adjust screen and keyboard lighting.',
     controls: [
-      ['brightnessUp', 'Permission + hardware', 'Increase display brightness.'], ['brightnessDown', 'Permission + hardware', 'Decrease display brightness.'],
-      ['brightness', 'Hardware dependent', 'Tap to open a full-bar brightness slider.'], ['illuminationUp', 'Permission + hardware', 'Increase keyboard backlight.'],
-      ['illuminationDown', 'Permission + hardware', 'Decrease keyboard backlight.'],
+      ['brightnessUp', 'Accessibility required · Hardware dependent', 'Increase display brightness.'], ['brightnessDown', 'Accessibility required · Hardware dependent', 'Decrease display brightness.'],
+      ['brightness', 'Hardware dependent', 'Tap to open a full-bar brightness slider.'], ['illuminationUp', 'Accessibility required · Hardware dependent', 'Increase keyboard backlight.'],
+      ['illuminationDown', 'Accessibility required · Hardware dependent', 'Decrease keyboard backlight.'],
     ],
   },
   {
@@ -29,7 +29,7 @@ const commonGroups = [
   {
     id: 'navigation', label: 'Navigation', description: 'Move around or open useful system surfaces.',
     controls: [
-      ['escape', 'Permission needed', 'Send the Escape key.'], ['delete', 'Permission needed', 'Send the forward Delete key.'], ['dock', 'Built in', 'Show Dock apps.'],
+      ['escape', 'Accessibility required', 'Send the Escape key.'], ['delete', 'Accessibility required', 'Send the forward Delete key.'], ['dock', 'Built in', 'Show Dock apps.'],
       ['exitTouchbar', 'Built in', 'Dismiss the Touch Bar.'], ['group', 'Built in', 'Create a submenu for related controls.'],
     ],
   },

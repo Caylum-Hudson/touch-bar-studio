@@ -9,8 +9,21 @@ final class StudioStore {
     var photoFiles: [String: URL] = [:]
     var pendingPhotoFiles: [String] = []
     var activeProfile = "default"
+    var keepControlStrip: Bool { AppSettings.showControlStripState }
+    var apiWorkspace: [String:Any] {
+        var result = workspace
+        var settings = result["settings"] as? [String:Any] ?? [:]
+        settings["keepControlStrip"] = AppSettings.showControlStripState
+        result["settings"] = settings
+        return result
+    }
     init() {
-        if let data = try? Data(contentsOf: file), let json = try? JSONSerialization.jsonObject(with: data) as? [String:Any] { workspace = json }
+        if let data = try? Data(contentsOf: file), let json = try? JSONSerialization.jsonObject(with: data) as? [String:Any] {
+            workspace = json
+            if let keepControlStrip = (json["settings"] as? [String:Any])?["keepControlStrip"] as? Bool {
+                AppSettings.showControlStripState = keepControlStrip
+            }
+        }
     }
     func save(_ data: [String:Any]) throws {
         guard data["version"] as? Int == 1, let profiles = data["profiles"] as? [String:[String:Any]], profiles["default"]?["items"] is [[String:Any]] else { throw NSError(domain:"Studio",code:1,userInfo:[NSLocalizedDescriptionKey:"A Default profile is required."]) }
@@ -20,14 +33,40 @@ final class StudioStore {
             let encoded = try JSONSerialization.data(withJSONObject: safeItems(items))
             guard encoded.barItemDefinitions() != nil else { throw NSError(domain:"Studio",code:3,userInfo:[NSLocalizedDescriptionKey:"A profile contains an unsupported runtime control."]) }
         }
+        var workspaceToSave = data
+        var settings = data["settings"] as? [String:Any] ?? [:]
+        // Older workspace files do not carry this preference. Keep the
+        // current native setting and include its effective value next time
+        // the workspace is saved.
+        let keepControlStrip = settings["keepControlStrip"] as? Bool ?? AppSettings.showControlStripState
+        settings["keepControlStrip"] = keepControlStrip
+        workspaceToSave["settings"] = settings
         try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
-        let encoded = try JSONSerialization.data(withJSONObject:data,options:[.prettyPrinted,.sortedKeys])
+        let encoded = try JSONSerialization.data(withJSONObject:workspaceToSave,options:[.prettyPrinted,.sortedKeys])
         if FileManager.default.fileExists(atPath:file.path) { try Data(contentsOf:file).write(to:directory.appendingPathComponent("workspace.previous.json"),options:.atomic) }
         try encoded.write(to:file,options:.atomic)
-        workspace = data
+        workspace = workspaceToSave
+        AppSettings.showControlStripState = keepControlStrip
         StudioLauncher.shared.configure()
         TouchBarController.shared.navigationStack = []
         TouchBarController.shared.reloadStandardConfig()
+    }
+
+    func setKeepControlStrip(_ enabled: Bool) throws {
+        var updatedWorkspace = workspace
+        var settings = updatedWorkspace["settings"] as? [String:Any] ?? [:]
+        settings["keepControlStrip"] = enabled
+        updatedWorkspace["settings"] = settings
+
+        if FileManager.default.fileExists(atPath:file.path),
+           let profiles = updatedWorkspace["profiles"] as? [String:[String:Any]],
+           profiles["default"]?["items"] is [[String:Any]] {
+            let encoded = try JSONSerialization.data(withJSONObject:updatedWorkspace,options:[.prettyPrinted,.sortedKeys])
+            try encoded.write(to:file,options:.atomic)
+        }
+
+        workspace = updatedWorkspace
+        AppSettings.showControlStripState = enabled
     }
     func safeItems(_ items: [[String:Any]]) -> [[String:Any]] {
         items.compactMap { original in

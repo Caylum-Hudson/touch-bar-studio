@@ -21,6 +21,11 @@ enum StudioMain {
             return
         }
         if CommandLine.arguments.contains("--self-test") {
+            StudioControlChecks.runFocusRefreshPolicyChecks()
+            precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: false, sliderExpanded: false) == false)
+            precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: false) == true)
+            precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: true) == false)
+            print("PASS: Control Strip preference selects compact presentation, while an expanded slider temporarily uses the full bar.")
             let store = StudioStore.shared
             store.workspace = ["version":1,"profiles":["default":["items":[["type":"staticButton","title":"Default"]]],"finder":["bundleId":"com.apple.finder","enabled":true,"items":[["type":"group","title":"Finder","items":[["type":"staticButton","title":"Nested"]]]]]]]
             let matched = store.selectedItems(bundle:"com.apple.finder")!

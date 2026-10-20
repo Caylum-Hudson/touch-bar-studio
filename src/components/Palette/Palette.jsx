@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
+import { useRuntimePermissions } from '../../context/RuntimePermissions';
 import { controlCatalog, advancedControlCatalog } from '../../data/controlCatalog';
+import { getControlStatus } from '../../data/controlAvailability';
 import ControlIcon from '../ControlIcon/ControlIcon';
 import './Palette.css';
 
 export default function Palette() {
   const { addItem, selectItem } = useApp();
+  const { accessibilityAccess } = useRuntimePermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
@@ -14,9 +17,12 @@ export default function Palette() {
   const query = searchQuery.trim().toLowerCase();
   const filterGroups = useMemo(() => (groups) => groups.map((group) => ({
     ...group,
-    controls: group.controls.filter((control) => !query || [control.label, control.key, control.benefit, control.status]
+    controls: group.controls.map((control) => ({
+      ...control,
+      runtimeStatus: getControlStatus(control, accessibilityAccess),
+    })).filter((control) => !query || [control.label, control.key, control.benefit, control.runtimeStatus]
       .some((value) => value.toLowerCase().includes(query))),
-  })).filter((group) => group.controls.length > 0), [query]);
+  })).filter((group) => group.controls.length > 0), [query, accessibilityAccess]);
   const commonGroups = filterGroups(controlCatalog);
   const advancedGroups = filterGroups(advancedControlCatalog);
 
@@ -98,7 +104,7 @@ function PaletteItem({ control, onAdd }) {
       <span className="palette-item-copy">
         <span className="palette-item-label">{control.label}</span>
         <span className="palette-item-benefit">{control.benefit}</span>
-        <span className="palette-item-status">{control.status}</span>
+      <span className="palette-item-status">{control.runtimeStatus || control.status}</span>
       </span>
       <button type="button" className="palette-add" disabled={unavailable} onClick={onAdd} aria-label={`Add ${control.label}`} title={`Add ${control.label}`}>+</button>
       <button

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — macOS Control Strip and live permission status (prerelease)
+
+- Add an Appearance setting to keep macOS's Control Strip available while the custom Touch Bar is active; expanded Studio sliders temporarily use the full bar and Back returns to the prior presentation.
+- Report keyboard-control availability from the running app's permission check instead of presenting a fixed permission label. macOS's existing grant is for an earlier ad-hoc build; the current build needs its own user-granted access before keyboard/media actions can work.
+- Avoid rebuilding the Touch Bar when the same effective visible profile is selected again, preserving an open submenu or expanded slider. Real profile changes keep their existing presentation transition.
+- Keep existing Dock behavior unchanged.
+- Frontend/native builds and focused profile-focus, Control Strip, slider, and fixture checks passed. The running app reports no process access because macOS's permission row is for an earlier ad-hoc build; current-build authorization, visible focus behavior, and physical Control Strip expansion remain unverified. See `docs/releases/0.5.0.md` and `VERIFICATION.md`.
+
 ## 0.4.0 — Expanded sliders and spacing (prerelease)
 
 - Represent volume and brightness controls as compact icons on the Touch Bar; tapping opens a full-width native slider view with Back and minimum/maximum endpoints.

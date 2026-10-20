@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from './context/AppContext';
+import { RuntimePermissionsProvider } from './context/RuntimePermissions';
+import { getPermissionLabel } from './data/controlAvailability';
 import { AppContent } from './App';
 import { generateJSON } from './utils/jsonGenerator';
 import './StudioShell.css';
@@ -15,7 +17,7 @@ function download(name, data) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   const a = document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-const defaults = {accent:'#a78bfa',background:'#14151d',motion:'off',tiles:[]};
+const defaults = {accent:'#a78bfa',background:'#14151d',motion:'off',tiles:[],keepControlStrip:false};
 export default function StudioShell() {
   const app = useApp();
   const [tab,setTab] = useState(document.documentElement.classList.contains('compact-launcher')?'Launcher':'Studio');
@@ -25,6 +27,13 @@ export default function StudioShell() {
   const [enabled,setEnabled] = useState(null);
   const [toggling,setToggling] = useState(false);
   const [keyboardAccess,setKeyboardAccess] = useState(null);
+  const [eventPostingAllowed,setEventPostingAllowed] = useState(null);
+  const [controlStripBusy,setControlStripBusy] = useState(false);
+  const [controlStripError,setControlStripError] = useState('');
+  const controlStripBusyRef=useRef(false);
+  const studioRequestRef=useRef(null);
+  const refreshStudioRef=useRef(null);
+  const initialStudioLoadedRef=useRef(false);
   useEffect(()=>{
     if(enabled===null)return;
     setStatus(previous=>previous.startsWith('Custom Touch Bar')?(enabled?'Custom Touch Bar on':'Custom Touch Bar off · macOS controls restored'):previous);
@@ -37,16 +46,48 @@ export default function StudioShell() {
   useEffect(()=>{localStorage.setItem('studio-settings',JSON.stringify(settings));},[settings]);
   useEffect(()=>{
     if(!native)return;
-    api('studio').then(r=>{if(r.workspace?.profiles?.default){app.restoreWorkspace(r.workspace);if(r.workspace.settings)setSettings({...defaults,...r.workspace.settings});} setActive(r.activeProfile);setEnabled(r.enabled);setKeyboardAccess(r.keyboardAccess);}).catch(e=>setStatus(e.message));
+    const refreshStudio=()=>{
+      if(studioRequestRef.current)return studioRequestRef.current;
+      const request=api('studio').then(r=>{
+        if(!initialStudioLoadedRef.current&&r.workspace?.profiles?.default){app.restoreWorkspace(r.workspace);if(r.workspace.settings)setSettings(s=>({...s,...defaults,...r.workspace.settings}));initialStudioLoadedRef.current=true;}
+        setActive(r.activeProfile);setEnabled(r.enabled);setKeyboardAccess(r.accessibilityTrusted ?? r.keyboardAccess ?? null);setEventPostingAllowed(r.eventPostingAllowed ?? null);
+        const effective=r.keepControlStrip ?? r.workspace?.settings?.keepControlStrip;
+        if(typeof effective==='boolean'&&!controlStripBusyRef.current)setSettings(s=>s.keepControlStrip===effective?s:{...s,keepControlStrip:effective});
+        return r;
+      }).catch(e=>{setStatus(e.message);throw e;}).finally(()=>{studioRequestRef.current=null;});
+      studioRequestRef.current=request;
+      return request;
+    };
+    refreshStudioRef.current=refreshStudio;
+    refreshStudio().catch(()=>{});
     api('apps').then(r=>setApps(r.apps)).catch(()=>{});
-    const timer=setInterval(()=>{api('studio').then(r=>{setActive(r.activeProfile);setEnabled(r.enabled);setKeyboardAccess(r.keyboardAccess);}).catch(()=>{});if(!document.documentElement.classList.contains('compact-launcher'))api('pending-photos').then(r=>{if(r.photos){setPendingPhotos(r);setTab('Photos');}}).catch(()=>{});},2000);
+    const refreshOnFocus=()=>refreshStudio().catch(()=>{});
+    const refreshWhenVisible=()=>{if(document.visibilityState==='visible')refreshOnFocus();};
+    window.addEventListener('focus',refreshOnFocus);
+    document.addEventListener('visibilitychange',refreshWhenVisible);
+    const timer=setInterval(()=>{refreshStudio().catch(()=>{});if(!document.documentElement.classList.contains('compact-launcher'))api('pending-photos').then(r=>{if(r.photos){setPendingPhotos(r);setTab('Photos');}}).catch(()=>{});},2000);
     const navigate=e=>setTab(e.detail || 'Launcher'); window.addEventListener('studio-tab',navigate);
-    return ()=>{clearInterval(timer);window.removeEventListener('studio-tab',navigate);};
+    return ()=>{clearInterval(timer);window.removeEventListener('studio-tab',navigate);window.removeEventListener('focus',refreshOnFocus);document.removeEventListener('visibilitychange',refreshWhenVisible);refreshStudioRef.current=null;};
   },[]);
   const run=async fn=>{try{await fn();}catch(e){setStatus(e.message);}};
   const profile=app.profiles[app.profileId];
   const workspace=()=>({version:1,profiles:Object.fromEntries(Object.entries(app.profiles).map(([id,p])=>[id,{...p,items:JSON.parse(generateJSON(p.items))}])),settings});
-  const save=()=>run(async()=>{await api('studio',workspace());setStatus(enabled?'Applied to Touch Bar · saved on this Mac':'Saved on this Mac · custom Touch Bar is off');});
+  const save=()=>run(async()=>{const result=await api('studio',workspace());if(typeof result.keepControlStrip==='boolean')setSettings(s=>({...s,keepControlStrip:result.keepControlStrip}));setStatus(enabled?'Applied to Touch Bar · saved on this Mac':'Saved on this Mac · custom Touch Bar is off');});
+  const updateControlStrip=async value=>{
+    if(!native||controlStripBusyRef.current)return;
+    const previous=settings.keepControlStrip===true;
+    controlStripBusyRef.current=true;setControlStripBusy(true);setControlStripError('');
+    setSettings(s=>({...s,keepControlStrip:value}));
+    try{
+      const result=await api('control-strip',{enabled:value});
+      const effective=typeof result.keepControlStrip==='boolean'?result.keepControlStrip:value;
+      setSettings(s=>({...s,keepControlStrip:effective}));
+      setStatus(effective?'macOS Control Strip kept available':'macOS Control Strip restored to its previous setting');
+    }catch(error){
+      setSettings(s=>({...s,keepControlStrip:previous}));setControlStripError(error.message);setStatus('Could not update the macOS Control Strip setting.');
+    }finally{controlStripBusyRef.current=false;setControlStripBusy(false);}
+  };
+  const recheckAccessibility=()=>{refreshStudioRef.current?.().catch(e=>setControlStripError(e.message));};
   const toggleTouchBar=()=>run(async()=>{
     setToggling(true);
     try {const result=await api('touchbar',{enabled:!enabled});setEnabled(result.enabled);setStatus(result.enabled?'Custom Touch Bar on':'Custom Touch Bar off · macOS controls restored');}
@@ -72,7 +113,8 @@ export default function StudioShell() {
   return <div className="studio-shell" style={{'--studio-accent':settings.accent,'--studio-bg':settings.background,backgroundImage:settings.image?`linear-gradient(#101018cc,#101018ee),url(${settings.image})`:undefined}} data-motion={settings.motion}>
     <header className="studio-header"><div><strong>Touch Bar Studio</strong><small>v{appMetadata.version} · Your Mac, within reach.</small></div><nav>{['Launcher','Studio','Photos','Appearance'].map(t=><button key={t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><button className="runtime-toggle" aria-pressed={enabled===true} disabled={!native||enabled===null||toggling} onClick={toggleTouchBar}>{enabled===null?'Checking Touch Bar…':enabled?'Touch Bar: On':'Touch Bar: Off'}</button><button className="primary" onClick={save}>Apply & Save</button></header>
     <div className="studio-status" role="status">{status}<span>Touch Bar: {enabled===false?'Off (macOS controls)':app.profiles[active]?.name || 'Default'}</span></div>
-    {native && keyboardAccess===false && <div className="permission-notice" role="status"><span>Keyboard controls need macOS permission. The editor, launcher and photos still work.</span><button onClick={()=>run(async()=>{await api('keyboard-permission',{});})}>Open permission settings</button></div>}
+    {native && keyboardAccess===false && <div className="permission-notice" role="status"><span>macOS has not authorized keyboard control for this running app. Accessibility controls keyboard and media access; Full Disk Access is separate.</span><div><button onClick={()=>run(async()=>{await api('keyboard-permission',{});})}>Review Accessibility settings</button> <button onClick={recheckAccessibility}>Recheck status</button></div></div>}
+    {native&&controlStripError&&<div className="permission-error" role="alert">{controlStripError}</div>}
     {tab==='Studio'&&<>
       <div className="profile-strip"><label>Editing <select value={app.profileId} onChange={e=>app.switchProfile(e.target.value)}>{Object.entries(app.profiles).map(([id,p])=><option key={id} value={id}>{p.name}{p.enabled===false?' (disabled)':''}</option>)}</select></label>
       {app.profileId!=='default'&&<><input aria-label="Profile name" value={profile.name} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,name:e.target.value}})}/><label><input type="checkbox" checked={profile.enabled} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,enabled:e.target.checked}})}/>Enabled</label><button onClick={()=>{const id=app.profileId;app.switchProfile('default');const p={...app.profiles};delete p[id];app.setProfiles(p);}}>Delete profile</button></>}
@@ -81,7 +123,7 @@ export default function StudioShell() {
       </div>
       <details className="profile-add"><summary>Add an app profile</summary><div className="inline"><button onClick={()=>run(chooseProfile)}>Choose installed app…</button><select aria-label="Installed app" value="" onChange={e=>{const a=apps.find(a=>a.bundleId===e.target.value);if(a){setName(a.name);setBundle(a.bundleId);}}}><option value="">Installed apps…</option>{apps.map(a=><option key={a.bundleId} value={a.bundleId}>{a.name}</option>)}</select><input placeholder="Profile name" value={name} onChange={e=>setName(e.target.value)}/><input placeholder="Bundle ID, e.g. com.apple.finder" value={bundle} onChange={e=>setBundle(e.target.value)}/><button disabled={!name.trim()||!bundle.trim()} onClick={addProfile}>Duplicate Default</button></div></details>
       <div className="submenu-strip"><button disabled={!app.groupPath.length} onClick={app.leaveGroup}>‹ Back</button><span>{profile.name} root{app.groupNames.map((n,i)=><span key={i}> / {n}</span>)}</span>{app.items.filter(i=>i.type==='group').map(i=><button key={i.id} onClick={()=>app.enterGroup(i.id)}>Open {i.title||'Submenu'} ›</button>)}{app.selectedItemId&&<select aria-label="Move selected control" value="" onChange={e=>app.moveItem(app.selectedItemId,e.target.value==='root'?null:e.target.value)}><option value="">Move selected to…</option><option value="root">Root layout</option>{app.items.filter(i=>i.type==='group'&&i.id!==app.selectedItemId).map(i=><option key={i.id} value={i.id}>{i.title||'Submenu'}</option>)}</select>}</div>
-      <div className="editor-host"><AppContent/></div><div className="script-note">Script controls are preserved for export but disabled in the runtime. Apply & Save activates complete profiles.</div>
+      <div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native}><AppContent/></RuntimePermissionsProvider></div><div className="script-note">Script controls are preserved for export but disabled in the runtime. Apply & Save activates complete profiles.</div>
     </>}
     {tab==='Launcher'&&<main className="workspace-page"><div className="page-heading"><div><p className="eyebrow">MAKE SPACE FOR YOUR WORK</p><h1>Everything, one touch away.</h1><p>Apps and folders for whatever you’re working on.</p></div><div><button onClick={()=>addTile('app')}>+ App</button> <button onClick={()=>addTile('folder')}>+ Folder</button></div></div>
       {!settings.tiles.length&&<div className="empty-card"><h2>Build your launchpad</h2><p>Add an app or folder above. Click a tile to open it.</p><button onClick={()=>addTile('app')}>Choose your first app</button></div>}
@@ -89,7 +131,7 @@ export default function StudioShell() {
       <details className="tile-manager"><summary>Edit tiles</summary>{settings.tiles.map((t,i)=><div className="tile-row" key={t.id}><input aria-label="Tile name" value={t.name} onChange={e=>updateTile(t.id,{name:e.target.value})}/><input type="color" aria-label="Tile color" value={t.color} onChange={e=>updateTile(t.id,{color:e.target.value})}/><label><input type="checkbox" checked={t.hidden} onChange={e=>updateTile(t.id,{hidden:e.target.checked})}/>Hidden</label><button disabled={i===0} onClick={()=>{const tiles=[...settings.tiles];[tiles[i-1],tiles[i]]=[tiles[i],tiles[i-1]];setSettings({...settings,tiles});}}>←</button><button disabled={i===settings.tiles.length-1} onClick={()=>{const tiles=[...settings.tiles];[tiles[i+1],tiles[i]]=[tiles[i],tiles[i+1]];setSettings({...settings,tiles});}}>→</button><button onClick={()=>setSettings({...settings,tiles:settings.tiles.filter(x=>x.id!==t.id)})}>Remove</button></div>)}</details>
     </main>}
     {tab==='Photos'&&<Photos run={run} initial={pendingPhotos}/>}
-    {tab==='Appearance'&&<main className="workspace-page appearance"><p className="eyebrow">MAKE IT YOURS</p><h1>A quieter kind of workspace.</h1><label>Accent color<input type="color" value={settings.accent} onChange={e=>setSettings({...settings,accent:e.target.value})}/></label><label>Background<input type="color" value={settings.background} onChange={e=>setSettings({...settings,background:e.target.value})}/></label><label>Motion<select value={settings.motion} onChange={e=>setSettings({...settings,motion:e.target.value})}><option value="off">Off</option><option value="subtle">Subtle fade</option></select></label><p>Reduced motion follows your Mac’s accessibility setting.</p><button onClick={()=>run(async()=>{const r=await api('choose?kind=image');if(r.image)setSettings({...settings,image:r.image});})}>Choose background image…</button> <button onClick={()=>setSettings({...settings,image:null})}>Clear image</button><hr/><label>Launcher shortcut<select value={settings.shortcut||"controlOption"} onChange={e=>setSettings({...settings,shortcut:e.target.value})}><option value="controlOption">Control + Option + Space</option><option value="commandShift">Command + Shift + Space</option></select></label><p>Open the compact launcher from the menu bar or your selected shortcut.</p><p>Preview changes here, then use Apply & Save to keep them across launches.</p></main>}
+    {tab==='Appearance'&&<main className="workspace-page appearance"><p className="eyebrow">MAKE IT YOURS</p><h1>A quieter kind of workspace.</h1>{native&&<section className="permission-status-panel" aria-label="macOS input permissions"><div><strong>Accessibility</strong><span>{getPermissionLabel(keyboardAccess)}</span></div><div><strong>Keyboard event posting</strong><span>{getPermissionLabel(eventPostingAllowed)}</span></div><p>Live status reported by macOS. Recheck after reviewing System Settings.</p>{keyboardAccess===false&&<p>If this changed after a local app update, macOS may still be reporting the prior app authorization state.</p>}<button onClick={recheckAccessibility}>Recheck permissions</button></section>}<label>Accent color<input type="color" value={settings.accent} onChange={e=>setSettings({...settings,accent:e.target.value})}/></label><label>Background<input type="color" value={settings.background} onChange={e=>setSettings({...settings,background:e.target.value})}/></label><label>Motion<select value={settings.motion} onChange={e=>setSettings({...settings,motion:e.target.value})}><option value="off">Off</option><option value="subtle">Subtle fade</option></select></label><p>Reduced motion follows your Mac’s accessibility setting.</p><button onClick={()=>run(async()=>{const r=await api('choose?kind=image');if(r.image)setSettings({...settings,image:r.image});})}>Choose background image…</button> <button onClick={()=>setSettings({...settings,image:null})}>Clear image</button><hr/><label className="control-strip-toggle"><span><strong>Keep macOS Control Strip</strong><small>Keep Apple’s native controls beside your layout; use their arrow to expand or collapse.</small></span><input type="checkbox" checked={settings.keepControlStrip===true} disabled={!native||controlStripBusy} onChange={e=>updateControlStrip(e.target.checked)}/></label><p>The setting applies immediately and does not turn on the custom Touch Bar.{controlStripBusy?' Updating…':''}</p><label>Launcher shortcut<select value={settings.shortcut||"controlOption"} onChange={e=>setSettings({...settings,shortcut:e.target.value})}><option value="controlOption">Control + Option + Space</option><option value="commandShift">Command + Shift + Space</option></select></label><p>Open the compact launcher from the menu bar or your selected shortcut.</p><p>Preview changes here, then use Apply & Save to keep them across launches.</p></main>}
   </div>;
 }
 function Photos({run,initial}) {

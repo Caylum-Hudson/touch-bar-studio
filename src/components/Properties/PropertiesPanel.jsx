@@ -4,9 +4,12 @@ import { getElementDefinition, commonProperties, actionTypes, actionTriggers } f
 import './Properties.css';
 import {BAR_WIDTH,itemWidth,clampPosition} from '../../utils/positionLayout';
 import {getControlInfo} from '../../data/controlCatalog';
+import { getControlStatus } from '../../data/controlAvailability';
+import { useRuntimePermissions } from '../../context/RuntimePermissions';
 
 export default function PropertiesPanel() {
   const { getSelectedItem, updateItem, removeItem, selectedItemId } = useApp();
+  const { accessibilityAccess } = useRuntimePermissions();
   const item = getSelectedItem();
   const definition = item ? getElementDefinition(item.type) : null;
   const control = item ? getControlInfo(item.type) : null;
@@ -31,7 +34,7 @@ export default function PropertiesPanel() {
         <span className="properties-type">{definition.label}</span>
       </div>
       <div className="properties-content">
-        {control && <section className="control-runtime-note" aria-label="Control availability"><strong>{control.status}</strong><p>{control.benefit}</p></section>}
+        {control && <section className="control-runtime-note" aria-label="Control availability"><strong>{getControlStatus(control, accessibilityAccess)}</strong><p>{control.benefit}</p></section>}
 
         <PropertySection title="Placement">
           <PropertyInput label="X position (0–1085)" type="number" value={item.studioPosition ?? ''} placeholder="Automatic" onChange={value=>updateItem(item.id,{studioPosition:value===''?undefined:clampPosition(value,itemWidth(item)),width:itemWidth(item)})}/>
@@ -102,7 +105,7 @@ export default function PropertiesPanel() {
         {/* Actions */}
         {definition.supportsActions && (
           <PropertySection title="Actions">
-            <p className="placement-help">Keyboard actions need macOS permission. Shell and AppleScript actions are kept for export and do not run in this app.</p>
+            <p className="placement-help">Keyboard actions use macOS Accessibility access. Shell and AppleScript actions are kept for export and do not run in this app.</p>
             <ActionsEditor item={item} updateItem={updateItem} />
           </PropertySection>
         )}

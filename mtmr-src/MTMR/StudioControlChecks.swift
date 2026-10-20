@@ -1,7 +1,81 @@
 import Cocoa
 
+enum StudioFocusRefreshPolicy {
+    static func signature(profileIdentifier: String, items: [[String: Any]], bundleIdentifier: String?, blacklisted: Bool = false) -> String? {
+        let visibleItems = filterVisibleItems(items, bundleIdentifier: bundleIdentifier)
+        guard let data = try? JSONSerialization.data(withJSONObject: visibleItems, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else { return nil }
+        return profileIdentifier + "\nblacklisted:\(blacklisted)\n" + json
+    }
+
+    private static func filterVisibleItems(_ items: [[String: Any]], bundleIdentifier: String?) -> [[String: Any]] {
+        items.compactMap { source in
+            if let pattern = source["matchAppId"] as? String, let bundleIdentifier {
+                guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+                let range = NSRange(location: 0, length: bundleIdentifier.count)
+                guard regex.firstMatch(in: bundleIdentifier, range: range) != nil else { return nil }
+            }
+
+            var item = source
+            if let children = source["items"] as? [[String: Any]] {
+                item["items"] = filterVisibleItems(children, bundleIdentifier: bundleIdentifier)
+            }
+            return item
+        }
+    }
+
+    static func shouldRefresh(previous: String?, next: String?) -> Bool {
+        guard let previous, let next else { return true }
+        return previous != next
+    }
+}
+
 /// Read-only runtime checks: decode defaults and render local status controls without sending actions.
 enum StudioControlChecks {
+    static func runFocusRefreshPolicyChecks() {
+        let base: [[String: Any]] = [["type": "staticButton", "title": "Default"]]
+        let same = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: base, bundleIdentifier: "com.example.one")
+        let sameForAnotherApp = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: base, bundleIdentifier: "com.example.two")
+        precondition(!StudioFocusRefreshPolicy.shouldRefresh(previous: same, next: sameForAnotherApp),
+                     "Focus changes with the same effective default profile should preserve the current bar state")
+
+        let changed = StudioFocusRefreshPolicy.signature(profileIdentifier: "work", items: base, bundleIdentifier: "com.example.one")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous: same, next: changed),
+                     "Switching to another selected profile should refresh the bar")
+        let changedLayout = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: [["type": "staticButton", "title": "Default", "studioPosition": 120]], bundleIdentifier: "com.example.one")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous: same, next: changedLayout),
+                     "A saved layout change should refresh the bar")
+
+        let matched: [[String: Any]] = [
+            ["type": "staticButton", "title": "Common"],
+            ["type": "staticButton", "title": "Mail", "matchAppId": "com\\.example\\.mail"]
+        ]
+        let mail = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: matched, bundleIdentifier: "com.example.mail")
+        let editor = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: matched, bundleIdentifier: "com.example.editor")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous: mail, next: editor),
+                     "A matchAppId visibility change should refresh the bar")
+        precondition(!StudioFocusRefreshPolicy.shouldRefresh(previous: mail, next: mail),
+                     "An unchanged effective configuration should retain navigation and expanded-slider state")
+
+        let nested: [[String: Any]] = [[
+            "type": "group", "title": "Tools", "items": [
+                ["type": "staticButton", "title": "Common"],
+                ["type": "staticButton", "title": "Mail", "matchAppId": "com\\.example\\.mail"]
+            ]
+        ]]
+        let nestedMail = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: nested, bundleIdentifier: "com.example.mail")
+        let nestedEditor = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: nested, bundleIdentifier: "com.example.editor")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous: nestedMail, next: nestedEditor),
+                     "A nested matchAppId visibility change should refresh an open group submenu")
+
+        let blocked = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: base, bundleIdentifier: "com.example.one", blacklisted: true)
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous: same, next: blocked),
+                     "Entering a blacklisted app should refresh so the active bar is dismissed")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous: blocked, next: same),
+                     "Returning to an allowed app should refresh and restore the active bar")
+        print("PASS: focus refresh policy handles identical profiles, profile and layout changes, nested matchAppId visibility, and blacklist transitions.")
+    }
+
     static func runNativeSliderChecks() {
         let selected = BrightnessDisplaySelection.builtInDisplay(from: [101, 202, 303]) { $0 == 202 }
         precondition(selected == 202, "Brightness selection should choose the active built-in display")

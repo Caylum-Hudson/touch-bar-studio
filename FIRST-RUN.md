@@ -4,7 +4,7 @@ Open **Touch Bar Studio.app** in the folder above this repository. It is built l
 
 ## Use it
 
-Version 0.4.0 introduces expanded native volume and brightness sliders. On the Touch Bar, each appears as an icon; tapping it opens a full-width slider with Back and minimum/maximum symbols. The editor preview shows this expanded state. The control library sits below the preview, replacing the JSON panel. The built-in display brightness write/readback was verified and restored; physical Touch Bar taps and volume adjustment still need confirmation. See [the 0.4.0 release notes](docs/releases/0.4.0.md).
+Version 0.5.0 adds a **Keep macOS Control Strip** option under **Appearance**. It applies immediately and survived an app restart while the custom Touch Bar remained On. Expanded Studio sliders temporarily use the full bar; Back returns to the prior presentation. The system's physical Control Strip expansion still needs confirmation on the Mac. The existing Dock behavior is retained. See [the 0.5.0 release notes](docs/releases/0.5.0.md).
 
 - **On/off:** click **Touch Bar: On/Off** beside Apply & Save, or choose **Turn Custom Touch Bar Off/On** from the app menu or menu bar icon. Off dismisses the custom bar and restores macOS controls. The choice takes effect immediately and survives restart; saving layouts does not turn it back on. The launcher and editor remain available.
 
@@ -16,11 +16,11 @@ Version 0.4.0 introduces expanded native volume and brightness sliders. On the T
 - **Compact launcher:** use the menu bar Launcher item or Control + Option + Space. Appearance offers Command + Shift + Space as an alternative; Apply & Save activates the choice. Other apps or system shortcuts can conflict.
 - **Photos:** choose a folder, adjust thumbnail size, filter by filename, extension, orientation, minimum dimensions and modification date, and click an image to inspect dimensions. Folder browsing is one level deep. Original images are never written or deleted.
 - **Finder:** the app declares **Open in Photo Workspace** as a macOS Service, and accepts photos/folders through Finder's Open With menu. macOS may require enabling the Service in Keyboard → Keyboard Shortcuts → Services. A dedicated Finder Quick Action extension and resize-copy action are future work.
-- **Appearance:** preview colors, a still background image and optional subtle motion. The system Reduced Motion setting overrides decorative animation. No video backgrounds or system appearance patches.
+- **Appearance:** preview colors, a still background image and optional subtle motion. **Keep macOS Control Strip** applies immediately and is saved with the workspace. The system Reduced Motion setting overrides decorative animation. No video backgrounds or system appearance patches.
 
 The editor keeps local drafts. Apply & Save writes the actual runtime workspace. The native save is atomic and keeps the previous successful workspace as a backup. Script controls remain in imported/exported JSON, but custom AppleScript, shell and swipe scripts are disabled in this build. Unknown JSON fields and unknown item types survive editor import/export; native Apply reports an error for types it cannot decode.
 
-Permission is needed for synthetic keyboard/media controls. Version 0.1.1 checks silently and never requests it on launch. Use **Open permission settings** in the app, or **Keyboard Control Permission…** in its menu, then grant access yourself under Privacy & Security → Device Control and Data Access (called Accessibility on earlier macOS versions). If an old grant does not match the latest ad-hoc build, remove the old Touch Bar Studio entry and add the current `Touch Bar Studio.app` from the folder above this repository. Quit and reopen the app after granting.
+Synthetic keyboard/media controls require macOS access. Touch Bar Studio checks quietly and does not request it on launch. Use **Review Accessibility settings** in the app or **Keyboard Control Permission…** in its menu to open Privacy & Security → Device Control and Data Access (called Accessibility on earlier macOS versions). The control library reports the status available to the running app when known; hardware and Automation requirements are separate. On this Mac, the permission row was On for an earlier ad-hoc build, while the current build correctly reports that its process is not trusted. After rebuilding, remove the old Touch Bar Studio entry, add the current app, grant access, and quit and reopen it. Until then, keyboard/media delivery from the current build is not available. See the [0.5.0 release notes](docs/releases/0.5.0.md) and [verification record](VERIFICATION.md).
 
 ![Quiet permission notice in version 0.1.1](docs/screenshots/permission-notice.png)
 
@@ -31,7 +31,7 @@ Local ad-hoc signatures identify a specific build; rebuilding can invalidate the
 Saved workspace: `~/Library/Application Support/TouchBarStudio/workspace.json`.
 Backup: `workspace.previous.json` in the same folder.
 
-Export the workspace before experimenting. To reset: export a backup, use the JSON panel to import an empty item array `[]` into each profile, remove extra profiles and launcher tiles, then Apply & Save. For a complete storage reset, quit and rename both the TouchBarStudio support folder and `~/Library/WebKit/nz.caylum.touchbarstudio` (the app's web editor drafts), then restart. Photos and legacy MTMR presets are separate and remain untouched. Login at start is optional in the upstream menu; it is not enabled by this build.
+Export the workspace before experimenting. To reset layouts, edit an exported workspace so each profile has an empty `items` array, import it with **Import workspace**, remove extra profiles and launcher tiles, then choose **Apply & Save**. For a complete storage reset, quit and rename both the TouchBarStudio support folder and `~/Library/WebKit/nz.caylum.touchbarstudio` (the app's web editor drafts), then restart. Photos and legacy MTMR presets are separate and remain untouched. Login at start is optional in the upstream menu; it is not enabled by this build.
 
 ## Build and check
 

@@ -1,5 +1,13 @@
 # Verification — 20 October 2026
 
+## 0.5.0 — 20 October 2026
+
+- Final frontend/native build passed, including frontend state/catalog checks, Vite production build, native arm64 build, native self-tests for focus/nested matching/blacklist/three Control Strip policy cases, and a separate expanded-slider self-test with normal AppKit access. The 41-entry native fixture audit retained 36 runtime controls and filtered five export-only script/swipe controls.
+- A read-only TCC check confirmed that macOS's Device Control and Data Access row is granted for the earlier ad-hoc app hash, not the current build. The current build reports `AXIsProcessTrusted == false` and `CGPreflightPostEventAccess == false`, so keyboard/media delivery is unavailable until the user grants access to this build. No permission database or settings were changed.
+- In the app UI, enabling the preference took effect immediately and survived quit/relaunch; the custom Touch Bar stayed On and the saved Dock layout remained. macOS did not prompt for access. Accessibility and event-posting checks remained false, Automation showed unknown, and Dock showed Built in.
+- The same-profile focus change preserves an open submenu or expanded slider when reselecting the current effective profile, including nested app matching and blacklist transitions. A different effective profile still uses the existing Touch Bar transition. Visible focus flicker and physical Control Strip expansion were not verified.
+- Physical Control Strip expansion and keyboard/media action delivery remain pending. The current authorization row applies to an earlier ad-hoc build; user reauthorization of the current build is required before action delivery can be checked. Existing Dock behavior is retained.
+
 ## 0.4.0 — 20 October 2026
 
 - Production frontend and native builds passed. Frontend state/catalog and native expanded-layout, Back-navigation, and built-in-display-selection checks passed.

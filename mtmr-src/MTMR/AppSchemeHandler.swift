@@ -28,7 +28,9 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         let path = url.path
         if path == "/api/keyboard-permission" {
             let opened = taskMethod(urlSchemeTask) != "POST" || StudioPermissions.openSettings()
-            respondJSON(urlSchemeTask,dict:["success":opened,"keyboardAccess":StudioPermissions.keyboardAccess])
+            var response: [String: Any] = ["success": opened]
+            StudioPermissions.statusFields.forEach { response[$0.key] = $0.value }
+            respondJSON(urlSchemeTask,dict:response)
             return
         }
         if path == "/api/touchbar" {
@@ -44,13 +46,35 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
             respondJSON(urlSchemeTask,dict:["success":true,"enabled":AppSettings.touchBarEnabled])
             return
         }
+        if path == "/api/control-strip" {
+            if taskMethod(urlSchemeTask) == "POST" {
+                guard let data = urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream),
+                      let json = try? JSONSerialization.jsonObject(with:data) as? [String:Any],
+                      let enabled = json["enabled"] as? Bool else {
+                    respondJSON(urlSchemeTask,dict:["success":false,"error":"Expected an enabled boolean."],statusCode:400)
+                    return
+                }
+                do {
+                    try StudioStore.shared.setKeepControlStrip(enabled)
+                    TouchBarController.shared.resetControlStrip()
+                    (NSApp.delegate as? AppDelegate)?.createMenu()
+                } catch {
+                    respondJSON(urlSchemeTask,dict:["success":false,"error":error.localizedDescription],statusCode:400)
+                    return
+                }
+            }
+            respondJSON(urlSchemeTask,dict:["success":true,"keepControlStrip":AppSettings.showControlStripState])
+            return
+        }
         if path == "/api/studio" {
             do {
                 if taskMethod(urlSchemeTask) == "POST" {
                     guard let data = urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream), let json = try JSONSerialization.jsonObject(with:data) as? [String:Any] else { throw URLError(.badServerResponse) }
                     try StudioStore.shared.save(json)
                 }
-                respondJSON(urlSchemeTask,dict:["success":true,"workspace":StudioStore.shared.workspace,"activeProfile":StudioStore.shared.activeProfile,"enabled":AppSettings.touchBarEnabled,"keyboardAccess":StudioPermissions.keyboardAccess])
+                var response: [String: Any] = ["success": true,"workspace":StudioStore.shared.apiWorkspace,"activeProfile":StudioStore.shared.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState]
+                StudioPermissions.statusFields.forEach { response[$0.key] = $0.value }
+                respondJSON(urlSchemeTask,dict:response)
             } catch { respondJSON(urlSchemeTask,dict:["success":false,"error":error.localizedDescription],statusCode:400) }
             return
         }

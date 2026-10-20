@@ -77,6 +77,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     var touchBar: NSTouchBar!
 
     fileprivate var lastPresetPath = ""
+    private var lastFocusConfigurationSignature: String?
     var jsonItems: [BarItemDefinition] = []
     var navigationStack: [[BarItemDefinition]] = []
     func enterSubmenu(_ items: [BarItemDefinition]) {
@@ -239,13 +240,23 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     @objc func activeApplicationChanged(_: Notification) {
-        cancelExpandedNativeSlider(restorePreviousBar: false)
-        if let items = StudioStore.shared.selectedItems(bundle: frontmostApplicationIdentifier) {
-            navigationStack = []
-            createAndUpdatePreset(newJsonItems:items)
+        let bundleIdentifier = frontmostApplicationIdentifier
+        guard let items = StudioStore.shared.selectedItems(bundle: bundleIdentifier) else {
+            updateActiveApp()
             return
         }
-        updateActiveApp()
+
+        let signature = focusConfigurationSignature(bundleIdentifier: bundleIdentifier)
+        guard StudioFocusRefreshPolicy.shouldRefresh(previous: lastFocusConfigurationSignature, next: signature) else {
+            // Dock items observe workspace activation themselves, so a focus
+            // change with the same visible profile does not need a bar rebuild.
+            updateControlStripPresence()
+            return
+        }
+
+        lastFocusConfigurationSignature = signature
+        navigationStack = []
+        createAndUpdatePreset(newJsonItems: items)
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -286,6 +297,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func reloadStandardConfig() {
         if let items = StudioStore.shared.selectedItems(bundle:frontmostApplicationIdentifier) {
+            lastFocusConfigurationSignature = focusConfigurationSignature(bundleIdentifier: frontmostApplicationIdentifier)
             createAndUpdatePreset(newJsonItems:items)
             return
         }
@@ -300,6 +312,19 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         }
 
         reloadPreset(path: presetPath)
+    }
+
+    private func focusConfigurationSignature(bundleIdentifier: String?) -> String? {
+        let store = StudioStore.shared
+        let profile = (store.workspace["profiles"] as? [String: [String: Any]])?[store.activeProfile]
+        let sourceItems = profile?["items"] as? [[String: Any]] ?? []
+        let isBlacklisted = bundleIdentifier.map { blacklistAppIdentifiers.contains($0) } ?? false
+        return StudioFocusRefreshPolicy.signature(
+            profileIdentifier: store.activeProfile,
+            items: store.safeItems(sourceItems),
+            bundleIdentifier: bundleIdentifier,
+            blacklisted: isBlacklisted
+        )
     }
 
     func reloadPreset(path: String) {
@@ -371,7 +396,10 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
 
     @objc private func presentTouchBar() {
         guard AppSettings.touchBarEnabled else { return }
-        if AppSettings.showControlStripState && expandedNativeSliderItem == nil {
+        if AppSettings.shouldUseCompactControlStripPresentation(
+            keepControlStrip: AppSettings.showControlStripState,
+            sliderExpanded: expandedNativeSliderItem != nil
+        ) {
             presentSystemModal(touchBar, systemTrayItemIdentifier: .controlStripItem)
         } else {
             presentSystemModal(touchBar, placement: 1, systemTrayItemIdentifier: .controlStripItem)
