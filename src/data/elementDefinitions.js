@@ -1,6 +1,22 @@
 // Complete MTMR Element Definitions
 // Based on https://github.com/Toxblh/MTMR
 
+const resolveKeyButton = (key, label, title, keycode, icon) => ({
+  key,
+  type: 'staticButton',
+  category: 'custom',
+  label,
+  icon,
+  defaultTitle: title,
+  defaultProps: {
+    title,
+    matchAppId: '^com\\.blackmagic-design\\.DaVinciResolve$',
+    actions: [{ trigger: 'singleTap', action: 'keyPress', keycode }],
+  },
+  properties: ['title'],
+  supportsActions: true,
+});
+
 export const elementCategories = {
   buttons: {
     label: 'Buttons',
@@ -369,6 +385,18 @@ export const elementTypes = {
     properties: ['title'],
     supportsActions: true,
   },
+  resolvePlayReverse: resolveKeyButton('resolvePlayReverse', 'Play reverse', 'J ◂', 38, 'backward.fill'),
+  resolveStop: resolveKeyButton('resolveStop', 'Stop playback', 'K ■', 40, 'stop.fill'),
+  resolvePlayForward: resolveKeyButton('resolvePlayForward', 'Play forward', 'L ▶', 37, 'forward.fill'),
+  resolveFrameBack: resolveKeyButton('resolveFrameBack', 'Previous frame', '‹ Frame', 123, 'backward.frame.fill'),
+  resolveFrameForward: resolveKeyButton('resolveFrameForward', 'Next frame', 'Frame ›', 124, 'forward.frame.fill'),
+  resolvePreviousEdit: resolveKeyButton('resolvePreviousEdit', 'Previous edit', 'Edit ↑', 126, 'arrow.up'),
+  resolveNextEdit: resolveKeyButton('resolveNextEdit', 'Next edit', 'Edit ↓', 125, 'arrow.down'),
+  resolveTimelineStart: resolveKeyButton('resolveTimelineStart', 'Timeline start', '⟪ Start', 115, 'backward.end.fill'),
+  resolveTimelineEnd: resolveKeyButton('resolveTimelineEnd', 'Timeline end', 'End ⟫', 119, 'forward.end.fill'),
+  resolveMarkIn: resolveKeyButton('resolveMarkIn', 'Mark In point', 'Mark In', 34, 'arrow.down.to.line'),
+  resolveMarkOut: resolveKeyButton('resolveMarkOut', 'Mark Out point', 'Mark Out', 31, 'arrow.up.to.line'),
+  resolveToggleSnapping: resolveKeyButton('resolveToggleSnapping', 'Toggle timeline snapping', 'Snap N', 45, 'dot.circle'),
   appleScriptTitledButton: {
     type: 'appleScriptTitledButton',
     category: 'custom',

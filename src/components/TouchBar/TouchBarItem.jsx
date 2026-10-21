@@ -2,6 +2,8 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { getElementDefinition } from '../../data/elementDefinitions';
 import ControlIcon from '../ControlIcon/ControlIcon';
+import {fitDockIcons} from '../../utils/positionLayout';
+import {formatTimePreview} from '../../utils/widgetSizing';
 import './TouchBar.css';
 
 // Get display content for an item based on its type
@@ -57,12 +59,12 @@ function getItemDisplay(item, definition) {
     case 'battery':
       return { type: 'sample', controlType: type, content: 'Battery' };
     case 'timeButton':
-      return { type: 'sample', controlType: type, content: getCurrentTime(item.formatTemplate, item.timeZone) };
+      return { type: 'sample', controlType: type, content: formatTimePreview(item.formatTemplate || 'HH:mm', item.timeZone) };
     case 'weather':
     case 'yandexWeather':
       return { type: 'sample', controlType: type, content: 'Weather' };
     case 'cpu':
-      return { type: 'sample', controlType: type, content: 'CPU' };
+      return { type: 'sample', controlType: type, content: '100.0%' };
     case 'currency':
       return { type: 'text', content: `${item.from || 'BTC'}→${item.to || 'USD'}` };
     case 'music':
@@ -96,115 +98,6 @@ function getItemDisplay(item, definition) {
     default:
       return { type: 'text', content: definition?.defaultTitle || type };
   }
-}
-
-// Get current time formatted
-function getCurrentTime(format, timeZone) {
-  if (!format) {
-    format = 'HH:mm';
-  }
-
-  // Parse custom prefix from format (e.g., "'🌉' h:mm a" -> prefix='🌉', format='h:mm a')
-  let prefix = '';
-  let actualFormat = format;
-
-  const quotedMatch = format.match(/^'([^']*)'[\s]+(.*)/);
-  if (quotedMatch) {
-    prefix = quotedMatch[1];
-    actualFormat = quotedMatch[2];
-  }
-
-  // Get current time in the target timezone
-  let now;
-  if (timeZone && timeZone.trim()) {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-
-    const parts = formatter.formatToParts(new Date());
-    const obj = {};
-    parts.forEach(p => {
-      if (p.type !== 'literal') obj[p.type] = p.value;
-    });
-
-    now = new Date(`${obj.year}-${obj.month}-${obj.day}T${obj.hour}:${obj.minute}:${obj.second}`);
-  } else {
-    now = new Date();
-  }
-
-  // Time components
-  const h24 = now.getHours();
-  const h12 = h24 % 12 || 12;
-  const minutes = now.getMinutes();
-  const seconds = now.getSeconds();
-  const mm = minutes.toString().padStart(2, '0');
-  const ss = seconds.toString().padStart(2, '0');
-  const H = h24.toString();
-  const HH = h24.toString().padStart(2, '0');
-  const h = h12.toString();
-  const hh = h12.toString().padStart(2, '0');
-  const a = h24 >= 12 ? 'pm' : 'am';
-  const A = h24 >= 12 ? 'PM' : 'AM';
-  const aa = h24 >= 12 ? 'pm' : 'am';
-
-  // Date components
-  const day = now.getDate();
-  const month = now.getMonth();
-  const year = now.getFullYear();
-  const dayOfWeek = now.getDay();
-
-  const d = day.toString();
-  const dd = day.toString().padStart(2, '0');
-  const M = (month + 1).toString();
-  const MM = (month + 1).toString().padStart(2, '0');
-  const yy = year.toString().slice(-2);
-  const yyyy = year.toString();
-
-  // Month names
-  const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const monthNamesFull = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const MMM = monthNamesShort[month];
-  const MMMM = monthNamesFull[month];
-
-  // Day names
-  const dayNamesShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayNamesFull = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const EEE = dayNamesShort[dayOfWeek];
-  const EEEE = dayNamesFull[dayOfWeek];
-
-  // Build time string from format
-  // Order matters: longer patterns must be replaced first
-  let timeStr = actualFormat
-    // Date tokens (longer patterns first)
-    .replace(/EEEE/g, EEEE)
-    .replace(/EEE/g, EEE)
-    .replace(/MMMM/g, MMMM)
-    .replace(/MMM/g, MMM)
-    .replace(/yyyy/g, yyyy)
-    .replace(/yy/g, yy)
-    .replace(/MM/g, MM)
-    .replace(/M(?!M)/g, M)
-    .replace(/dd/g, dd)
-    .replace(/d(?!d)/g, d)
-    // Time tokens
-    .replace(/HH/g, HH)
-    .replace(/H(?!H)/g, H)
-    .replace(/hh/g, hh)
-    .replace(/h(?!h)/g, h)
-    .replace(/mm/g, mm)
-    .replace(/ss/g, ss)
-    .replace(/aa/g, aa)
-    .replace(/a/g, a)
-    .replace(/A/g, A);
-
-  return prefix ? `${prefix} ${timeStr}` : timeStr;
 }
 
 export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu }) {
@@ -263,12 +156,13 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
     item.align ? `align-${item.align}` : '',
     isSlider ? 'slider' : '',
     isGroup ? 'group' : '',
+    item.type === 'dock' && item.autoResize !== false ? 'auto-resized' : '',
   ].filter(Boolean).join(' ');
 
   // Inline styles for custom properties
   const itemStyle = {
     ...style,
-    width: item.width ? `${item.width}px` : undefined,
+    width: Number.isFinite(item.width) ? `${item.width}px` : undefined,
     background: item.background || undefined,
   };
 
@@ -319,13 +213,17 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
 
     // Dock display
     if (display.type === 'dock') {
+      const apps = item.dockApps || [];
+      const iconSize = Number(item.dockIconSize) || 32;
+      const {iconSize: fittedIconSize, itemSpacing: fittedItemSpacing} = fitDockIcons(
+        Number.isFinite(item.width) ? item.width : 200,
+        apps.length,
+        iconSize,
+        Number.isFinite(Number(item.dockItemSpacing)) ? Number(item.dockItemSpacing) : 1,
+      );
       return (
-        <div className="dock-preview">
-          <ControlIcon type="dock" className="dock-app" />
-          <ControlIcon type="music" className="dock-app" />
-          <ControlIcon type="network" className="dock-app" />
-          <ControlIcon type="staticButton" className="dock-app active" />
-          <ControlIcon type="group" className="dock-app" />
+        <div className="dock-preview" style={{gap: fittedItemSpacing}}>
+          {apps.map(app => <img key={app.bundleId} className={`dock-app${app.running ? ' active' : ''}`} src={app.iconData} alt="" title={app.name} style={{width: fittedIconSize, height: fittedIconSize}} />)}
         </div>
       );
     }
@@ -346,6 +244,7 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
       className={classNames}
       onClick={onSelect}
       onContextMenu={onContextMenu}
+      title={item.type === 'cpu' ? 'Illustrative preview value only; not a live reading' : undefined}
       {...attributes}
       {...listeners}
       aria-label={`${definition.label}${item.title ? `: ${item.title}` : ''} — editor preview`}

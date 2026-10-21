@@ -3,6 +3,23 @@ import { elementTypes } from './elementDefinitions.js';
 // Curated palette order and guidance. `key` preserves aliases such as Date Button.
 const commonGroups = [
   {
+    id: 'resolve-timeline', label: 'DaVinci Resolve timeline', description: 'Timeline shortcuts appear only while DaVinci Resolve is frontmost.',
+    controls: [
+      ['resolvePlayReverse', 'Accessibility required', 'Play the timeline backward (J).'],
+      ['resolveStop', 'Accessibility required', 'Stop timeline playback (K).'],
+      ['resolvePlayForward', 'Accessibility required', 'Play the timeline forward (L).'],
+      ['resolveFrameBack', 'Accessibility required', 'Move back one frame (Left Arrow).'],
+      ['resolveFrameForward', 'Accessibility required', 'Move forward one frame (Right Arrow).'],
+      ['resolvePreviousEdit', 'Accessibility required', 'Move to the previous edit (Up Arrow).'],
+      ['resolveNextEdit', 'Accessibility required', 'Move to the next edit (Down Arrow).'],
+      ['resolveTimelineStart', 'Accessibility required', 'Move to the first frame of the timeline (Home).'],
+      ['resolveTimelineEnd', 'Accessibility required', 'Move to the last frame of the timeline (End).'],
+      ['resolveMarkIn', 'Accessibility required', 'Set a timeline In point (I).'],
+      ['resolveMarkOut', 'Accessibility required', 'Set a timeline Out point (O).'],
+      ['resolveToggleSnapping', 'Accessibility required', 'Toggle timeline snapping (N).'],
+    ],
+  },
+  {
     id: 'sound-media', label: 'Sound & media', description: 'Control playback and listening level.',
     controls: [
       ['volumeUp', 'Accessibility required', 'Raise system volume.'], ['volumeDown', 'Accessibility required', 'Lower system volume.'],
@@ -78,7 +95,13 @@ const controlInfo = [...controlCatalog, ...advancedControlCatalog]
   .flatMap((group) => group.controls)
   .reduce((lookup, control) => ({ ...lookup, [control.key]: control }), {});
 
-export function getControlInfo(keyOrType) {
+export function getControlInfo(keyOrType, item = null) {
+  if (item?.matchAppId?.includes('DaVinciResolve')) {
+    const resolveControl = Object.entries(elementTypes).find(([key, definition]) => key.startsWith('resolve')
+      && (definition.defaultProps.title === item.title
+        || definition.defaultProps.actions?.[0]?.keycode === item.actions?.[0]?.keycode));
+    if (resolveControl && controlInfo[resolveControl[0]]) return controlInfo[resolveControl[0]];
+  }
   if (controlInfo[keyOrType]) return controlInfo[keyOrType];
   return Object.values(controlInfo).find((control) => control.type === keyOrType) || null;
 }

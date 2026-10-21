@@ -38,11 +38,21 @@ export default function StudioShell() {
     if(enabled===null)return;
     setStatus(previous=>previous.startsWith('Custom Touch Bar')?(enabled?'Custom Touch Bar on':'Custom Touch Bar off · macOS controls restored'):previous);
   },[enabled]);
+  useEffect(()=>{
+    if(tab!=='Studio'||status==='Ready — changes are saved locally')return;
+    const timer=setTimeout(()=>{
+      if(status==='Applied to Touch Bar · saved on this Mac'||status==='Saved on this Mac · custom Touch Bar is off'||status.startsWith('macOS Control Strip '))setStatus('Ready — changes are saved locally');
+    },3000);
+    return ()=>clearTimeout(timer);
+  },[status,tab]);
   const [pendingPhotos,setPendingPhotos] = useState(null);
   const [apps,setApps] = useState([]);
   const [name,setName] = useState('');
   const [bundle,setBundle] = useState('');
+  const [profileAddOpen,setProfileAddOpen] = useState(false);
+  const profileNameRef=useRef(null);
   const importRef=useRef(null);
+  useEffect(()=>{if(profileAddOpen)profileNameRef.current?.focus();},[profileAddOpen]);
   useEffect(()=>{localStorage.setItem('studio-settings',JSON.stringify(settings));},[settings]);
   useEffect(()=>{
     if(!native)return;
@@ -103,7 +113,8 @@ export default function StudioShell() {
     const id=crypto.randomUUID();
     const copy=JSON.parse(JSON.stringify(app.profiles.default.items));
     app.setProfiles({...app.profiles,[id]:{id,name:name.trim(),bundleId:bundle.trim(),enabled:true,items:copy}});
-    setName('');setBundle('');setStatus('Profile created from Default. Select it to edit.');
+    app.switchProfile(id);
+    setName('');setBundle('');setProfileAddOpen(false);setStatus('App profile created from Default. Apply & Save to activate.');
   };
   const addTile=kind=>run(async()=>{
     const r=await api('choose?kind='+kind);if(r.cancelled)return;
@@ -112,18 +123,23 @@ export default function StudioShell() {
   const updateTile=(id,patch)=>setSettings({...settings,tiles:settings.tiles.map(t=>t.id===id?{...t,...patch}:t)});
   return <div className="studio-shell" style={{'--studio-accent':settings.accent,'--studio-bg':settings.background,backgroundImage:settings.image?`linear-gradient(#101018cc,#101018ee),url(${settings.image})`:undefined}} data-motion={settings.motion}>
     <header className="studio-header"><div><strong>Touch Bar Studio</strong><small>v{appMetadata.version} · Your Mac, within reach.</small></div><nav>{['Launcher','Studio','Photos','Appearance'].map(t=><button key={t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><button className="runtime-toggle" aria-pressed={enabled===true} disabled={!native||enabled===null||toggling} onClick={toggleTouchBar}>{enabled===null?'Checking Touch Bar…':enabled?'Touch Bar: On':'Touch Bar: Off'}</button><button className="primary" onClick={save}>Apply & Save</button></header>
-    <div className="studio-status" role="status">{status}<span>Touch Bar: {enabled===false?'Off (macOS controls)':app.profiles[active]?.name || 'Default'}</span></div>
+    {(tab!=='Studio'||status!=='Ready — changes are saved locally')&&<div className={`studio-status ${tab==='Studio'?'studio-feedback':''}`} role="status">{status}<span>Touch Bar: {enabled===false?'Off (macOS controls)':app.profiles[active]?.name || 'Default'}</span></div>}
     {native && keyboardAccess===false && <div className="permission-notice" role="status"><span>macOS has not authorized keyboard control for this running app. Accessibility controls keyboard and media access; Full Disk Access is separate.</span><div><button onClick={()=>run(async()=>{await api('keyboard-permission',{});})}>Review Accessibility settings</button> <button onClick={recheckAccessibility}>Recheck status</button></div></div>}
     {native&&controlStripError&&<div className="permission-error" role="alert">{controlStripError}</div>}
     {tab==='Studio'&&<>
-      <div className="profile-strip"><label>Editing <select value={app.profileId} onChange={e=>app.switchProfile(e.target.value)}>{Object.entries(app.profiles).map(([id,p])=><option key={id} value={id}>{p.name}{p.enabled===false?' (disabled)':''}</option>)}</select></label>
+      <div className="profile-toolbar">
+        <label className="profile-editor-select"><span>Editing</span><select aria-label="Editing profile" value={app.profileId} onChange={e=>app.switchProfile(e.target.value)}>{Object.entries(app.profiles).map(([id,p])=><option key={id} value={id}>{id==='default'?'Default bar':p.name}{p.enabled===false?' (disabled)':''}</option>)}</select></label>
+        <div className="profile-runtime" aria-live="polite"><small>Active on Touch Bar</small><strong>{enabled===null?'Checking…':enabled?app.profiles[active]?.name||'Default bar':'Off'}</strong></div>
+        <button type="button" className="profile-add-action" aria-expanded={profileAddOpen} onClick={()=>setProfileAddOpen(open=>!open)}>{profileAddOpen?'Close':'＋ Add app profile'}</button>
+      </div>
+      {profileAddOpen&&<div className="profile-add-form"><p>Starts with a copy of Default.</p><div className="inline"><button type="button" onClick={()=>run(chooseProfile)}>Choose installed app…</button><select aria-label="Installed app" value="" onChange={e=>{const a=apps.find(a=>a.bundleId===e.target.value);if(a){setName(a.name);setBundle(a.bundleId);}}}><option value="">Installed apps…</option>{apps.map(a=><option key={a.bundleId} value={a.bundleId}>{a.name}</option>)}</select><input ref={profileNameRef} aria-label="Profile name" placeholder="Profile name" value={name} onChange={e=>setName(e.target.value)}/><input aria-label="App bundle ID" placeholder="Bundle ID, e.g. com.apple.finder" value={bundle} onChange={e=>setBundle(e.target.value)}/><button disabled={!name.trim()||!bundle.trim()} onClick={addProfile}>Create app profile</button></div></div>}
+      <details className="studio-options"><summary>Studio options <span>{profile?.name||'Default'} profile</span></summary><div className="studio-options-content"><div className="profile-strip">
       {app.profileId!=='default'&&<><input aria-label="Profile name" value={profile.name} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,name:e.target.value}})}/><label><input type="checkbox" checked={profile.enabled} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,enabled:e.target.checked}})}/>Enabled</label><button onClick={()=>{const id=app.profileId;app.switchProfile('default');const p={...app.profiles};delete p[id];app.setProfiles(p);}}>Delete profile</button></>}
       <button onClick={()=>download('touchbar-workspace.json',workspace())}>Export workspace</button><button onClick={()=>importRef.current.click()}>Import workspace</button>
       <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const file=e.target.files[0];if(!file)return;const w=JSON.parse(await file.text());if(w.version!==1||!w.profiles?.default||Object.values(w.profiles).some(p=>!Array.isArray(p.items)))throw Error('Expected a version 1 workspace with a Default profile.');app.restoreWorkspace(w);if(w.settings)setSettings({...defaults,...w.settings});setStatus('Workspace imported locally. Apply & Save to activate.');e.target.value='';})}/>
-      </div>
-      <details className="profile-add"><summary>Add an app profile</summary><div className="inline"><button onClick={()=>run(chooseProfile)}>Choose installed app…</button><select aria-label="Installed app" value="" onChange={e=>{const a=apps.find(a=>a.bundleId===e.target.value);if(a){setName(a.name);setBundle(a.bundleId);}}}><option value="">Installed apps…</option>{apps.map(a=><option key={a.bundleId} value={a.bundleId}>{a.name}</option>)}</select><input placeholder="Profile name" value={name} onChange={e=>setName(e.target.value)}/><input placeholder="Bundle ID, e.g. com.apple.finder" value={bundle} onChange={e=>setBundle(e.target.value)}/><button disabled={!name.trim()||!bundle.trim()} onClick={addProfile}>Duplicate Default</button></div></details>
-      <div className="submenu-strip"><button disabled={!app.groupPath.length} onClick={app.leaveGroup}>‹ Back</button><span>{profile.name} root{app.groupNames.map((n,i)=><span key={i}> / {n}</span>)}</span>{app.items.filter(i=>i.type==='group').map(i=><button key={i.id} onClick={()=>app.enterGroup(i.id)}>Open {i.title||'Submenu'} ›</button>)}{app.selectedItemId&&<select aria-label="Move selected control" value="" onChange={e=>app.moveItem(app.selectedItemId,e.target.value==='root'?null:e.target.value)}><option value="">Move selected to…</option><option value="root">Root layout</option>{app.items.filter(i=>i.type==='group'&&i.id!==app.selectedItemId).map(i=><option key={i.id} value={i.id}>{i.title||'Submenu'}</option>)}</select>}</div>
-      <div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native}><AppContent/></RuntimePermissionsProvider></div><div className="script-note">Script controls are preserved for export but disabled in the runtime. Apply & Save activates complete profiles.</div>
+      </div></div></details>
+      {app.groupPath.length>0&&<div className="submenu-strip"><button onClick={app.leaveGroup}>‹ Back</button><span>{profile?.name||'Default'}{app.groupNames.map((n,i)=><span key={i}> / {n}</span>)}</span>{app.selectedItemId&&<select aria-label="Move selected control" value="" onChange={e=>app.moveItem(app.selectedItemId,e.target.value==='root'?null:e.target.value)}><option value="">Move selected to…</option><option value="root">Root layout</option>{app.items.filter(i=>i.type==='group'&&i.id!==app.selectedItemId).map(i=><option key={i.id} value={i.id}>{i.title||'Submenu'}</option>)}</select>}</div>}
+      <div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native} keepControlStrip={settings.keepControlStrip===true} updateKeepControlStrip={updateControlStrip} controlStripBusy={controlStripBusy}><AppContent/></RuntimePermissionsProvider></div>
     </>}
     {tab==='Launcher'&&<main className="workspace-page"><div className="page-heading"><div><p className="eyebrow">MAKE SPACE FOR YOUR WORK</p><h1>Everything, one touch away.</h1><p>Apps and folders for whatever you’re working on.</p></div><div><button onClick={()=>addTile('app')}>+ App</button> <button onClick={()=>addTile('folder')}>+ Folder</button></div></div>
       {!settings.tiles.length&&<div className="empty-card"><h2>Build your launchpad</h2><p>Add an app or folder above. Click a tile to open it.</p><button onClick={()=>addTile('app')}>Choose your first app</button></div>}

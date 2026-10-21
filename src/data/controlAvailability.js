@@ -2,6 +2,9 @@ const ACCESSIBILITY_CONTROLS = new Set([
   'volumeUp', 'volumeDown', 'mute', 'previous', 'play', 'next',
   'brightnessUp', 'brightnessDown', 'illuminationUp', 'illuminationDown',
   'escape', 'delete',
+  'resolvePlayReverse', 'resolveStop', 'resolvePlayForward', 'resolveFrameBack',
+  'resolveFrameForward', 'resolvePreviousEdit', 'resolveNextEdit', 'resolveTimelineStart',
+  'resolveTimelineEnd', 'resolveMarkIn', 'resolveMarkOut', 'resolveToggleSnapping',
 ]);
 
 
@@ -10,7 +13,7 @@ export function getControlStatus(control, accessibilityAccess = null) {
   if (control.status.startsWith('Unavailable') || control.status === 'Built in') return control.status;
 
   const requirements = [];
-  if (ACCESSIBILITY_CONTROLS.has(control.key)) {
+  if (ACCESSIBILITY_CONTROLS.has(control.key) || control.status.includes('Accessibility required')) {
     requirements.push(accessibilityAccess === true
       ? 'Accessibility granted'
       : accessibilityAccess === false

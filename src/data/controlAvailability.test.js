@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getControlStatus, getPermissionLabel } from './controlAvailability.js';
+import { controlCatalog } from './controlCatalog.js';
 
 const escapeControl = { key: 'escape', status: 'Accessibility required', benefit: 'Send Escape.' };
 const brightnessControl = { key: 'brightnessUp', status: 'Accessibility required · Hardware dependent', benefit: 'Increase brightness.' };
@@ -11,6 +12,16 @@ test('Accessibility status follows the live permission state', () => {
   assert.equal(getControlStatus(escapeControl, true), 'Accessibility granted');
   assert.equal(getControlStatus(escapeControl, false), 'Accessibility not granted');
   assert.equal(getControlStatus(escapeControl, null), 'Accessibility status unknown');
+});
+
+test('Resolve timeline controls report the live Accessibility grant', () => {
+  const resolveControls = controlCatalog.find((group) => group.id === 'resolve-timeline').controls;
+  assert.equal(resolveControls.length, 12);
+  for (const control of resolveControls) {
+    assert.equal(getControlStatus(control, true), 'Accessibility granted', control.key);
+    assert.equal(getControlStatus(control, false), 'Accessibility not granted', control.key);
+    assert.equal(getControlStatus(control, null), 'Accessibility status unknown', control.key);
+  }
 });
 
 test('hardware requirements remain separate from Accessibility status', () => {

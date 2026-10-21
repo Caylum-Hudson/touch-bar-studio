@@ -3,6 +3,7 @@ import {
   DndContext,
   DragOverlay,
   pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
   PointerSensor,
@@ -17,18 +18,25 @@ import { AppProvider, useApp } from './context/AppContext';
 import TouchBar from './components/TouchBar/TouchBar';
 import TouchBarItem from './components/TouchBar/TouchBarItem';
 import Palette from './components/Palette/Palette';
+import ControlIcon from './components/ControlIcon/ControlIcon';
 import PropertiesPanel from './components/Properties/PropertiesPanel';
 import { getElementDefinition, createElement } from './data/elementDefinitions';
 import { getPreset, getPresetList, communityPresets, fetchCommunityPreset } from './data/presets';
 import './App.css';
-import {isPrecise, layoutFrames, snapPosition, spacingGap, itemWidth} from './utils/positionLayout';
+import {isPrecise, layoutFrames, snapPosition, spacingGap, contentFitWidth} from './utils/positionLayout';
+import { isPointerWithinViewport } from './utils/dragViewport';
+import { useRuntimePermissions } from './context/useRuntimePermissions';
+import { useDockPreview } from './hooks/useDockPreview';
 
 export function AppContent() {
+  const { updateKeepControlStrip } = useRuntimePermissions();
   const {
     addItem, selectItem, items, reorderItems, moveItem, updateItem, selectedItemId, removeItem, loadItems, clearAll,
     activePreset, setActivePreset, myPresets, saveMyPreset, overwriteMyPreset, deleteMyPreset,
     loadFromMTMR, saveToMTMR, isDirty, shouldEnableSave, autoLoad, toggleAutoLoad
   } = useApp();
+  const dockForPreview = items.find(item => item.type === 'dock');
+  const dockPreview = useDockPreview(dockForPreview ? (dockForPreview.filter ?? '') : undefined);
   const [activeId, setActiveId] = useState(null);
   const [activeType, setActiveType] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
@@ -220,10 +228,20 @@ export function AppContent() {
     })
   );
 
+  const collisionDetection = (args) => {
+    const isControlStripWidget = args.active.data.current?.type === 'native-control-strip';
+    const pointerCollisions = args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args);
+    if (isControlStripWidget) return pointerCollisions.filter(collision => collision.id === 'control-strip-slot');
+    const pointer = args.pointerCoordinates;
+    const viewport = args.droppableRects.get('touchbar-drop-zone');
+    if (!isPointerWithinViewport(pointer, viewport)) return [];
+    return pointerCollisions.filter(collision => collision.id !== 'control-strip-slot');
+  };
+
   const handleDragStart = (event) => {
     const { active } = event;
     setActiveId(active.id);
-    if (active.data.current?.type === 'palette-item') {
+    if (active.data.current?.type === 'palette-item' || active.data.current?.type === 'native-control-strip') {
       setActiveType('palette');
     } else {
       setActiveType('touchbar');
@@ -233,11 +251,18 @@ export function AppContent() {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     const positioned = isPrecise(items);
+    const scroll=document.querySelector('.precise-scroll');
+    const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge:scroll?scroll.scrollLeft+scroll.clientWidth:1085};
     const dragged = items.find(item=>item.id===active.id);
+    if (active.data.current?.type === 'native-control-strip') {
+      if (over?.id === 'control-strip-slot') updateKeepControlStrip?.(true);
+      setActiveId(null);setActiveType(null);return;
+    }
     if(positioned && dragged) {
-      const frame=layoutFrames(items).get(dragged.id);
-      const placement=snapPosition(items,dragged.id,frame.x+event.delta.x,frame.width);
-      updateItem(dragged.id,{studioPosition:placement.x,width:frame.width});
+      if (!over) { setActiveId(null); setActiveType(null); return; }
+      const frame=layoutFrames(items,layoutOptions).get(dragged.id);
+      const placement=snapPosition(items,dragged.id,frame.x+event.delta.x,frame.width,undefined,layoutOptions);
+      updateItem(dragged.id,{studioPosition:placement.x});
       setActiveId(null);setActiveType(null);return;
     }
     if (active.data.current?.type === 'palette-item') {
@@ -247,9 +272,9 @@ export function AppContent() {
         const canvas=document.getElementById('precise-touchbar-canvas');
         const translated=active.rect.current.translated;
         const x=canvas&&translated?translated.left-canvas.getBoundingClientRect().left:0;
-        const width=itemWidth(createElement(elementType));
-        const placement=snapPosition(items,null,x,width);
-        const overrides=positioned?{studioPosition:placement.x,width,...(spacingGap(items)!==null?{studioGap:spacingGap(items)}:{})}:{};
+        const width=contentFitWidth(createElement(elementType));
+        const placement=snapPosition(items,null,x,width,undefined,layoutOptions);
+        const overrides=positioned?{studioPosition:placement.x,...(spacingGap(items)!==null?{studioGap:spacingGap(items)}:{})}:{};
         const newItem = addItem(elementType, overrides, positioned?undefined:target?.id);
         if (newItem) {
           selectItem(newItem.id);
@@ -276,12 +301,28 @@ export function AppContent() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
       <div className="app">
-        <header className="app-menubar">
+
+
+        <main className="app-main">
+          <section className="content-center">
+            <div className="touchbar-wrapper">
+              <TouchBar dockPreview={dockPreview} />
+            </div>
+            <div className="control-library"><Palette /></div>
+          </section>
+
+          {selectedItemId && (
+            <aside className="sidebar-right">
+              <PropertiesPanel />
+            </aside>
+          )}
+        </main>
+        <details className="studio-menu-options"><summary>Menus and Auto Load</summary><header className="app-menubar">
           {openMenu && <div className="menu-backdrop" onClick={closeMenus} />}
           <div className="menubar-menus">
             {/* File Menu */}
@@ -499,22 +540,7 @@ export function AppContent() {
               <span className="ios-toggle-switch"></span>
             </label>
           </div>
-        </header>
-
-        <main className="app-main">
-          <section className="content-center">
-            <div className="touchbar-wrapper">
-              <TouchBar />
-            </div>
-            <div className="control-library"><Palette /></div>
-          </section>
-
-          {selectedItemId && (
-            <aside className="sidebar-right">
-              <PropertiesPanel />
-            </aside>
-          )}
-        </main>
+        </header></details>
 
         <footer className="app-footer">
           <span className="app-footer-hint">Drag elements to the touch bar • Click to select • Right-click for options</span>
@@ -534,6 +560,13 @@ export function AppContent() {
           <div className="touchbar-item-overlay">
             <span className="touchbar-item-title">
               {paletteItemDef.icon} {paletteItemDef.label}
+            </span>
+          </div>
+        )}
+        {activeType === 'palette' && activeId === 'palette-native-control-strip' && (
+          <div className="touchbar-item-overlay">
+            <span className="touchbar-item-title native-control-strip-overlay-title">
+              <ControlIcon type="brightness" className="touchbar-icon" /> macOS Control Strip
             </span>
           </div>
         )}

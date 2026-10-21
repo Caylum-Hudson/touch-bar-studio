@@ -1,5 +1,28 @@
 # Verification — 20 October 2026
 
+## 0.5.2 — 20 October 2026
+
+- Scope: decluttered Studio preview and icon library, secondary options collapsed by default, separate right-edge-only Control Strip tile using the existing **Keep macOS Control Strip** setting, live Dock app/icon preview, and Dock auto-sizing that grows into available space then shrinks icons and gaps to keep all apps visible without internal scrolling. Dock and neighboring controls keep their saved positions. The Control Strip tile is not a saved profile item.
+- The final installed 0.5.2 build passed `./build-local.sh` and strict code-signature verification. This includes state/catalog checks, Vite production build, Swift compilation, native AppKit Dock-fit, preview-cache, long-date and CPU fitting checks at narrowed scale, and automatic-layout constraint checks.
+- All 12 frontend sizing, Dock, and viewport tests passed. The active saved profile contains Date, CPU, and Dock widgets; these sizing changes did not modify its saved widths or positions.
+- DaVinci Resolve controls passed the installed 0.5.2 checks: 53 catalog entries, 48 native controls decoded, and five export-only controls filtered. All six permission-state tests passed. Browser QA confirmed the Play Reverse shortcut editor (J, keycode 38), Resolve app filter, and permission status; the temporary control was removed and the saved profile reloaded. [Resolve widget library screenshot](docs/screenshots/resolve-widget-library.png) is from the localhost editor, not the native Touch Bar. Physical Touch Bar behavior and live Resolve key delivery remain unverified.
+- Installed-build browser QA confirmed the always-visible **Editing: Default bar** selector, the focused app-profile form, and immediate selection of a newly created profile for editing; the active runtime profile remains shown separately. The temporary profile was removed and the user's workspace was left unchanged. [Profile selector screenshot](docs/screenshots/profile-editing-selector.png) is an editor fixture, not a native Touch Bar capture. Final `./build-local.sh` passed.
+- The active saved profile contains Date, CPU, and Dock widgets; these sizing changes did not modify its saved widths or positions.
+- Frontend fit fixtures passed with 5 and 14 apps at 76-unit and 520-unit widths; every icon stayed inside its tile with no internal horizontal overflow. [Dock fit fixtures](docs/screenshots/dock-fit-fixtures.png) is an editor fixture screenshot, not a physical Touch Bar capture.
+- The user confirmed dragging the right-edge Control Strip tile into place before the Dock sizing changes. They asked to reopen the latest app for visual and physical Dock-fit confirmation; that check is pending, so the new sizing is not yet user-verified in the installed app.
+- Permission status for the latest build has not been checked. Physical Touch Bar actions and keyboard/media delivery remain unverified. The 0.5.1 permission result applies only to that earlier build.
+
+## 0.5.1 — 20 October 2026
+
+- Frontend/native build and strict code-signature verification passed. JavaScript tests passed (8/8), scoped lint reported no errors (existing hook warnings remain), and all required frontend/native checks passed.
+- UI checks passed for compact and expanded previews, full-width slider precedence and Back navigation, and preservation of the enabled Touch Bar layout (Escape, Volume Slider, Brightness Slider, Dock, Exit) with Keep macOS Control Strip enabled.
+- The user-authorized reauthorization flow completed for this app. Accessibility and event posting both report Granted. Physical Touch Bar actions and system Control Strip expansion/input delivery were not verified.
+- Screenshots: [compact preview](docs/screenshots/control-strip-preview-collapsed.jpg) and [expanded preview](docs/screenshots/control-strip-preview-expanded.jpg).
+
+## Post-tag 0.5.0 permission reauthorization — 20 October 2026
+
+- The user removed the stale ad-hoc build entry, added the current 0.5.0 app, granted access, and reopened it. Accessibility and Keyboard Event Posting both reported Granted. Physical keyboard/media delivery was not tested.
+
 ## 0.5.0 — 20 October 2026
 
 - Final frontend/native build passed, including frontend state/catalog checks, Vite production build, native arm64 build, native self-tests for focus/nested matching/blacklist/three Control Strip policy cases, and a separate expanded-slider self-test with normal AppKit access. The 41-entry native fixture audit retained 36 runtime controls and filtered five export-only script/swipe controls.

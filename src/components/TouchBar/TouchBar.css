@@ -298,6 +298,167 @@
   padding: 4px 10px;
 }
 
+/* A visual-only model of macOS's native Control Strip, kept beside the custom layout. */
+.touchbar-frame.with-control-strip,
+.control-strip-full-frame {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1085px;
+}
+
+.touchbar-screen.with-control-strip,
+.control-strip-full-screen {
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.touchbar-custom-region {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.touchbar-screen.with-control-strip .precise-scroll {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.control-strip-widget-slot{position:relative;display:flex;flex:0 0 176px;min-width:0;align-items:center;justify-content:center;box-sizing:border-box;padding:0 8px}
+.control-strip-widget-slot .control-strip-compact{width:100%;flex:1 1 auto}
+.control-strip-widget-slot .control-strip-compact:focus-within{outline:2px solid var(--studio-accent,#a78bfa);outline-offset:2px;box-shadow:0 0 0 4px #a78bfa15}
+.control-strip-remove{position:absolute!important;z-index:2;top:1px;right:2px;width:16px;height:16px;padding:0!important;border:0!important;border-radius:50%!important;background:#0008!important;color:#aeb3bf!important;font:12px/1 -apple-system,BlinkMacSystemFont,sans-serif!important;opacity:.55}
+.control-strip-remove:hover{opacity:1;background:#583d55!important;color:#fff!important}
+.control-strip-drop-target{position:absolute;z-index:5;top:0;right:0;bottom:0;width:176px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:1px dashed transparent;border-radius:7px;color:transparent;opacity:0;pointer-events:none;font-size:11px;text-align:center}
+.control-strip-drop-target.is-active{opacity:1;border-color:#b69af844;background:#9c77ee12;color:#cbbff2}
+.control-strip-drop-target.is-active.is-over{border-color:#b69af8;background:#9c77ee24;color:#eee8ff;box-shadow:inset 0 0 0 1px #b69af844}
+.control-strip-stage-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.control-strip-stage-header .expanded-slider-caption{flex:1}
+
+.control-strip-compact {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-around;
+  gap: 2px;
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding: 3px 4px;
+  cursor: default;
+}
+
+.control-strip-expand,
+.control-strip-collapse {
+  display: inline-flex;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #e5e7ec;
+  font: 500 21px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  cursor: pointer;
+}
+
+.control-strip-static-button {
+  display: inline-flex;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  color: #e9ebf1;
+  font: 16px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+}
+
+.control-strip-expand:hover,
+.control-strip-collapse:hover {
+  background: rgba(255,255,255,.13);
+}
+
+.control-strip-icon {
+  width: 20px !important;
+  height: 20px !important;
+  padding: 2px !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: #e9ebf1;
+  filter: grayscale(1) brightness(1.8);
+}
+
+.control-strip-siri {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: conic-gradient(#fc4a8b, #8857f2, #3fc6fc, #60e4a3, #fc4a8b);
+  color: transparent;
+  font-size: 8px;
+  box-shadow: 0 0 8px #7f74ff66;
+}
+
+.control-strip-expanded-stage {
+  width: 100%;
+  max-width: 1085px;
+}
+
+.control-strip-full-screen {
+  align-items: center;
+  min-height: 54px;
+  padding: 5px 8px;
+  background: linear-gradient(180deg, #111318, #08090d);
+}
+
+.control-strip-expanded {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  color: #f2f3f6;
+}
+
+.control-strip-expanded-controls {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(1px, .5vw, 8px);
+  min-width: 0;
+}
+
+.control-strip-preview-note {
+  flex: 0 0 auto;
+  color: #9ca3af;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+@media (max-width: 760px) {
+  .control-strip-compact { flex-basis: 144px; }
+  .control-strip-expanded { gap: 5px; }
+  .control-strip-expanded-controls { gap: 1px; }
+  .control-strip-icon { width: 18px !important; height: 18px !important; }
+  .control-strip-static-button { flex-basis: 24px; width: 24px; }
+  .control-strip-preview-note { display: none; }
+}
+
 .time-display {
   font-size: 12px;
   font-weight: 500;
@@ -385,17 +546,27 @@
   padding: 4px 6px;
 }
 
+.touchbar-item.type-dock.auto-resized {
+  box-sizing: border-box;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
 .dock-preview {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .dock-app {
-  font-size: 13px;
-  line-height: 1;
+  display: block;
+  flex: 0 0 auto;
   opacity: 0.7;
   position: relative;
+  object-fit: contain;
 }
 
 .dock-app.active {
@@ -495,6 +666,12 @@
   color: #e0e0e0;
   font-size: 12px;
   font-weight: 500;
+}
+
+.touchbar-item-overlay .native-control-strip-overlay-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Context Menu */

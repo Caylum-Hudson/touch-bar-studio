@@ -2,17 +2,26 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getElementDefinition, commonProperties, actionTypes, actionTriggers } from '../../data/elementDefinitions';
 import './Properties.css';
-import {BAR_WIDTH,itemWidth,clampPosition} from '../../utils/positionLayout';
+import {BAR_WIDTH,contentFitWidth,contentMinimumWidth,clampPosition} from '../../utils/positionLayout';
 import {getControlInfo} from '../../data/controlCatalog';
 import { getControlStatus } from '../../data/controlAvailability';
-import { useRuntimePermissions } from '../../context/RuntimePermissions';
+import { useRuntimePermissions } from '../../context/useRuntimePermissions';
+
+const shortcutKeys = [
+  ['A', 0], ['B', 11], ['C', 8], ['D', 2], ['E', 14], ['F', 3], ['G', 5], ['H', 4],
+  ['I', 34], ['J', 38], ['K', 40], ['L', 37], ['M', 46], ['N', 45], ['O', 31], ['P', 35],
+  ['Q', 12], ['R', 15], ['S', 1], ['T', 17], ['U', 32], ['V', 9], ['W', 13], ['X', 7],
+  ['Y', 16], ['Z', 6], ['Left Arrow', 123], ['Right Arrow', 124], ['Down Arrow', 125],
+  ['Up Arrow', 126], ['Home', 115], ['End', 119], ['Space', 49], ['Return', 36], ['Tab', 48], ['Escape', 53],
+].map(([label, keycode]) => ({ label, value: String(keycode) }));
 
 export default function PropertiesPanel() {
-  const { getSelectedItem, updateItem, removeItem, selectedItemId } = useApp();
+  const { getSelectedItem, updateItem, removeItem, selectedItemId, enterGroup } = useApp();
   const { accessibilityAccess } = useRuntimePermissions();
   const item = getSelectedItem();
   const definition = item ? getElementDefinition(item.type) : null;
-  const control = item ? getControlInfo(item.type) : null;
+  const control = item ? getControlInfo(item.type, item) : null;
+  const fittedWidth = item ? contentFitWidth(item) : 0;
 
   if (!item || !definition) {
     return (
@@ -31,15 +40,15 @@ export default function PropertiesPanel() {
     <div className="properties-panel">
       <div className="properties-header">
         <h2>Properties</h2>
-        <span className="properties-type">{definition.label}</span>
+        <span className="properties-type">{control?.label || definition.label}</span>
       </div>
       <div className="properties-content">
         {control && <section className="control-runtime-note" aria-label="Control availability"><strong>{getControlStatus(control, accessibilityAccess)}</strong><p>{control.benefit}</p></section>}
 
         <PropertySection title="Placement">
-          <PropertyInput label="X position (0–1085)" type="number" value={item.studioPosition ?? ''} placeholder="Automatic" onChange={value=>updateItem(item.id,{studioPosition:value===''?undefined:clampPosition(value,itemWidth(item)),width:itemWidth(item)})}/>
+          <PropertyInput label="X position (0–1085)" type="number" value={item.studioPosition ?? ''} placeholder="Automatic" onChange={value=>updateItem(item.id,{studioPosition:value===''?undefined:clampPosition(value,fittedWidth)})}/>
           <p className="placement-help">Set an exact leading edge, or use Precise placement above the preview. Drag controls along the ruler.</p>
-          {Number.isFinite(item.studioPosition)&&<input aria-label="Position on Touch Bar" type="range" min="0" max={BAR_WIDTH-itemWidth(item)} step="1" value={item.studioPosition} onChange={e=>updateItem(item.id,{studioPosition:+e.target.value})}/>}
+          {Number.isFinite(item.studioPosition)&&<input aria-label="Position on Touch Bar" type="range" min="0" max={Math.max(0,BAR_WIDTH-fittedWidth)} step="1" value={Math.min(item.studioPosition,Math.max(0,BAR_WIDTH-fittedWidth))} onChange={e=>updateItem(item.id,{studioPosition:+e.target.value})}/>}
         </PropertySection>
         {/* Common Properties */}
         <PropertySection title="General">
@@ -47,9 +56,13 @@ export default function PropertiesPanel() {
             label="Width"
             type="number"
             value={item.width || ''}
-            onChange={(value) => updateItem(item.id, { width: value ? Math.min(1085,Math.max(24,Number(value))) : undefined, ...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,Number(value)||64)}:{}) })}
+            onChange={(value) => {
+              const width=value ? Math.min(1085,Math.max(24,Number(value))) : undefined;
+              updateItem(item.id,{width,...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,Math.max(width||64,contentMinimumWidth(item)))}:{})});
+            }}
             placeholder="Auto"
           />
+          {Number.isFinite(item.width) && item.width < fittedWidth && <p className="placement-help">This control needs about {Math.ceil(fittedWidth)} units for its full content. The preview grows to fit; it may overlap nearby controls.</p>}
           <PropertySelect
             label="Alignment"
             value={item.align || 'center'}
@@ -98,7 +111,7 @@ export default function PropertiesPanel() {
         {/* Type-Specific Properties */}
         {definition.properties && definition.properties.length > 0 && (
           <PropertySection title="Type Settings">
-            <TypeSpecificProperties item={item} definition={definition} updateItem={updateItem} />
+            <TypeSpecificProperties item={item} definition={definition} updateItem={updateItem} enterGroup={enterGroup} />
           </PropertySection>
         )}
 
@@ -253,7 +266,7 @@ function PropertyImage({ value, onChange }) {
   );
 }
 
-function TypeSpecificProperties({ item, definition, updateItem }) {
+function TypeSpecificProperties({ item, definition, updateItem, enterGroup }) {
   const type = item.type;
 
   switch (type) {
@@ -538,13 +551,16 @@ function TypeSpecificProperties({ item, definition, updateItem }) {
 
     case 'group':
       return (
-        <PropertyInput
-          label="Title"
-          type="text"
-          value={item.title || ''}
-          onChange={(value) => updateItem(item.id, { title: value })}
-          placeholder="Group name"
-        />
+        <>
+          <PropertyInput
+            label="Title"
+            type="text"
+            value={item.title || ''}
+            onChange={(value) => updateItem(item.id, { title: value })}
+            placeholder="Group name"
+          />
+          <button type="button" onClick={() => enterGroup(item.id)}>Open submenu</button>
+        </>
       );
 
     default:
@@ -708,12 +724,20 @@ function ActionItem({ action, onUpdate, onRemove }) {
           />
         )}
         {action.action === 'keyPress' && (
-          <PropertyInput
-            label="Keycode"
-            type="number"
-            value={action.keycode || 0}
-            onChange={(value) => onUpdate({ keycode: Number(value) })}
-          />
+          <>
+            <PropertySelect
+              label="Shortcut key"
+              value={shortcutKeys.some((key) => Number(key.value) === Number(action.keycode)) ? String(action.keycode) : `other-${action.keycode}`}
+              options={[
+                ...shortcutKeys,
+                ...(!shortcutKeys.some((key) => Number(key.value) === Number(action.keycode))
+                  ? [{ label: `Other key (${action.keycode ?? 0})`, value: `other-${action.keycode ?? 0}` }]
+                  : []),
+              ]}
+              onChange={(value) => onUpdate({ keycode: Number(value.replace('other-', '')) })}
+            />
+            <PropertyInput label="Keycode" type="number" value={action.keycode ?? 0} onChange={(value) => onUpdate({ keycode: Number(value) })} />
+          </>
         )}
         {action.action === 'appleScript' && (
           <SourceEditor

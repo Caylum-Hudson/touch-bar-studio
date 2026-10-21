@@ -22,6 +22,9 @@ enum StudioMain {
         }
         if CommandLine.arguments.contains("--self-test") {
             StudioControlChecks.runFocusRefreshPolicyChecks()
+            StudioControlChecks.runDockAutoResizeChecks()
+            StudioControlChecks.runDockPreviewCacheChecks()
+            StudioControlChecks.runStudioContentWidthChecks()
             precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: false, sliderExpanded: false) == false)
             precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: false) == true)
             precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: true) == false)
@@ -43,8 +46,8 @@ enum StudioMain {
             let definitions = layoutData.barItemDefinitions()!
             precondition(StudioLayout.precise(definitions))
             let frames = StudioLayout.frames(definitions)
-            precondition(frames[0].minX == 120 && frames[0].width == 50 && frames[1].minX == 985)
-            print("PASS: native coordinate decode, width and right-edge clamping.")
+            precondition(frames[0].minX == 120 && frames[0].width == 50 && frames[1].minX == 1080)
+            print("PASS: native coordinate decode, width and explicit-position preservation at the bar edge.")
             var sent = false
             precondition(!StudioPermissions.performKeyboardAction(isTrusted:{false}) { sent = true })
             precondition(!sent)

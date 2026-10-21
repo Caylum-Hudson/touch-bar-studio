@@ -6,9 +6,9 @@ Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bun
 
 ## Current release and versioning
 
-**v0.5.0 — macOS Control Strip and live permission status (prerelease)**
+**v0.5.2 — focused Studio workspace (prerelease)**
 
-The source version is `0.5.0`. This update adds a setting to keep macOS's Control Strip available, updates keyboard-control labels from a live process check, and preserves an open submenu or expanded slider when the same profile is selected again. The frontend/native build and focused state, Control Strip, slider, and fixture checks passed. The setting persisted across an app restart while the custom Touch Bar remained On. The macOS permission row still refers to an earlier ad-hoc build, so the current app reports no Accessibility or event-posting access until the user grants access to this build. Physical Control Strip expansion and visible focus behavior remain unverified. See the [0.5.0 release notes](docs/releases/0.5.0.md) and [verification record](VERIFICATION.md). See the [versioning guide](VERSIONING.md) and [changelog](CHANGELOG.md).
+The source version is `0.5.2`. Studio gives the Touch Bar preview and icon-based control library more room, with secondary options collapsed. The native Control Strip is a separate right-edge widget controlled by the existing **Keep macOS Control Strip** setting, not a saved profile control. The editor also previews live Dock apps and icons: the widget grows when space allows, then shrinks its icons and gaps to fit all apps without internal scrolling, while preserving other controls' positions. The final local build, frontend checks and native checks passed. The user requested reopening the latest app to confirm Dock fit visually and on the physical Touch Bar; that check and latest-build permission status are pending. Physical Touch Bar actions remain unverified. See the [0.5.2 release notes](docs/releases/0.5.2.md) and [verification record](VERIFICATION.md). The earlier Control Strip preview checks remain in the [0.5.1 release notes](docs/releases/0.5.1.md).
 
 ![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
 
@@ -20,7 +20,7 @@ The **Add controls** library groups everyday sound, display, time and navigation
 
 The editor is a design preview: CPU, battery and other dynamic tiles are illustrative labels, not live readings. The native widgets read their own data on the Touch Bar. Script/Swipe entries are import/export only. Sleep controls are currently unavailable. A label such as Built in means an implementation exists; it does not certify physical taps on every Mac.
 
-See the [control runtime audit](docs/CONTROL-RUNTIME-AUDIT.md) for all 41 entries and the [verification record](VERIFICATION.md) for the checks actually run.
+See the [control runtime audit](docs/CONTROL-RUNTIME-AUDIT.md) for the palette catalog, [Resolve timeline shortcut notes](docs/RESOLVE-TIMELINE-CONTROLS.md), and the [verification record](VERIFICATION.md) for checks actually run.
 
 ## Precise Touch Bar placement
 

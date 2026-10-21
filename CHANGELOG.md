@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.2 — Focused Studio workspace (prerelease)
+
+- Give the main Touch Bar preview and icon-based control library more room; collapse secondary options by default.
+- Let users place the native Control Strip as a separate, right-edge-only preview widget through the canonical **Keep macOS Control Strip** setting. It does not add a placeholder control to a saved profile.
+- Show the live Dock app list and icons in the editor. Its widget grows when space is available, then shrinks icons and gaps to fit all apps without internal scrolling; other controls keep their saved positions.
+- Give Date and status previews transient content-fit widths so long formatted dates and values such as the illustrative CPU `100.0%` remain visible without changing saved widths or X positions; report insufficient placement room.
+- Improve drag feedback beyond the visible Touch Bar area. The user confirmed right-edge Control Strip tile placement before the Dock sizing changes.
+- The final local build passed state/catalog checks, Vite production build, Swift compilation, native Dock-fit and preview-cache checks, and strict signature verification. Frontend fit fixtures pass at narrow and wide sizes; their screenshot is an editor fixture, not the physical Touch Bar. The user requested an installed-app Dock-fit check after reopening; that check and latest-build permission status are pending, and physical Touch Bar actions remain unverified. See `docs/releases/0.5.2.md` and `VERIFICATION.md`.
+
+## 0.5.1 — Native Control Strip layout preview (prerelease)
+
+- When **Keep macOS Control Strip** is enabled, show a compact visual preview beside the custom Touch Bar layout. Expand opens a full-width preview; Collapse returns to the same custom layout.
+- The preview is visual only. It does not send actions to macOS or change saved controls, positions, or widths.
+- Frontend/native build and preview checks passed. Accessibility and event posting both report Granted; physical Touch Bar actions and system Control Strip expansion/input delivery remain unverified. See `docs/releases/0.5.1.md` and `VERIFICATION.md`.
+
 ## 0.5.0 — macOS Control Strip and live permission status (prerelease)
 
 - Add an Appearance setting to keep macOS's Control Strip available while the custom Touch Bar is active; expanded Studio sliders temporarily use the full bar and Back returns to the prior presentation.

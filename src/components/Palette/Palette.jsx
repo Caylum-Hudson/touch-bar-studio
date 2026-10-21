@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
-import { useRuntimePermissions } from '../../context/RuntimePermissions';
+import { useRuntimePermissions } from '../../context/useRuntimePermissions';
 import { controlCatalog, advancedControlCatalog } from '../../data/controlCatalog';
 import { getControlStatus } from '../../data/controlAvailability';
 import ControlIcon from '../ControlIcon/ControlIcon';
@@ -9,7 +9,7 @@ import './Palette.css';
 
 export default function Palette() {
   const { addItem, selectItem } = useApp();
-  const { accessibilityAccess } = useRuntimePermissions();
+  const { accessibilityAccess, keepControlStrip, updateKeepControlStrip, controlStripBusy } = useRuntimePermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
@@ -53,6 +53,9 @@ export default function Palette() {
         </label>
       </div>
       <div className="palette-content">
+        <div className="palette-items">
+          <ControlStripPaletteCard added={keepControlStrip} busy={controlStripBusy} onToggle={updateKeepControlStrip}/>
+        </div>
         <p className="palette-section-title">COMMON CONTROLS</p>
         {commonGroups.map((group) => (
           <PaletteCategory key={group.id} group={group} expanded={query || expandedCategories[group.id] !== false} onToggle={() => toggleCategory(group.id)} onAdd={addControl} />
@@ -71,6 +74,26 @@ export default function Palette() {
         {!commonGroups.length && !advancedGroups.length && <div className="palette-no-results">No controls match “{searchQuery}”.</div>}
       </div>
     </div>
+  );
+}
+
+function ControlStripPaletteCard({ added, busy, onToggle }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: 'palette-native-control-strip',
+    disabled: added || busy || !onToggle,
+    data: { type: 'native-control-strip' },
+  });
+  return (
+    <article className={`palette-item native-control-strip-card ${isDragging ? 'is-dragging' : ''}`}>
+      <ControlIcon type="brightness" className="palette-item-icon" />
+      <span className="palette-item-copy">
+        <span className="palette-item-label">macOS Control Strip</span>
+        <span className="palette-item-benefit">Adds macOS controls at the Touch Bar’s right edge.</span>
+        <span className="palette-item-status">{added ? 'Added' : 'Right edge only'}</span>
+      </span>
+      <button type="button" className="palette-add" disabled={added || busy || !onToggle} onClick={() => onToggle?.(true)} aria-label={added ? 'macOS Control Strip added' : 'Add macOS Control Strip'}>{added ? '✓' : '+'}</button>
+      <button ref={setNodeRef} type="button" className="palette-drag" disabled={added || busy || !onToggle} aria-label="Drag macOS Control Strip to the right edge" title="Drag to the right edge" {...attributes} {...listeners}>⠿</button>
+    </article>
   );
 }
 

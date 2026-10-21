@@ -223,20 +223,31 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         let visibleIdentifiers = orderedIdentifiers.filter { items[$0] != nil }
         let definitions = visibleIdentifiers.compactMap { itemDefinitions[$0] }
         if StudioLayout.precise(definitions) {
-            basicView = BasicView(identifier:basicViewIdentifier,items:visibleIdentifiers.compactMap { items[$0] },swipeItems:swipeItems,frames:preciseFrames(definitions))
+            let frames = preciseFrames(definitions)
+            basicView = BasicView(identifier:basicViewIdentifier,items:visibleIdentifiers.compactMap { items[$0] },swipeItems:swipeItems,frames:frames,frameProvider:{ [weak self] preferredWidths in self?.preciseFrames(definitions,preferredContentWidths:preferredWidths) ?? frames })
+            if let positionedView = basicView?.view as? StudioPositionedView {
+                for (index, identifier) in visibleIdentifiers.enumerated() {
+                    if let item = items[identifier] as? CustomButtonTouchBarItem {
+                        positionedView.attachContentWidthItem(item, at:index)
+                    }
+                    guard let dock = items[identifier] as? AppScrubberTouchBarItem, dock.supportsAutoResize else { continue }
+                    positionedView.attachAutoResizingDock(dock,at:index)
+                }
+            }
         }
         basicView?.legacyGesturesEnabled = AppSettings.multitouchGestures
     }
 
-    func preciseFrames(_ definitions:[BarItemDefinition]) -> [CGRect] {
+    func preciseFrames(_ definitions:[BarItemDefinition], preferredContentWidths: [Int: CGFloat] = [:]) -> [CGRect] {
         if !navigationStack.isEmpty && !definitions.isEmpty {
             let scale = (StudioLayout.width-62)/StudioLayout.width
-            let children = StudioLayout.frames(Array(definitions.dropFirst())).map { frame in
+            let childWidths = Dictionary(uniqueKeysWithValues: preferredContentWidths.compactMap { index, width in index > 0 ? (index - 1, width / scale) : nil })
+            let children = StudioLayout.frames(Array(definitions.dropFirst()),preferredContentWidths:childWidths).map { frame in
                 CGRect(x:62+frame.minX*scale,y:0,width:frame.width*scale,height:30)
             }
             return [CGRect(x:0,y:0,width:54,height:30)] + children
         }
-        return StudioLayout.frames(definitions)
+        return StudioLayout.frames(definitions,preferredContentWidths:preferredContentWidths)
     }
 
     @objc func activeApplicationChanged(_: Notification) {
@@ -358,25 +369,18 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         swipeItems = []
 
         for (identifier, definition) in itemDefinitions {
-            var show = true
-            
-            if let frontApp = frontmostApplicationIdentifier {
-                if case let .matchAppId(regexString)? = definition.additionalParameters[.matchAppId] {
-                    guard let regex = try? NSRegularExpression(pattern: regexString) else { continue }
-                    let range = NSRange(location: 0, length: frontApp.count)
-                    if regex.firstMatch(in: frontApp, range: range) == nil {
-                        show = false
-                    }
-                }
+            if case let .matchAppId(regexString)? = definition.additionalParameters[.matchAppId] {
+                guard let frontApp = frontmostApplicationIdentifier,
+                      let regex = try? NSRegularExpression(pattern: regexString) else { continue }
+                let range = NSRange(location: 0, length: frontApp.count)
+                guard regex.firstMatch(in: frontApp, range: range) != nil else { continue }
             }
-            
-            if show {
-                let item = createItem(forIdentifier: identifier, definition: definition)
-                if item is SwipeItem {
-                    swipeItems.append(item as! SwipeItem)
-                } else {
-                    items[identifier] = item
-                }
+
+            let item = createItem(forIdentifier: identifier, definition: definition)
+            if item is SwipeItem {
+                swipeItems.append(item as! SwipeItem)
+            } else {
+                items[identifier] = item
             }
         }
     }
@@ -687,6 +691,10 @@ protocol CanSetWidth {
 
 extension NSCustomTouchBarItem: CanSetWidth {
     func setWidth(value: CGFloat) {
+        if let buttonItem = self as? CustomButtonTouchBarItem {
+            buttonItem.setStudioConfiguredWidth(value)
+            return
+        }
         view.widthAnchor.constraint(equalToConstant: value).isActive = true
     }
 }

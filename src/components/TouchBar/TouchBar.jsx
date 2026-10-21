@@ -1,25 +1,36 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   SortableContext,
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
 import TouchBarItem from './TouchBarItem';
 import './TouchBar.css';
-import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsistentSpacing} from '../../utils/positionLayout';
+import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsistentSpacing,autoDockDisplayWidth,contentFitWidth} from '../../utils/positionLayout';
 import ControlIcon from '../ControlIcon/ControlIcon';
+import ControlStripPreview from './ControlStripPreview';
+import { useRuntimePermissions } from '../../context/useRuntimePermissions';
 
-export default function TouchBar() {
+export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}}) {
   const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems } = useApp();
+  const { keepControlStrip, updateKeepControlStrip } = useRuntimePermissions();
+  const { active: draggedThing } = useDndContext();
+  const draggingControlStrip = draggedThing?.data.current?.type === 'native-control-strip';
   const precise=isPrecise(items);
-  const frames=layoutFrames(items);
+  const [viewportNode, setViewportNode] = useState(null);
+  const [visibleRightEdge, setVisibleRightEdge] = useState(BAR_WIDTH);
   const [contextMenu, setContextMenu] = useState(null);
   const [spacingError, setSpacingError] = useState('');
   const [previewId, setPreviewId] = useState(null);
   const [previewValue, setPreviewValue] = useState(50);
+  const [controlStripExpanded, setControlStripExpanded] = useState(false);
   const gap = spacingGap(items);
   const expanded = items.find(item => item.id === previewId && ['volume','brightness'].includes(item.type));
+  const showControlStrip = keepControlStrip && !expanded;
+  useEffect(() => {
+    if (!keepControlStrip) setControlStripExpanded(false);
+  }, [keepControlStrip]);
   const chooseControl = item => {
     selectItem(item.id);
     if (['volume','brightness'].includes(item.type)) { setPreviewId(item.id); setPreviewValue(50); }
@@ -38,6 +49,41 @@ export default function TouchBar() {
   const { setNodeRef, isOver } = useDroppable({
     id: 'touchbar-drop-zone',
   });
+  const attachViewport = useCallback(node => {
+    setNodeRef(node);
+    setViewportNode(node);
+  }, [setNodeRef]);
+  useEffect(() => {
+    if (!viewportNode) { setVisibleRightEdge(BAR_WIDTH); return undefined; }
+    const measure = () => setVisibleRightEdge(viewportNode.scrollLeft + viewportNode.clientWidth);
+    measure();
+    viewportNode.addEventListener('scroll', measure, {passive: true});
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewportNode);
+    return () => { viewportNode.removeEventListener('scroll', measure); observer.disconnect(); };
+  }, [viewportNode]);
+  const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge};
+  const frames=layoutFrames(items,layoutOptions);
+  const dockItem = items.find(item=>item.type==='dock');
+  const automaticOtherWidth = items.filter(item=>item.type!=='dock').reduce((total,item)=>total+contentFitWidth(item),0);
+  const automaticGaps = ['left','center','right'].reduce((total,alignment)=>{
+    const count=items.filter(item=>(item.align||'center')===alignment&&item.type!=='dock').length;
+    return total+Math.max(0,count-1)*4;
+  },0);
+  const automaticAvailableWidth = Math.max(0,visibleRightEdge-12-automaticOtherWidth-automaticGaps);
+  const automaticDockWidth = autoDockDisplayWidth(items, dockItem?.id, dockPreview.preferredWidth, automaticAvailableWidth);
+  const previewItem = item => item.type==='dock'
+    ? {...item,width:precise?frames.get(item.id).width:(automaticDockWidth ?? item.width),dockApps:dockPreview.apps,dockIconSize:dockPreview.iconSize,dockItemSpacing:dockPreview.itemSpacing}
+    : {...item,width:precise?frames.get(item.id).width:contentFitWidth(item)};
+  const { setNodeRef: setControlStripSlotRef, isOver: isOverControlStripSlot } = useDroppable({
+    id: 'control-strip-slot',
+    disabled: keepControlStrip,
+  });
+  const controlStripDropTarget = !keepControlStrip && (
+    <div className={`control-strip-drop-target ${draggingControlStrip ? 'is-active' : ''} ${isOverControlStripSlot ? 'is-over' : ''}`} ref={setControlStripSlotRef} aria-label="Drop to add macOS Control Strip at the right edge">
+      <span>{isOverControlStripSlot ? 'Release to add Control Strip' : 'Drop Control Strip here'}</span>
+    </div>
+  );
 
   // Handle context menu
   const handleContextMenu = (e, itemId) => {
@@ -83,21 +129,40 @@ export default function TouchBar() {
 
   return (
     <div className="touchbar-container" ref={containerRef}>
-      <div className="layout-toolbar"><div><strong>Touch Bar layout</strong><span>{precise?'Editor preview · drag freely or set X in Properties':'Editor preview · automatic left, centre and right alignment'}</span></div><button aria-pressed={precise} onClick={()=>reorderItems(items.map(item=>{if(precise){const rest={...item};delete rest.studioPosition;delete rest.studioGap;return rest;}return {...item,studioPosition:frames.get(item.id).x,width:frames.get(item.id).width};}))}>{precise?'Use automatic alignment':'Precise placement'}</button></div>
+      <div className="layout-heading"><strong>Touch Bar layout</strong><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
+      <div className="layout-toolbar"><div><strong>Placement</strong><span>{precise?'Drag freely or set X in Properties':'Automatic left, centre and right alignment'}</span></div><button aria-pressed={precise} onClick={()=>reorderItems(items.map(item=>{if(precise){const rest={...item};delete rest.studioPosition;delete rest.studioGap;return rest;}return {...item,studioPosition:frames.get(item.id).x};}))}>{precise?'Use automatic alignment':'Precise placement'}</button></div>
       <div className="spacing-toolbar">
         <label><input type="checkbox" checked={gap !== null} disabled={!items.length} onChange={event => event.target.checked ? applySpacing(12) : disableSpacing()}/>Consistent spacing</label>
         {gap !== null && <><label>Gap <input aria-label="Consistent spacing gap" type="number" min="0" max="64" step="1" value={gap} onChange={event => applySpacing(event.target.value)}/> units</label><button onClick={()=>applySpacing(gap,true)}>Space all evenly</button></>}
         <span>{gap !== null ? 'Snap within 10 units of a neighbour; drag farther away to place freely.' : 'Enable to use equal gaps with optional free placement.'}</span>
       </div>
+      {precise && <p className="position-help">The ruler uses the full 1085-unit Touch Bar coordinate system.</p>}
       {spacingError && <p className="layout-warning" role="alert">{spacingError}</p>}
+      </div></details></div>
       {expanded && <div className="expanded-slider-preview">
         <div className="expanded-slider-caption"><strong>{expanded.type === 'volume' ? 'Volume' : 'Brightness'} · expanded preview</strong><span>Preview only · adjust your Mac on the physical Touch Bar</span></div>
         <div className="expanded-slider-bar"><button onClick={()=>setPreviewId(null)} aria-label="Close expanded slider preview">‹ Back</button><div className="expanded-slider-center"><ControlIcon type={expanded.type === 'volume' ? 'mute' : 'brightnessDown'}/><input aria-label={`${expanded.type} slider preview`} type="range" min="0" max="100" value={previewValue} onChange={event=>setPreviewValue(+event.target.value)}/><ControlIcon type={expanded.type === 'volume' ? 'volumeUp' : 'brightnessUp'}/></div></div>
       </div>}
       {!expanded && <>
-      {precise&&<><div className="position-help">1085-unit ruler · scales to the available Touch Bar width · width and X are editable in Properties</div><div className="precise-scroll"><div className="position-ruler" style={{width:BAR_WIDTH}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div><div id="precise-touchbar-canvas" className="precise-canvas" style={{width:BAR_WIDTH}} ref={setNodeRef}><SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{items.map(item=><div className="positioned-control" key={item.id} style={{left:frames.get(item.id).x,width:frames.get(item.id).width}}><TouchBarItem item={{...item,width:frames.get(item.id).width}} isSelected={selectedItemId===item.id} onSelect={()=>chooseControl(item)} onContextMenu={e=>handleContextMenu(e,item.id)}/></div>)}</SortableContext></div></div>{overlappingItems(items)&&<p className="layout-warning" role="status">Some controls overlap. Move them apart or reduce their widths so each control stays reachable.</p>}</>}
-      {!precise&&<div className={`touchbar-frame ${isOver ? 'drag-over' : ''}`}>
-        <div className="touchbar-screen" ref={setNodeRef}>
+      {showControlStrip && controlStripExpanded ? (
+        <div className="control-strip-expanded-stage">
+          <div className="expanded-slider-caption control-strip-stage-header"><strong>macOS Control Strip · expanded</strong><span>Apple-style layout preview only · controls do not change your Mac</span><button type="button" onClick={()=>updateKeepControlStrip?.(false)} aria-label="Remove macOS Control Strip">Remove</button></div>
+          <div className="touchbar-frame control-strip-full-frame"><div className="touchbar-screen control-strip-full-screen"><ControlStripPreview expanded onCollapse={()=>setControlStripExpanded(false)}/></div></div>
+        </div>
+      ) : precise ? (
+        <>
+          <div className={`touchbar-frame ${showControlStrip?'with-control-strip':''} ${isOver?'drag-over':''}`}>
+            <div className={`touchbar-screen ${showControlStrip?'with-control-strip':''}`}>
+              <div className="precise-scroll" ref={attachViewport}><div className="position-ruler" style={{width:BAR_WIDTH}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div><div id="precise-touchbar-canvas" className="precise-canvas" style={{width:BAR_WIDTH}}><SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{items.map(item=><div className="positioned-control" key={item.id} style={{left:frames.get(item.id).x,width:frames.get(item.id).width}}><TouchBarItem item={previewItem({...item,width:frames.get(item.id).width})} isSelected={selectedItemId===item.id} onSelect={()=>chooseControl(item)} onContextMenu={e=>handleContextMenu(e,item.id)}/></div>)}</SortableContext></div></div>
+              {showControlStrip&&<div className="control-strip-widget-slot" ref={setControlStripSlotRef}><button type="button" className="control-strip-remove" onClick={()=>updateKeepControlStrip?.(false)} aria-label="Remove macOS Control Strip" title="Remove Control Strip">×</button><ControlStripPreview expanded={false} onExpand={()=>setControlStripExpanded(true)}/></div>}
+              {controlStripDropTarget}
+            </div>
+          </div>
+          {overlappingItems(items,{dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge})&&<p className="layout-warning" role="status">Some controls overlap or need more room. Move them apart or adjust their widths so all content stays visible.</p>}
+        </>
+      ) : <div className={`touchbar-frame ${showControlStrip?'with-control-strip':''} ${isOver ? 'drag-over' : ''}`}>
+        <div className={`touchbar-screen ${showControlStrip?'with-control-strip':''}`}>
+          <div className="touchbar-custom-region" ref={attachViewport}>
           <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
             <div className="touchbar-items">
               {items.length === 0 ? (
@@ -111,7 +176,7 @@ export default function TouchBar() {
                     {leftItems.map((item) => (
                       <TouchBarItem
                         key={item.id}
-                        item={item}
+                        item={previewItem(item)}
                         isSelected={selectedItemId === item.id}
                         onSelect={() => chooseControl(item)}
                         onContextMenu={(e) => handleContextMenu(e, item.id)}
@@ -124,7 +189,7 @@ export default function TouchBar() {
                     {centerItems.map((item) => (
                       <TouchBarItem
                         key={item.id}
-                        item={item}
+                        item={previewItem(item)}
                         isSelected={selectedItemId === item.id}
                         onSelect={() => chooseControl(item)}
                         onContextMenu={(e) => handleContextMenu(e, item.id)}
@@ -137,7 +202,7 @@ export default function TouchBar() {
                     {rightItems.map((item) => (
                       <TouchBarItem
                         key={item.id}
-                        item={item}
+                        item={previewItem(item)}
                         isSelected={selectedItemId === item.id}
                         onSelect={() => chooseControl(item)}
                         onContextMenu={(e) => handleContextMenu(e, item.id)}
@@ -148,6 +213,9 @@ export default function TouchBar() {
               )}
             </div>
           </SortableContext>
+          </div>
+          {showControlStrip&&<div className="control-strip-widget-slot" ref={setControlStripSlotRef}><button type="button" className="control-strip-remove" onClick={()=>updateKeepControlStrip?.(false)} aria-label="Remove macOS Control Strip" title="Remove Control Strip">×</button><ControlStripPreview expanded={false} onExpand={()=>setControlStripExpanded(true)}/></div>}
+          {controlStripDropTarget}
         </div>
       </div>
 

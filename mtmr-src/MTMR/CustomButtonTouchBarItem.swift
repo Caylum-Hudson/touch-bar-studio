@@ -21,6 +21,19 @@ struct ItemAction {
 }
 
 class CustomButtonTouchBarItem: NSCustomTouchBarItem, NSGestureRecognizerDelegate {
+
+    /// Current AppKit fitting width for live content. Studio uses this only as
+    /// a transient floor; it never writes measured values into the profile.
+    var studioContentWidthDidChange: (() -> Void)?
+    var studioNaturalContentWidth: CGFloat {
+        guard let button else { return 0 }
+        let constraintWasActive = studioWidthConstraint?.isActive == true
+        if constraintWasActive { studioWidthConstraint?.isActive = false }
+        button.layoutSubtreeIfNeeded()
+        let fittingWidth = button.fittingSize.width
+        if constraintWasActive { studioWidthConstraint?.isActive = true }
+        return max(0, fittingWidth)
+    }
     
     var actions: [ItemAction] = [] {
         didSet {
@@ -32,6 +45,8 @@ class CustomButtonTouchBarItem: NSCustomTouchBarItem, NSGestureRecognizerDelegat
     var finishViewConfiguration: ()->() = {}
     
     private var button: NSButton!
+    private var configuredStudioWidth: CGFloat?
+    private var studioWidthConstraint: NSLayoutConstraint?
     private var longClick: LongPressGestureRecognizer!
     private var multiClick: MultiClickGestureRecognizer!
 
@@ -59,6 +74,7 @@ class CustomButtonTouchBarItem: NSCustomTouchBarItem, NSGestureRecognizerDelegat
 
         reinstallButton()
         button.attributedTitle = attributedTitle
+        studioContentWidthDidChange?()
     }
 
     required init?(coder _: NSCoder) {
@@ -90,13 +106,37 @@ class CustomButtonTouchBarItem: NSCustomTouchBarItem, NSGestureRecognizerDelegat
         didSet {
             button?.imagePosition = attributedTitle.length > 0 ? .imageLeading : .imageOnly
             button?.attributedTitle = attributedTitle
+            notifyStudioContentWidthDidChange()
         }
     }
 
     var image: NSImage? {
         didSet {
             button.image = image
+            notifyStudioContentWidthDidChange()
         }
+    }
+
+    func setStudioConfiguredWidth(_ width: CGFloat) {
+        configuredStudioWidth = width
+        updateStudioWidthConstraint()
+    }
+
+    private func updateStudioWidthConstraint() {
+        guard let configuredStudioWidth, let button else { return }
+        let width = max(configuredStudioWidth, studioNaturalContentWidth)
+        if let studioWidthConstraint {
+            studioWidthConstraint.constant = width
+        } else {
+            let constraint = button.widthAnchor.constraint(equalToConstant: width)
+            constraint.isActive = true
+            studioWidthConstraint = constraint
+        }
+    }
+
+    private func notifyStudioContentWidthDidChange() {
+        updateStudioWidthConstraint()
+        studioContentWidthDidChange?()
     }
 
     private func reinstallButton() {
@@ -124,6 +164,7 @@ class CustomButtonTouchBarItem: NSCustomTouchBarItem, NSGestureRecognizerDelegat
         // view.addGestureRecognizer(singleClick)
         view.addGestureRecognizer(multiClick)
         finishViewConfiguration()
+        notifyStudioContentWidthDidChange()
     }
 
     func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: NSGestureRecognizer) -> Bool {

@@ -89,6 +89,18 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
             }
             respondJSON(urlSchemeTask,dict:["success":true,"apps":apps.sorted { ($0["name"] as? String ?? "") < ($1["name"] as? String ?? "") }]); return
         }
+        if path == "/api/dock-preview" {
+            let definitions = StudioStore.shared.selectedItems(bundle: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) ?? []
+            let dockDefinition = definitions.first { if case .dock = $0.type { return true }; return false }
+            var filterPattern: String?
+            if let dockDefinition, case let .dock(autoResize: _, filter: filter) = dockDefinition.type { filterPattern = filter }
+            if let requestedFilter = query.first(where: { $0.name == "filter" }) {
+                let value = requestedFilter.value ?? ""
+                filterPattern = value.isEmpty ? nil : value
+            }
+            respondJSON(urlSchemeTask, dict: DockPreviewSnapshotCache.shared.response(filterPattern: filterPattern, sinceRevision: value("sinceRevision")))
+            return
+        }
         if path == "/api/choose" { respondJSON(urlSchemeTask,dict:StudioStore.shared.choose(kind:value("kind"))); return }
         if path == "/api/pending-photos" {
             let selected = StudioStore.shared.pendingPhotoFiles
