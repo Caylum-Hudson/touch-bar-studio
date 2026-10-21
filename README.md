@@ -1,70 +1,40 @@
 # Touch Bar Studio
 
-A local macOS app for designing Touch Bar layouts, switching complete layouts by app, launching apps and folders, and browsing photos.
+Touch Bar Studio is a macOS app for designing Touch Bar layouts, switching layouts by app, launching apps and folders, and browsing photos. It builds on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime; upstream history and source notices are retained.
 
-Built on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime. Upstream history and source notices are retained. This is an early working version.
+The current source version is **0.5.2**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
 
-## Current release and versioning
+## Edit and apply profiles
 
-**v0.5.2 — focused Studio workspace (prerelease)**
+The **Editing** selector stays above the preview so it is clear which profile you are changing. **Add app profile** starts a new profile as a copy of Default and selects it for editing. This selection controls the editor; **Active on Touch Bar** separately reports the layout currently in use. Use **Apply & Save** to activate and save your edits. The Touch Bar On/Off control takes effect immediately.
 
-The source version is `0.5.2`. Studio gives the Touch Bar preview and icon-based control library more room, with secondary options collapsed. The native Control Strip is a separate right-edge widget controlled by the existing **Keep macOS Control Strip** setting, not a saved profile control. The editor also previews live Dock apps and icons: the widget grows when space allows, then shrinks its icons and gaps to fit all apps without internal scrolling, while preserving other controls' positions. The final local build, frontend checks and native checks passed. The user requested reopening the latest app to confirm Dock fit visually and on the physical Touch Bar; that check and latest-build permission status are pending. Physical Touch Bar actions remain unverified. See the [0.5.2 release notes](docs/releases/0.5.2.md) and [verification record](VERIFICATION.md). The earlier Control Strip preview checks remain in the [0.5.1 release notes](docs/releases/0.5.1.md).
+![Profile editor selector, active Touch Bar status, and app profile action](docs/screenshots/profile-editing-selector.png)
 
-![Version numbering and release workflow explained](docs/screenshots/version-guide.png)
+Studio provides an icon-based control library, a Touch Bar preview, precise placement, nested groups, presets, JSON import/export, and undo/redo. Secondary options start collapsed to leave more room for the preview and controls. Drag a control or use its **+** action to add it. Open **Precise placement** in Layout settings to set a control's leading-edge X position and width on the 1085-unit design canvas. The runtime scales that canvas to the area macOS provides; overlapping controls show a warning.
 
-## Choosing useful controls
+The **Dock** preview uses the current Dock app list and icons. It expands when room is available, then reduces icon and gap sizes to fit all apps without internal scrolling. Other controls keep their positions. Date and CPU controls use minimum content-fit widths in the preview and native layout; saved positions and widths are not changed by this behavior. The native macOS Control Strip is a separate tile at the preview's right edge. It is controlled by **Keep macOS Control Strip** and is not a saved profile item. The screenshots show the preview with the Control Strip collapsed and expanded: [collapsed](docs/screenshots/control-strip-preview-collapsed.jpg), [expanded](docs/screenshots/control-strip-preview-expanded.jpg).
 
-The **Add controls** library groups everyday sound, display, time and navigation controls first. Each entry explains its use and whether it needs permission, hardware support or setup. Keyboard-control labels use the permission status reported by the running app when available; hardware and Automation needs remain separate. Use **+** to add with the keyboard or mouse, or drag the grip to place it. Search includes advanced controls. **Advanced & legacy** holds service integrations and older features.
+![Dock sizing fixtures in the Studio editor](docs/screenshots/dock-fit-fixtures.png)
 
-![Version 0.3.0 control library and preview](docs/control-audit/02-redesigned.png)
+## DaVinci Resolve timeline controls
 
-The editor is a design preview: CPU, battery and other dynamic tiles are illustrative labels, not live readings. The native widgets read their own data on the Touch Bar. Script/Swipe entries are import/export only. Sleep controls are currently unavailable. A label such as Built in means an implementation exists; it does not certify physical taps on every Mac.
+The palette includes 12 Resolve-specific timeline buttons for J/K/L playback, frame and edit navigation, timeline start and end, In and Out points, and snapping. Each is a static button with an editable shortcut and a distinct macOS symbol. They appear on the native bar only while DaVinci Resolve is active.
 
-See the [control runtime audit](docs/CONTROL-RUNTIME-AUDIT.md) for the palette catalog, [Resolve timeline shortcut notes](docs/RESOLVE-TIMELINE-CONTROLS.md), and the [verification record](VERIFICATION.md) for checks actually run.
+![Resolve timeline controls in the Studio library](docs/screenshots/resolve-widget-library.png)
 
-## Precise Touch Bar placement
+Shortcut defaults and app filtering are documented in [Resolve timeline controls](docs/RESOLVE-TIMELINE-CONTROLS.md). The palette, shortcut editing, serialization, native decoding, and permission-state checks passed. Physical Touch Bar behavior and live shortcut delivery in Resolve have not been verified. Switching to a specific Resolve page is not implemented; that investigation is deferred.
 
-Click **Precise placement** above the preview. Drag a control along the ruler, or select it and set its **X position** and **Width** in Properties. X marks the leading edge in a 1085-unit design canvas; the runtime scales that canvas to the custom Touch Bar area macOS makes available. Submenus reserve a separate Back control before scaling their content. Positions near either edge are clamped to keep the control inside the canvas. Overlapping controls show a warning; move them apart to keep each one reachable. In 0.4.0, the spacing option sets a shared edge gap, and nearby placements can snap to that gap; placements farther away remain free.
+## Other features
 
-![Precise placement in the refreshed editor](docs/screenshots/precise-placement.png)
-
-Use **Apply & Save** to activate positions. **Use automatic alignment** removes the position overrides for the current screen. This changes only the screen you are editing, so profiles and submenus can be arranged independently. The `studioPosition` JSON field is an extension for this app; older MTMR runtimes can ignore it.
-
-## Screenshots and usage
-
-The screenshots below show the initial `0.1.0` interface. In `0.1.1`, a quiet permission notice and settings button appear if keyboard access is missing; startup no longer requests permission. See [permission troubleshooting](FIRST-RUN.md).
-
-### Layout editor and on/off control
-
-![Version 0.1.0 layout editor showing the profile picker, palette, preview, JSON and off switch](docs/screenshots/studio.png)
-
-Choose the profile under **Editing**, drag or click controls in the palette, and use **Apply & Save** to activate the layout. **Touch Bar: On/Off** takes effect immediately and remembers your choice. In this screenshot the custom bar is Off, so the editor remains available while macOS controls are in use. These are app screenshots, not photographs of the physical Touch Bar.
-
-### Nested submenus
-
-![Submenu editor showing the Default root / Apps path and Back control](docs/screenshots/submenus.png)
-
-A **Group** opens a submenu. **Open Apps** enters this example, the breadcrumb shows the current path, and **Back** returns to the parent. Add another Group inside a submenu to create another depth. The native runtime also adds Back navigation; physical touch navigation is still awaiting confirmation.
-
-### Appearance and shortcuts
-
-![Appearance panel showing theme colors, motion settings and launcher shortcut](docs/screenshots/appearance.png)
-
-Preview accent and background colors, choose a still background image, and keep motion Off or use a subtle fade. Reduced Motion follows macOS. Choose the compact launcher shortcut here, then **Apply & Save** to retain these settings.
-
-## Features
-
-- Custom Touch Bar on/off switch in the app and menu bar; the choice survives restart.
-- Default and app-specific replacement profiles, matched by bundle identifier.
-- Recursive submenus with a Back stack, plus the original visual palette, properties, presets, JSON import/export, and undo/redo.
-- Configurable app/folder launcher tiles and a compact launcher.
-- App themes, still-image backgrounds, and optional reduced-motion-aware fades.
-- Folder photo grid, filename/type/dimension/orientation/date filters, and a basic metadata inspector. Originals stay unchanged.
-- Finder Open With support and a macOS Service declaration.
+- Default and app-specific profiles matched by bundle identifier, with recursive submenus and Back navigation.
+- App and folder launchers, including a compact launcher shortcut.
+- Appearance options for theme colors, still backgrounds, and reduced-motion-aware fades.
+- A photo browser with filename, type, dimensions, orientation, and date filters, plus a basic metadata inspector. Originals stay unchanged.
+- Finder **Open With** support and a macOS Service declaration.
 
 ## Build from source
 
-Requires macOS, Apple's Command Line Tools, Node.js 22 or newer, npm, and Python 3. Full Xcode is not required by the local build script.
+Build locally on macOS with Apple's Command Line Tools, Node.js 22.12 or newer, npm, and Python 3. Full Xcode is not required. Install dependencies and build:
 
 ```sh
 git clone https://github.com/Caylum-Hudson/touch-bar-studio.git
@@ -73,27 +43,14 @@ npm ci --ignore-scripts
 ./build-local.sh
 ```
 
-The app is written to `../Touch Bar Studio.app`. Close a running copy before rebuilding, then open the resulting app. It is locally ad-hoc signed; it is not notarized. No prebuilt upstream DMG or Sparkle updater is used.
+The app is written to `../Touch Bar Studio.app`. Close a running copy before rebuilding. The build script runs frontend checks, creates the Vite production build, builds the native app, and runs its self-tests. The app is locally ad-hoc signed and is not notarized. The manual GitHub Actions build does not publish releases.
 
-Use **Apply & Save** to activate layout changes. The separate **Touch Bar: On/Off** button takes effect immediately. Off returns control to macOS while keeping the launcher and editor available.
+See [first-run instructions](FIRST-RUN.md) for permissions, saved configuration, profiles, and launchers. The [control runtime audit](docs/CONTROL-RUNTIME-AUDIT.md) describes palette controls and their requirements. The [verification record](VERIFICATION.md) distinguishes automated and editor checks from physical hardware testing.
 
-See [first-run instructions](FIRST-RUN.md) for profiles, menus, permissions, saved configuration, reset and launcher shortcuts. See [verification notes](VERIFICATION.md) for checks and remaining limitations.
+## Current limits
 
-## Checks
-
-```sh
-node local-build/check-state.mjs
-"../Touch Bar Studio.app/Contents/MacOS/TouchBarStudio" --self-test
-```
-
-The build script runs both checks. A manual GitHub Actions build is available; it does not publish releases.
-
-## Current limitations
-
-Physical Touch Bar pixels, touch navigation, app-switch presentation and global shortcut delivery still need hands-on confirmation. The runtime uses upstream private Touch Bar APIs that Apple may change. Custom shell, AppleScript and swipe scripts are disabled; unknown imported fields remain available for export. A dedicated Finder Quick Action extension, resize-copy tool, recursive photo browsing and full EXIF inspection are not included.
-
-The command-line build script is the supported build path for this version. The inherited Xcode project and older upstream instructions have not been updated for all new source files.
+The 0.5.2 local build, frontend checks, native checks, and strict installed code-signature verification passed. Browser QA covered the profile selector and Resolve controls. The Dock layout was checked with editor fixtures. These checks do not confirm physical Touch Bar pixels or taps, real app switching on the Touch Bar, or keyboard/media action delivery on hardware. The preview is a design surface; dynamic values shown there can be illustrative. MTMR uses private macOS Touch Bar APIs that Apple may change. Script and swipe controls are import/export only, and Sleep controls are unavailable.
 
 ## Attribution and licensing
 
-The original MTMR Designer documentation is preserved in [docs/UPSTREAM-README.md](docs/UPSTREAM-README.md). The bundled MTMR license is in [mtmr-src/LICENSE](mtmr-src/LICENSE). Preserve all file-level notices as well: some inherited bridge code has other license terms, including GPL and LaunchAtLogin notices. This repository is not a separately reviewed binary redistribution package.
+The original MTMR Designer documentation is preserved in [docs/UPSTREAM-README.md](docs/UPSTREAM-README.md). The bundled MTMR license is in [mtmr-src/LICENSE](mtmr-src/LICENSE). Preserve file-level notices as well: inherited bridge code includes other license terms, including GPL and LaunchAtLogin notices. This repository is not a separately reviewed binary redistribution package.
