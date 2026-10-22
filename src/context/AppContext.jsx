@@ -15,6 +15,10 @@ const findItem = (items, id) => {
 };
 const mapTree = (items, fn) => items.map(item => fn(item.items ? {...item, items: mapTree(item.items, fn)} : item)).filter(Boolean);
 const resolveBundleId = 'com.blackmagic-design.DaVinciResolve';
+const loadAutoLoadPreference = () => {
+  try { return JSON.parse(localStorage.getItem('mtmr-auto-load') ?? 'true'); }
+  catch { return true; }
+};
 const commitProfileItems = (profiles, profileId, pageId, items) => {
   const profile = profiles[profileId];
   if (!profile) return profiles;
@@ -43,7 +47,7 @@ const initialState = {
   myPresets: [], // User's saved presets
   isDirty: false, // Track unsaved changes since last load/save
   mtmrItems: null, // Track what's currently in MTMR
-  autoLoad: JSON.parse(localStorage.getItem('mtmr-auto-load') ?? 'true'), // Auto-load items.json on startup
+  autoLoad: loadAutoLoadPreference(), // Auto-load items.json on startup
   history: {
     past: [],
     future: [],

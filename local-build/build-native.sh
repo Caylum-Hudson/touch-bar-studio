@@ -4,13 +4,13 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 OUT="$ROOT/local-build"
 APP="$ROOT/../Touch Bar Studio.app"
-mkdir -p "$OUT/objects" "$OUT/module-cache" "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Resources/WebApp"
+mkdir -p "$OUT/objects" "$OUT/module-cache" "$APP/Contents/MacOS" "$APP/Contents/Resources"
 SDK=$(xcrun --show-sdk-path)
 for SRC in mtmr-src/MTMR/CBridge/*.m mtmr-src/MTMR/CBridge/*.c; do
  clang -w -fmodules -fmodules-cache-path="$OUT/module-cache" -isysroot "$SDK" -fobjc-arc -c "$SRC" -o "$OUT/objects/$(basename "$SRC").o"
 done
 find mtmr-src/MTMR -name '*.swift' -not -path '*/WebApp/*' -print0 | xargs -0 swiftc -swift-version 5 -module-cache-path "$OUT/module-cache" -import-objc-header mtmr-src/MTMR/CBridge/TouchBarPrivateApi-Bridging.h -F "$SDK/System/Library/PrivateFrameworks" -framework Cocoa -framework WebKit -framework Carbon -framework IOKit -framework DFRFoundation -framework MultitouchSupport -framework CoreDisplay -framework CoreBrightness "$OUT"/objects/*.o -o "$APP/Contents/MacOS/TouchBarStudio" 2> "$OUT/compiler.log"
-cp -R dist/. "$APP/Contents/Resources/WebApp/"
+"${NODE_EXECUTABLE:-$(command -v node)}" local-build/stage-webapp.mjs dist "$APP/Contents/Resources/WebApp"
 cp mtmr-src/MTMR/defaultPreset.json "$APP/Contents/Resources/"
 find mtmr-src/MTMR/Assets.xcassets -type f \( -name '*.png' -o -name '*.pdf' \) -exec cp {} "$APP/Contents/Resources/" \;
 python3 - "$APP" <<'PY'

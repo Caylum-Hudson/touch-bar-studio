@@ -26,6 +26,10 @@ enum StudioMain {
             StudioControlChecks.runNativeSliderChecks()
             return
         }
+        if CommandLine.arguments.contains("--widget-lifecycle-self-test") {
+            StudioControlChecks.runWidgetLifecycleChecks()
+            return
+        }
         if CommandLine.arguments.contains("--brightness-diagnostic") {
             runBrightnessDiagnostic(roundTrip: false)
             return
@@ -45,6 +49,7 @@ enum StudioMain {
                 print("UNAVAILABLE: scoped compact overlay; normal AppKit presenter remains the fallback.")
             }
             StudioControlChecks.runFocusRefreshPolicyChecks()
+            StudioControlChecks.runWidgetLifecycleChecks()
             StudioControlChecks.runDockAutoResizeChecks()
             StudioControlChecks.runDockPreviewCacheChecks()
             StudioControlChecks.runStudioContentWidthChecks()
@@ -52,6 +57,44 @@ enum StudioMain {
             precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: false) == true)
             precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: true) == false)
             print("PASS: Control Strip preference selects compact presentation, while an expanded slider temporarily uses the full bar.")
+            let workspaceTestDirectory=FileManager.default.temporaryDirectory.appendingPathComponent("TouchBarStudio-workspace-selftest-\(UUID().uuidString)")
+            try! FileManager.default.createDirectory(at:workspaceTestDirectory,withIntermediateDirectories:true)
+            defer { try? FileManager.default.removeItem(at:workspaceTestDirectory) }
+            let workspaceTestFile=workspaceTestDirectory.appendingPathComponent("workspace.json")
+            let previousBackup=workspaceTestDirectory.appendingPathComponent("workspace.previous.json")
+            let corruptBytes=Data("{not valid workspace".utf8)
+            let priorValidBytes=Data("previous valid backup".utf8)
+            try! corruptBytes.write(to:workspaceTestFile)
+            try! priorValidBytes.write(to:previousBackup)
+            let invalidStore=StudioStore(directory:workspaceTestDirectory)
+            precondition(invalidStore.workspaceLoadError != nil)
+            let unconfirmedSave:[String:Any]=["version":1,"profiles":["default":["items":[]]]]
+            do {
+                try invalidStore.save(unconfirmedSave)
+                fatalError("Unreadable workspace replacement should require explicit confirmation")
+            } catch {
+                precondition(error.localizedDescription.contains("could not be read"))
+            }
+            do {
+                try StudioStore.validateUniqueProfileBundleIdentifiers([
+                    "default":["items":[]],
+                    "first":["bundleId":"com.example.duplicate","enabled":true,"items":[]],
+                    "second":["bundleId":"com.example.duplicate","enabled":true,"items":[]]
+                ])
+                fatalError("Duplicate enabled app profiles should be rejected")
+            } catch {
+                precondition(error.localizedDescription.contains("unique bundle identifiers"))
+            }
+            let unreadableBackup=try! StudioStore.preserveWorkspaceBeforeReplacement(file:workspaceTestFile,directory:workspaceTestDirectory)
+            precondition(unreadableBackup?.lastPathComponent.hasPrefix("workspace.unreadable-") == true)
+            precondition((try! Data(contentsOf:unreadableBackup!)) == corruptBytes)
+            precondition((try! Data(contentsOf:previousBackup)) == priorValidBytes)
+            let validWorkspace:[String:Any]=["version":1,"profiles":["default":["items":[]]]]
+            try! JSONSerialization.data(withJSONObject:validWorkspace).write(to:workspaceTestFile)
+            let validBackup=try! StudioStore.preserveWorkspaceBeforeReplacement(file:workspaceTestFile,directory:workspaceTestDirectory)
+            precondition(validBackup == previousBackup)
+            precondition(try! JSONSerialization.jsonObject(with:Data(contentsOf:previousBackup)) is [String:Any])
+            print("PASS: unreadable workspace bytes and the prior valid backup are preserved separately before replacement.")
             let store = StudioStore.shared
             store.workspace = ["version":1,"profiles":["default":["items":[["type":"staticButton","title":"Default"]]],"finder":["bundleId":"com.apple.finder","enabled":true,"items":[["type":"group","title":"Finder","items":[["type":"staticButton","title":"Nested"]]]]]]]
             let matched = store.selectedItems(bundle:"com.apple.finder")!

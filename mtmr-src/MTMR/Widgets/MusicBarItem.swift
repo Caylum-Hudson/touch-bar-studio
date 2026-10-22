@@ -64,6 +64,8 @@ class MusicBarItem: CustomButtonTouchBarItem {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit { timer?.invalidate() }
+
     @objc func playPause() {
         for ident in playerBundleIdentifiers {
             if let musicPlayer = SBApplication(bundleIdentifier: ident.rawValue) {
@@ -207,7 +209,8 @@ class MusicBarItem: CustomButtonTouchBarItem {
     }
 
     func refreshAndSchedule() {
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
             self.updatePlayer()
             DispatchQueue.main.asyncAfter(deadline: .now() + self.interval) { [weak self] in
                 self?.refreshAndSchedule()
@@ -287,7 +290,7 @@ class MusicBarItem: CustomButtonTouchBarItem {
                             self.title = " " + songTitle
                         } else {
                             self.title = " " + songTitle + "     "
-                            self.timer = Timer.scheduledTimer(timeInterval: 0.25, target: self, selector: #selector(self.marquee), userInfo: nil, repeats: true)
+                            self.timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.marquee() }
                         }
                         
                         titleUpdated = true

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 — Workspace safety and runtime cleanup (installed build verified)
+
+- Report unreadable workspace files in Studio, require an explicit import or replacement decision, preserve the original bytes and prior valid backup, and enforce the guard in the native save API. Reject duplicate enabled app-profile bundle IDs.
+- Remove stale packaged web assets through verified temporary staging and rollback-safe replacement. Clean up audio listeners, battery run-loop context, timers, background scheduler observers, and the owned network monitor when widgets are dismissed.
+- Fix malformed Auto-load preference fallback and keep workspace recovery status correct across periodic refreshes after import.
+- Final local build, 29 frontend tests, source/catalog checks, 20-cycle native widget lifecycle test, native profile/layout/Resolve self-tests, 56-entry control audit, widget read-only checks, strict signature verification, and installed UI review passed. The installed app shows the existing six-control layout, no workspace warning, and Accessibility granted. The visible corrupt-workspace import/confirmation flow was not end-to-end tested; native temporary-directory tests cover preservation and save guards. The 0.8.1 app bundle is 5,740 KiB, compared with 23,752 KiB before stale-asset cleanup. No CPU/RSS improvement is claimed. See [review](docs/reviews/0.8.1-code-review.md) and [verification](VERIFICATION.md).
+
 ## 0.8.0 — Even placement
 
 - Add **Auto-place evenly** beside the preview for the current profile/submenu. Keep control sizes and visual order; use equal free gaps. If content does not fit, prompt removal and preserve the current layout. Undo restores the previous arrangement.

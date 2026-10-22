@@ -15,8 +15,9 @@ if [ ! -x "$NODE_EXECUTABLE" ] || [ ! -d node_modules ]; then
 fi
 "$NODE_EXECUTABLE" local-build/check-state.mjs
 "$NODE_EXECUTABLE" local-build/check-controls.mjs
+"$NODE_EXECUTABLE" local-build/stage-webapp.test.mjs
 "$NODE_EXECUTABLE" node_modules/vite/bin/vite.js build
-./local-build/build-native.sh
+NODE_EXECUTABLE="$NODE_EXECUTABLE" ./local-build/build-native.sh
 "../Touch Bar Studio.app/Contents/MacOS/TouchBarStudio" --self-test
 
 "../Touch Bar Studio.app/Contents/MacOS/TouchBarStudio" --control-self-test local-build/control-fixtures.generated.json

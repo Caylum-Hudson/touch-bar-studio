@@ -101,8 +101,8 @@ class CurrencyBarItem: CustomButtonTouchBarItem {
 
         activity.repeats = true
         activity.qualityOfService = .utility
-        activity.schedule { (completion: NSBackgroundActivityScheduler.CompletionHandler) in
-            self.updateCurrency()
+        activity.schedule { [weak self] (completion: NSBackgroundActivityScheduler.CompletionHandler) in
+            self?.updateCurrency()
             completion(NSBackgroundActivityScheduler.Result.finished)
         }
         updateCurrency()

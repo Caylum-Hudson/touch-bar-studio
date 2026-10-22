@@ -101,6 +101,39 @@ enum StudioFocusRefreshPolicy {
 
 /// Read-only runtime checks: decode defaults and render local status controls without sending actions.
 enum StudioControlChecks {
+    static func runWidgetLifecycleChecks() {
+        for iteration in 0..<20 {
+            precondition(objectReleasesAfterScope { TimeTouchBarItem(identifier:.init("lifecycle.time.\(iteration)"),formatTemplate:"HH:mm") })
+            precondition(objectReleasesAfterScope { DarkModeBarItem(identifier:.init("lifecycle.darkmode.\(iteration)")) })
+            precondition(objectReleasesAfterScope { NightShiftBarItem(identifier:.init("lifecycle.nightshift.\(iteration)")) })
+            precondition(objectReleasesAfterScope { DnDBarItem(identifier:.init("lifecycle.dnd.\(iteration)")) })
+            precondition(objectReleasesAfterScope { VolumeViewController(identifier:.init("lifecycle.volume.\(iteration)")) })
+            precondition(batteryContextReleasesAfterStop())
+            precondition(objectReleasesAfterScope { NetworkBarItem(identifier:.init("lifecycle.network.\(iteration)"),units:"B/s") })
+        }
+        print("PASS: 20 read-only widget lifecycle cycles release timers, audio listeners, battery callback contexts, and owned network monitors.")
+    }
+
+    private static func objectReleasesAfterScope<T: AnyObject>(_ create: () -> T) -> Bool {
+        weak var reference: T?
+        autoreleasepool {
+            let object = create()
+            reference = object
+        }
+        return reference == nil
+    }
+
+    private static func batteryContextReleasesAfterStop() -> Bool {
+        weak var reference: BatteryInfo?
+        autoreleasepool {
+            let info = BatteryInfo()
+            reference = info
+            info.start {}
+            info.stop()
+        }
+        return reference == nil
+    }
+
     static func runFocusRefreshPolicyChecks() {
         let pageSnapshots = [
             ResolvePageCheckboxSnapshot(role:"AXCheckBox",label:"Media",selected:false),

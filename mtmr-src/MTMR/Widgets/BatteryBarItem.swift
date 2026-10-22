@@ -44,11 +44,17 @@ class BatteryInfo: NSObject {
     var timeRemaining: String = ""
     var notifyBlock: () -> Void = {}
     var loop: CFRunLoopSource?
+    private var sourceRunLoop: CFRunLoop?
+    private var retainedSelfContext: UnsafeMutableRawPointer?
 
     func start(notifyBlock: @escaping () -> Void) {
         self.notifyBlock = notifyBlock
+        guard retainedSelfContext == nil else { return }
         let opaque = Unmanaged.passRetained(self).toOpaque()
         let context = UnsafeMutableRawPointer(opaque)
+        retainedSelfContext = context
+        let runLoop = CFRunLoopGetCurrent()
+        sourceRunLoop = runLoop
         loop = IOPSNotificationCreateRunLoopSource({ context in
             guard let ctx = context else {
                 return
@@ -57,16 +63,23 @@ class BatteryInfo: NSObject {
             let watcher = Unmanaged<BatteryInfo>.fromOpaque(ctx).takeUnretainedValue()
             watcher.notifyBlock()
         }, context).takeRetainedValue() as CFRunLoopSource
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), loop, CFRunLoopMode.defaultMode)
+        CFRunLoopAddSource(runLoop, loop, CFRunLoopMode.defaultMode)
     }
 
     func stop() {
         notifyBlock = {}
-        guard let loop = self.loop else {
-            return
+        if let loop {
+            CFRunLoopSourceInvalidate(loop)
+            if let sourceRunLoop {
+                CFRunLoopRemoveSource(sourceRunLoop, loop, CFRunLoopMode.defaultMode)
+            }
+            self.loop = nil
+            sourceRunLoop = nil
         }
-        CFRunLoopRemoveSource(CFRunLoopGetCurrent(), loop, CFRunLoopMode.defaultMode)
-        self.loop = nil
+        if let retainedSelfContext {
+            Unmanaged<BatteryInfo>.fromOpaque(retainedSelfContext).release()
+            self.retainedSelfContext = nil
+        }
     }
 
     func getPSInfo() {

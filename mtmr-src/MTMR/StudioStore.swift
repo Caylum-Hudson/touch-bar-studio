@@ -3,9 +3,10 @@ import ImageIO
 
 final class StudioStore {
     static let shared = StudioStore()
-    let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/TouchBarStudio")
+    let directory: URL
     var file: URL { directory.appendingPathComponent("workspace.json") }
     var workspace: [String: Any] = [:]
+    private(set) var workspaceLoadError: String?
     var photoFiles: [String: URL] = [:]
     var pendingPhotoFiles: [String] = []
     var activeProfile = "default"
@@ -19,16 +20,60 @@ final class StudioStore {
         result["settings"] = settings
         return result
     }
-    init() {
-        if let data = try? Data(contentsOf: file), let json = try? JSONSerialization.jsonObject(with: data) as? [String:Any] {
+    init(directory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/TouchBarStudio")) {
+        self.directory = directory
+        guard FileManager.default.fileExists(atPath: file.path) else { return }
+        do {
+            let data = try Data(contentsOf: file)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String:Any], Self.isWorkspace(json) else {
+                workspaceLoadError = "The saved workspace is not a valid version 1 workspace."
+                return
+            }
             workspace = json
             if let keepControlStrip = (json["settings"] as? [String:Any])?["keepControlStrip"] as? Bool {
                 AppSettings.showControlStripState = keepControlStrip
             }
+        } catch {
+            workspaceLoadError = "The saved workspace could not be read: \(error.localizedDescription)"
         }
     }
-    func save(_ data: [String:Any]) throws {
+
+    private static func isWorkspace(_ json: [String:Any]) -> Bool {
+        json["version"] as? Int == 1 &&
+        (json["profiles"] as? [String:[String:Any]])?["default"]?["items"] is [[String:Any]]
+    }
+
+    static func validateUniqueProfileBundleIdentifiers(_ profiles: [String:[String:Any]]) throws {
+        let bundleIdentifiers = profiles.compactMap { key, profile -> String? in
+            guard key != "default", profile["enabled"] as? Bool != false,
+                  let bundleIdentifier = profile["bundleId"] as? String, !bundleIdentifier.isEmpty else { return nil }
+            return bundleIdentifier
+        }
+        guard Set(bundleIdentifiers).count == bundleIdentifiers.count else {
+            throw NSError(domain:"Studio",code:7,userInfo:[NSLocalizedDescriptionKey:"Enabled app profiles must use unique bundle identifiers."])
+        }
+    }
+
+    @discardableResult
+    static func preserveWorkspaceBeforeReplacement(file: URL, directory: URL) throws -> URL? {
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        let data = try Data(contentsOf: file)
+        let isValid = (try? JSONSerialization.jsonObject(with: data)) as? [String:Any]
+        let backup: URL
+        if let isValid, Self.isWorkspace(isValid) {
+            backup = directory.appendingPathComponent("workspace.previous.json")
+        } else {
+            backup = directory.appendingPathComponent("workspace.unreadable-\(UUID().uuidString).json")
+        }
+        try data.write(to: backup, options: .atomic)
+        return backup
+    }
+    func save(_ data: [String:Any], allowReplacingUnreadable: Bool = false) throws {
         guard data["version"] as? Int == 1, let profiles = data["profiles"] as? [String:[String:Any]], profiles["default"]?["items"] is [[String:Any]] else { throw NSError(domain:"Studio",code:1,userInfo:[NSLocalizedDescriptionKey:"A Default profile is required."]) }
+        if workspaceLoadError != nil && !allowReplacingUnreadable {
+            throw NSError(domain:"Studio",code:6,userInfo:[NSLocalizedDescriptionKey:"The saved workspace could not be read. Import a workspace or explicitly confirm replacement before saving."])
+        }
+        try Self.validateUniqueProfileBundleIdentifiers(profiles)
         // Validate every layout before replacing the saved configuration.
         for (_, profile) in profiles {
             guard let items = profile["items"] as? [[String:Any]] else { throw NSError(domain:"Studio",code:2,userInfo:[NSLocalizedDescriptionKey:"Invalid profile items."]) }
@@ -55,9 +100,10 @@ final class StudioStore {
         workspaceToSave["settings"] = settings
         try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
         let encoded = try JSONSerialization.data(withJSONObject:workspaceToSave,options:[.prettyPrinted,.sortedKeys])
-        if FileManager.default.fileExists(atPath:file.path) { try Data(contentsOf:file).write(to:directory.appendingPathComponent("workspace.previous.json"),options:.atomic) }
+        try Self.preserveWorkspaceBeforeReplacement(file:file,directory:directory)
         try encoded.write(to:file,options:.atomic)
         workspace = workspaceToSave
+        workspaceLoadError = nil
         AppSettings.showControlStripState = keepControlStrip
         StudioLauncher.shared.configure()
         TouchBarController.shared.navigationStack = []

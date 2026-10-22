@@ -14,6 +14,12 @@ class NetworkBarItem: CustomButtonTouchBarItem, Widget {
     
     private let flip: Bool
     private let units: String
+    private var pipe: Pipe?
+    private var outputHandle: FileHandle?
+    private var bandwidthProcess: Process?
+    private var dataAvailableObserver: NSObjectProtocol?
+    private var terminationObserver: NSObjectProtocol?
+    private var pendingOutput = Data()
     
     init(identifier: NSTouchBarItem.Identifier, flip: Bool = false, units: String) {
         self.flip = flip
@@ -27,63 +33,92 @@ class NetworkBarItem: CustomButtonTouchBarItem, Widget {
     }
 
     func startMonitoringProcess() {
-        var pipe: Pipe
-        var outputHandle: FileHandle
-        var bandwidthProcess: Process?
-        var dSpeed: UInt64?
-        var uSpeed: UInt64?
-        var curr: Array<Substring>?
-        var dataAvailable: NSObjectProtocol?
+        let pipe = Pipe()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["netstat", "-w1", "-l", "en0"]
+        process.standardOutput = pipe
+        let outputHandle = pipe.fileHandleForReading
+        self.pipe = pipe
+        self.outputHandle = outputHandle
+        self.bandwidthProcess = process
 
-        pipe = Pipe()
-        bandwidthProcess = Process()
-        bandwidthProcess?.launchPath = "/usr/bin/env"
-        bandwidthProcess?.arguments = ["netstat", "-w1", "-l", "en0"]
-        bandwidthProcess?.standardOutput = pipe
-
-        outputHandle = pipe.fileHandleForReading
-        outputHandle.waitForDataInBackgroundAndNotify(forModes: [RunLoop.Mode.common])
-
-        dataAvailable = NotificationCenter.default.addObserver(
+        dataAvailableObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name.NSFileHandleDataAvailable,
             object: outputHandle,
-            queue: nil
-        ) { _ -> Void in
-            let data = pipe.fileHandleForReading.availableData
-            if data.count > 0 {
-                if let str = NSString(data: data, encoding: String.Encoding.utf8.rawValue) {
-                    curr = [""]
-                    curr = str
-                        .replacingOccurrences(of: "  ", with: " ")
-                        .split(separator: " ")
-                    if curr == nil || (curr?.count)! < 6 {} else {
-                        if Int64(curr![2]) == nil {} else {
-                            dSpeed = UInt64(curr![2])
-                            uSpeed = UInt64(curr![5])
-
-                            self.setTitle(up: self.getHumanizeSize(speed: uSpeed!), down: self.getHumanizeSize(speed: dSpeed!))
-                        }
-                    }
-                }
-                outputHandle.waitForDataInBackgroundAndNotify()
-            } else if let dataAvailable = dataAvailable {
-                NotificationCenter.default.removeObserver(dataAvailable)
-            }
+            queue: .main
+        ) { [weak self] _ in
+            self?.readAvailableNetworkData()
         }
 
-        var dataReady: NSObjectProtocol?
-        dataReady = NotificationCenter.default.addObserver(
+        terminationObserver = NotificationCenter.default.addObserver(
             forName: Process.didTerminateNotification,
-            object: outputHandle,
-            queue: nil
-        ) { _ -> Void in
-            print("Task terminated!")
-            if let observer = dataReady {
-                NotificationCenter.default.removeObserver(observer)
-            }
+            object: process,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.stopMonitoringProcess(terminate: false)
         }
 
-        bandwidthProcess?.launch()
+        outputHandle.waitForDataInBackgroundAndNotify(forModes: [RunLoop.Mode.common])
+        do {
+            try process.run()
+        } catch {
+            stopMonitoringProcess(terminate: false)
+            NSLog("Could not start network monitor: %@", error.localizedDescription)
+        }
+    }
+
+    private func readAvailableNetworkData() {
+        guard let outputHandle else { return }
+        let data = outputHandle.availableData
+        guard !data.isEmpty else {
+            // EOF can arrive before the process termination notification. Close
+            // the owned child here as well so its lifetime never depends on
+            // which notification reaches the main queue first.
+            stopMonitoringProcess(terminate: true)
+            return
+        }
+        pendingOutput.append(data)
+        // netstat emits a header and one row per interval. Process complete
+        // lines only, and cap retained data if an unexpected producer floods
+        // the pipe without line breaks.
+        if pendingOutput.count > 16_384 {
+            pendingOutput.removeAll(keepingCapacity: true)
+        } else if let text = String(data: pendingOutput, encoding: .utf8),
+                  let lastNewline = text.lastIndex(of: "\n") {
+            let complete = text[..<lastNewline]
+            pendingOutput = Data(text[text.index(after: lastNewline)...].utf8)
+            for line in complete.split(whereSeparator: \.isNewline) {
+                let columns = line.split(whereSeparator: \.isWhitespace)
+                if columns.count >= 6, let down = UInt64(columns[2]), let up = UInt64(columns[5]) {
+                    setTitle(up: getHumanizeSize(speed: up), down: getHumanizeSize(speed: down))
+                }
+            }
+        }
+        outputHandle.waitForDataInBackgroundAndNotify(forModes: [RunLoop.Mode.common])
+    }
+
+    private func stopMonitoringProcess(terminate: Bool) {
+        if let observer = dataAvailableObserver {
+            NotificationCenter.default.removeObserver(observer)
+            dataAvailableObserver = nil
+        }
+        if let observer = terminationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            terminationObserver = nil
+        }
+        if terminate, let process = bandwidthProcess, process.isRunning {
+            process.terminate()
+        }
+        try? outputHandle?.close()
+        outputHandle = nil
+        pipe = nil
+        bandwidthProcess = nil
+    }
+
+    deinit {
+        stopMonitoringProcess(terminate: true)
     }
 
     func getHumanizeSize(speed: UInt64) -> String {

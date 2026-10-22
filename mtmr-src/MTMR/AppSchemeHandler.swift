@@ -69,14 +69,15 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         if path == "/api/studio" {
             do {
                 if taskMethod(urlSchemeTask) == "POST" {
-                    guard let data = urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream), let json = try JSONSerialization.jsonObject(with:data) as? [String:Any] else { throw URLError(.badServerResponse) }
-                    try StudioStore.shared.save(json)
+                    guard let data = urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream), let request = try JSONSerialization.jsonObject(with:data) as? [String:Any] else { throw URLError(.badServerResponse) }
+                    let workspace = request["workspace"] as? [String:Any] ?? request
+                    try StudioStore.shared.save(workspace,allowReplacingUnreadable:request["replaceUnreadable"] as? Bool == true)
                 }
                 let store=StudioStore.shared
                 let controller=TouchBarController.shared
                 let runtimeProfile=(store.workspace["profiles"] as? [String:[String:Any]])?[store.activeProfile]
                 let runtimeLayouts=runtimeProfile?["resolvePageLayouts"] as? [String:[[String:Any]]]
-                var response: [String: Any] = ["success": true,"workspace":store.apiWorkspace,"activeProfile":store.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState,"frontmostBundleId":controller.frontmostApplicationIdentifier.map { $0 as Any } ?? NSNull(),"activeResolvePage":store.activeResolvePage.map { $0 as Any } ?? NSNull(),"resolvePageOverride":controller.resolvePageOverride.map { $0 as Any } ?? NSNull(),"resolvePageMode":controller.resolvePageOverride == nil ? "automatic" : "manual","resolvePageDetection":store.resolvePageDetectionStatus,"activeResolvePageFallback":store.activeResolvePage.map { runtimeLayouts?[$0] == nil } ?? false]
+                var response: [String: Any] = ["success": true,"workspace":store.apiWorkspace,"workspaceLoadError":store.workspaceLoadError.map { $0 as Any } ?? NSNull(),"activeProfile":store.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState,"frontmostBundleId":controller.frontmostApplicationIdentifier.map { $0 as Any } ?? NSNull(),"activeResolvePage":store.activeResolvePage.map { $0 as Any } ?? NSNull(),"resolvePageOverride":controller.resolvePageOverride.map { $0 as Any } ?? NSNull(),"resolvePageMode":controller.resolvePageOverride == nil ? "automatic" : "manual","resolvePageDetection":store.resolvePageDetectionStatus,"activeResolvePageFallback":store.activeResolvePage.map { runtimeLayouts?[$0] == nil } ?? false]
                 response["layoutCapacity"] = controller.studioLayoutCapacity.map { $0 as Any } ?? NSNull()
                 StudioPermissions.statusFields.forEach { response[$0.key] = $0.value }
                 respondJSON(urlSchemeTask,dict:response)

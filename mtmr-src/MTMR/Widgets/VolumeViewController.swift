@@ -6,6 +6,8 @@ import CoreAudio
 class VolumeViewController: NSCustomTouchBarItem {
     private(set) var sliderItem: CustomSlider!
     private var currentDeviceId: AudioObjectID = AudioObjectID(0)
+    private var routeListener: AudioObjectPropertyListenerBlock?
+    private var volumeListener: AudioObjectPropertyListenerBlock?
 
     init(identifier: NSTouchBarItem.Identifier, image: NSImage? = nil) {
         super.init(identifier: identifier)
@@ -34,17 +36,20 @@ class VolumeViewController: NSCustomTouchBarItem {
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMaster)
-        AudioObjectAddPropertyListenerBlock(audioId, &forPropertyAddress, nil, audioRouteChanged)
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.audioRouteChanged()
+        }
+        if AudioObjectAddPropertyListenerBlock(audioId, &forPropertyAddress, .main, listener) == noErr {
+            routeListener = listener
+        }
     }
     
 
-    func audioRouteChanged(numberAddresses _: UInt32, addresses _: UnsafePointer<AudioObjectPropertyAddress>) {
+    private func audioRouteChanged() {
         self.removeLastAudioVolumeChangeListener()
         currentDeviceId = defaultDeviceID
         self.addCurrentAudioVolumeChangedListener()
-        DispatchQueue.main.async {
-            self.sliderItem.floatValue = self.getInputGain() * 100
-        }
+        sliderItem.floatValue = getInputGain() * 100
     }
     
     private func addCurrentAudioVolumeChangedListener() {
@@ -54,7 +59,13 @@ class VolumeViewController: NSCustomTouchBarItem {
             mElement: kAudioObjectPropertyElementMaster
         )
 
-        AudioObjectAddPropertyListenerBlock(defaultDeviceID, &forPropertyAddress, nil, audioObjectPropertyListenerBlock)
+        let deviceID = currentDeviceId
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.audioObjectVolumeChanged()
+        }
+        if AudioObjectAddPropertyListenerBlock(deviceID, &forPropertyAddress, .main, listener) == noErr {
+            volumeListener = listener
+        }
     }
     
     private func removeLastAudioVolumeChangeListener() {
@@ -64,13 +75,14 @@ class VolumeViewController: NSCustomTouchBarItem {
             mElement: kAudioObjectPropertyElementMaster
         )
 
-        AudioObjectRemovePropertyListenerBlock(currentDeviceId, &forPropertyAddress, nil, audioObjectPropertyListenerBlock)
+        if let volumeListener {
+            AudioObjectRemovePropertyListenerBlock(currentDeviceId, &forPropertyAddress, .main, volumeListener)
+            self.volumeListener = nil
+        }
     }
 
-    func audioObjectPropertyListenerBlock(numberAddresses _: UInt32, addresses _: UnsafePointer<AudioObjectPropertyAddress>) {
-        DispatchQueue.main.async {
-            self.sliderItem.floatValue = self.getInputGain() * 100
-        }
+    private func audioObjectVolumeChanged() {
+        sliderItem.floatValue = getInputGain() * 100
     }
 
     required init?(coder _: NSCoder) {
@@ -78,6 +90,21 @@ class VolumeViewController: NSCustomTouchBarItem {
     }
 
     deinit {
+        if let routeListener {
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMaster)
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(bitPattern: kAudioObjectSystemObject), &address, .main, routeListener)
+        }
+        if let volumeListener {
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                mScope: kAudioDevicePropertyScopeOutput,
+                mElement: kAudioObjectPropertyElementMaster)
+            AudioObjectRemovePropertyListenerBlock(currentDeviceId, &address, .main, volumeListener)
+        }
         sliderItem.unbind(NSBindingName.value)
     }
 

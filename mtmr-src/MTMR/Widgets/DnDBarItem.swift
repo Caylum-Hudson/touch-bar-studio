@@ -9,7 +9,7 @@
 import Foundation
 
 class DnDBarItem: CustomButtonTouchBarItem {
-    private var timer: Timer!
+    private var timer: Timer?
 
     init(identifier: NSTouchBarItem.Identifier) {
         super.init(identifier: identifier, title: "")
@@ -18,7 +18,7 @@ class DnDBarItem: CustomButtonTouchBarItem {
 
         actions.append(ItemAction(trigger: .singleTap) { [weak self] in self?.DnDToggle() })
 
-        timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(refresh), userInfo: nil, repeats: true)
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
 
         refresh()
     }
@@ -26,6 +26,8 @@ class DnDBarItem: CustomButtonTouchBarItem {
     required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+
+    deinit { timer?.invalidate() }
 
     func DnDToggle() {
         DoNotDisturb.isEnabled = !DoNotDisturb.isEnabled

@@ -32,6 +32,10 @@ export default function StudioShell() {
   const [tab,setTab] = useState(document.documentElement.classList.contains('compact-launcher')?'Launcher':'Studio');
   const [settings,setSettings] = useState(()=> {try{return {...defaults,...JSON.parse(localStorage.getItem('studio-settings'))};}catch{return defaults;}});
   const [status,setStatus] = useState('Ready — changes are saved locally');
+  const [workspaceLoadError,setWorkspaceLoadError] = useState('');
+  const [workspaceReplacementPrepared,setWorkspaceReplacementPrepared] = useState(false);
+  const workspaceReplacementPreparedRef=useRef(workspaceReplacementPrepared);
+  workspaceReplacementPreparedRef.current=workspaceReplacementPrepared;
   const [active,setActive] = useState('default');
   const [activeResolvePage,setActiveResolvePage] = useState(null);
   const [resolvePageOverride,setResolvePageOverride] = useState(null);
@@ -73,6 +77,10 @@ export default function StudioShell() {
     const refreshStudio=()=>{
       if(studioRequestRef.current)return studioRequestRef.current;
       const request=api('studio').then(r=>{
+        const loadError=typeof r.workspaceLoadError==='string'?r.workspaceLoadError:'';
+        setWorkspaceLoadError(loadError);
+        if(!loadError)setWorkspaceReplacementPrepared(false);
+        if(loadError&&!workspaceReplacementPreparedRef.current)setStatus(`Saved workspace needs attention. ${loadError} Import a backup before replacing it.`);
         if(!initialStudioLoadedRef.current&&r.workspace?.profiles?.default){app.restoreWorkspace(r.workspace);if(r.workspace.settings)setSettings(s=>({...s,...defaults,...r.workspace.settings}));initialStudioLoadedRef.current=true;}
         setLayoutCapacity(r.layoutCapacity || null);
         setActive(r.activeProfile);setActiveResolvePage(r.activeResolvePage||null);setResolvePageOverride(r.resolvePageOverride||null);setResolvePageDetection(r.resolvePageDetection||'inactive');setActiveResolvePageFallback(r.activeResolvePageFallback===true);setEnabled(r.enabled);setKeyboardAccess(r.accessibilityTrusted ?? r.keyboardAccess ?? null);setEventPostingAllowed(r.eventPostingAllowed ?? null);
@@ -103,7 +111,21 @@ export default function StudioShell() {
     : activeRuntimePageLabel?`Page: ${activeRuntimePageLabel} (${resolvePageOverride?'Manual':'Auto'}${activeResolvePageFallback?' · profile fallback':''})`:null;
   const resolveProfile=Object.entries(app.profiles).find(([,p])=>p.bundleId===RESOLVE_BUNDLE_ID);
   const workspace=()=>({version:1,profiles:Object.fromEntries(Object.entries(app.profiles).map(([id,p])=>[id,{...p,items:JSON.parse(generateJSON(p.items)),...(p.resolvePageLayouts?{resolvePageLayouts:Object.fromEntries(Object.entries(p.resolvePageLayouts).map(([page,items])=>[page,JSON.parse(generateJSON(items))]))}:{})}])),settings});
-  const save=()=>run(async()=>{const result=await api('studio',workspace());if(typeof result.keepControlStrip==='boolean')setSettings(s=>({...s,keepControlStrip:result.keepControlStrip}));setStatus(enabled?'Applied to Touch Bar · saved on this Mac':'Saved on this Mac · custom Touch Bar is off');});
+  const save=()=>run(async()=>{
+    let replaceUnreadable=false;
+    if(workspaceLoadError){
+      if(workspaceReplacementPrepared)replaceUnreadable=true;
+      else {
+        if(!window.confirm('The saved workspace could not be loaded. The original file will be preserved as an unreadable backup. Save this editor workspace over it? Import a backup first if you want to restore an earlier layout.'))return;
+        replaceUnreadable=true;
+      }
+    }
+    const result=await api('studio',{workspace:workspace(),replaceUnreadable});
+    setWorkspaceLoadError('');
+    setWorkspaceReplacementPrepared(false);
+    if(typeof result.keepControlStrip==='boolean')setSettings(s=>({...s,keepControlStrip:result.keepControlStrip}));
+    setStatus(enabled?'Applied to Touch Bar · saved on this Mac':'Saved on this Mac · custom Touch Bar is off');
+  });
   const updateControlStrip=async value=>{
     if(!native||controlStripBusyRef.current)return;
     const previous=settings.keepControlStrip===true;
@@ -178,6 +200,7 @@ export default function StudioShell() {
     <header className="studio-header"><div><strong>Touch Bar Studio</strong><small>v{appMetadata.version} · Your Mac, within reach.</small></div><nav>{['Launcher','Studio','Photos','Appearance'].map(t=><button key={t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><button className="runtime-toggle" aria-pressed={enabled===true} disabled={!native||enabled===null||toggling} onClick={toggleTouchBar}>{enabled===null?'Checking Touch Bar…':enabled?'Touch Bar: On':'Touch Bar: Off'}</button><button className="primary" onClick={save}>Apply & Save</button></header>
     {(tab!=='Studio'||status!=='Ready — changes are saved locally')&&<div className={`studio-status ${tab==='Studio'?'studio-feedback':''}`} role="status">{status}<span>Touch Bar: {enabled===false?'Off (macOS controls)':app.profiles[active]?.name || 'Default'}</span></div>}
     {native && keyboardAccess===false && <div className="permission-notice" role="status"><span>macOS has not authorized keyboard control for this running app. Accessibility controls keyboard and media access; Full Disk Access is separate.</span><div><button onClick={()=>run(async()=>{await api('keyboard-permission',{});})}>Review Accessibility settings</button> <button onClick={recheckAccessibility}>Recheck status</button></div></div>}
+    {native&&workspaceLoadError&&<div className="permission-error" role="alert">{workspaceLoadError} {workspaceReplacementPrepared?'A workspace has been imported. Apply & Save to replace the unreadable file; its original bytes and prior backup will be kept.':'The original file is preserved. Import a workspace backup before saving a replacement.'}</div>}
     {native&&controlStripError&&<div className="permission-error" role="alert">{controlStripError}</div>}
     {tab==='Studio'&&<>
       <div className="profile-toolbar">
@@ -192,7 +215,7 @@ export default function StudioShell() {
       <details className="studio-options"><summary>Studio options <span>{profile?.name||'Default'} profile</span></summary><div className="studio-options-content"><div className="profile-strip">
       {app.profileId!=='default'&&<><input aria-label="Profile name" value={profile.name} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,name:e.target.value}})}/><label><input type="checkbox" checked={profile.enabled} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,enabled:e.target.checked}})}/>Enabled</label><button onClick={()=>{const id=app.profileId;app.switchProfile('default');const p={...app.profiles};delete p[id];app.setProfiles(p);}}>Delete profile</button></>}
       <button onClick={()=>download('touchbar-workspace.json',workspace())}>Export workspace</button><button onClick={()=>importRef.current.click()}>Import workspace</button>
-      <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const file=e.target.files[0];if(!file)return;const w=JSON.parse(await file.text());if(w.version!==1||!w.profiles?.default||Object.values(w.profiles).some(p=>!Array.isArray(p.items)))throw Error('Expected a version 1 workspace with a Default profile.');app.restoreWorkspace(w);if(w.settings)setSettings({...defaults,...w.settings});setStatus('Workspace imported locally. Apply & Save to activate.');e.target.value='';})}/>
+      <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const file=e.target.files[0];if(!file)return;const w=JSON.parse(await file.text());if(w.version!==1||!w.profiles?.default||Object.values(w.profiles).some(p=>!Array.isArray(p.items)))throw Error('Expected a version 1 workspace with a Default profile.');app.restoreWorkspace(w);if(w.settings)setSettings({...defaults,...w.settings});setWorkspaceReplacementPrepared(true);setStatus('Workspace imported locally. Apply & Save to activate.');e.target.value='';})}/>
       </div></div></details>
       {app.groupPath.length>0&&<div className="submenu-strip"><button onClick={app.leaveGroup}>‹ Back</button><span>{profile?.name||'Default'}{app.groupNames.map((n,i)=><span key={i}> / {n}</span>)}</span>{app.selectedItemId&&<select aria-label="Move selected control" value="" onChange={e=>app.moveItem(app.selectedItemId,e.target.value==='root'?null:e.target.value)}><option value="">Move selected to…</option><option value="root">Root layout</option>{app.items.filter(i=>i.type==='group'&&i.id!==app.selectedItemId).map(i=><option key={i.id} value={i.id}>{i.title||'Submenu'}</option>)}</select>}</div>}
       {profile?.bundleId===RESOLVE_BUNDLE_ID&&!app.resolvePageReady&&app.resolvePageId!=='fallback'?<section className="resolve-page-empty"><h2>No {resolvePages.find(([id])=>id===app.resolvePageId)?.[1]} layout yet</h2><p>The Touch Bar uses the profile fallback layout for that page. Create a separate layout by copying the profile fallback; this will not change other pages.</p><button type="button" className="primary" onClick={()=>createResolvePageLayout(app.resolvePageId)}>Create layout from profile</button></section>:<div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native} keepControlStrip={settings.keepControlStrip===true} updateKeepControlStrip={updateControlStrip} controlStripBusy={controlStripBusy} layoutCapacity={layoutCapacity}><AppContent/></RuntimePermissionsProvider></div>}

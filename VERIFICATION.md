@@ -1,4 +1,13 @@
-# Verification — 22 October 2026
+# Verification — 23 October 2026
+
+## 0.8.1 — Workspace safety and runtime cleanup (installed app verified)
+
+- The final local 0.8.1 build passed state/catalog source checks, the 29-test frontend suite, Vite build, Swift compilation, the full native self-test, the 20-cycle read-only widget lifecycle test, the 56-entry control audit, and read-only widget/system-metric checks. Strict signature verification passes; both source and installed bundle report 0.8.1.
+- Installed-app review after reopening confirmed the existing six-control layout, no workspace-load warning, and Accessibility granted. No feature test or build path wrote to the user workspace after the user saved and quit. A prebuild content hash was not recorded, so this is a visual/layout and workflow statement, not a byte-identical comparison.
+- Native temporary-directory tests prove unreadable workspace bytes and a prior valid backup are preserved before replacement, unconfirmed native saves are rejected, and duplicate enabled app-profile IDs are blocked. The visible corrupted-workspace warning, import, and confirmation flow was not end-to-end tested.
+- The local build script stages web assets into a temporary sibling folder, verifies the complete file list and SHA-256 contents, then swaps with rollback. Regression coverage verifies obsolete asset removal and preservation of the existing WebApp when the source build is missing. Source and installed WebApp manifests match at 88 files with two current files in `assets`.
+- Bundle size is 5,740 KiB after packaging, compared with the 23,752 KiB pre-cleanup measurement. WebApp is 2,816 KiB on disk. These are file-size measurements only; no CPU/RSS improvement is claimed. The earlier single-process baseline sample cannot support a runtime-performance comparison.
+- [0.8.1 review](docs/reviews/0.8.1-code-review.md) and [release notes](docs/releases/0.8.1.md) list fixed findings, test scope, and limits. Physical Touch Bar actions and external-service behavior were not re-tested.
 
 ## 0.8.0 — Even placement
 
