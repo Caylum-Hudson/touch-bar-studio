@@ -72,10 +72,29 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
                     guard let data = urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream), let json = try JSONSerialization.jsonObject(with:data) as? [String:Any] else { throw URLError(.badServerResponse) }
                     try StudioStore.shared.save(json)
                 }
-                var response: [String: Any] = ["success": true,"workspace":StudioStore.shared.apiWorkspace,"activeProfile":StudioStore.shared.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState]
+                let store=StudioStore.shared
+                let controller=TouchBarController.shared
+                let runtimeProfile=(store.workspace["profiles"] as? [String:[String:Any]])?[store.activeProfile]
+                let runtimeLayouts=runtimeProfile?["resolvePageLayouts"] as? [String:[[String:Any]]]
+                var response: [String: Any] = ["success": true,"workspace":store.apiWorkspace,"activeProfile":store.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState,"frontmostBundleId":controller.frontmostApplicationIdentifier.map { $0 as Any } ?? NSNull(),"activeResolvePage":store.activeResolvePage.map { $0 as Any } ?? NSNull(),"resolvePageOverride":controller.resolvePageOverride.map { $0 as Any } ?? NSNull(),"resolvePageMode":controller.resolvePageOverride == nil ? "automatic" : "manual","resolvePageDetection":store.resolvePageDetectionStatus,"activeResolvePageFallback":store.activeResolvePage.map { runtimeLayouts?[$0] == nil } ?? false]
                 StudioPermissions.statusFields.forEach { response[$0.key] = $0.value }
                 respondJSON(urlSchemeTask,dict:response)
             } catch { respondJSON(urlSchemeTask,dict:["success":false,"error":error.localizedDescription],statusCode:400) }
+            return
+        }
+        if path == "/api/resolve-page" {
+            guard taskMethod(urlSchemeTask)=="POST",
+                  let data=urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream),
+                  let json=try? JSONSerialization.jsonObject(with:data) as? [String:Any] else {
+                respondJSON(urlSchemeTask,dict:["success":false,"error":"A Resolve page selection is required."],statusCode:400); return
+            }
+            let selected=json["page"] as? String ?? "auto"
+            let page=selected=="auto" ? nil : selected
+            if let page,ResolvePageDetection.labels[page]==nil {
+                respondJSON(urlSchemeTask,dict:["success":false,"error":"Unknown Resolve page."],statusCode:400); return
+            }
+            TouchBarController.shared.setResolvePageOverride(page)
+            respondJSON(urlSchemeTask,dict:["success":true,"resolvePageOverride":page.map { $0 as Any } ?? NSNull(),"resolvePageMode":page == nil ? "automatic" : "manual"])
             return
         }
         let query = URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
@@ -90,7 +109,8 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
             respondJSON(urlSchemeTask,dict:["success":true,"apps":apps.sorted { ($0["name"] as? String ?? "") < ($1["name"] as? String ?? "") }]); return
         }
         if path == "/api/dock-preview" {
-            let definitions = StudioStore.shared.selectedItems(bundle: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) ?? []
+            let bundle=NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            let definitions = StudioStore.shared.selectedItems(bundle:bundle,resolvePage:bundle=="com.blackmagic-design.DaVinciResolve" ? TouchBarController.shared.effectiveResolvePage : nil) ?? []
             let dockDefinition = definitions.first { if case .dock = $0.type { return true }; return false }
             var filterPattern: String?
             if let dockDefinition, case let .dock(autoResize: _, filter: filter) = dockDefinition.type { filterPattern = filter }

@@ -10,11 +10,26 @@ import Foundation
 
 protocol KeyPress {
     var keyCode: CGKeyCode { get }
+    var modifiers: [String] { get }
     func send()
+}
+
+extension KeyPress {
+    var modifiers: [String] { [] }
 }
 
 struct GenericKeyPress: KeyPress {
     var keyCode: CGKeyCode
+    var modifiers: [String] = []
+
+    static func eventFlags(for modifiers: [String]) -> CGEventFlags {
+        var flags: CGEventFlags = []
+        if modifiers.contains("command") { flags.insert(.maskCommand) }
+        if modifiers.contains("option") { flags.insert(.maskAlternate) }
+        if modifiers.contains("shift") { flags.insert(.maskShift) }
+        if modifiers.contains("control") { flags.insert(.maskControl) }
+        return flags
+    }
 }
 
 extension KeyPress {
@@ -23,6 +38,9 @@ extension KeyPress {
             let src = CGEventSource(stateID: .hidSystemState)
             let keyDown = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true)
             let keyUp = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false)
+            let flags = GenericKeyPress.eventFlags(for: modifiers)
+            keyDown?.flags = flags
+            keyUp?.flags = flags
 
             let loc: CGEventTapLocation = .cghidEventTap
             keyDown?.post(tap: loc)

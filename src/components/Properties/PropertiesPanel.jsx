@@ -737,6 +737,7 @@ function ActionItem({ action, onUpdate, onRemove }) {
               onChange={(value) => onUpdate({ keycode: Number(value.replace('other-', '')) })}
             />
             <PropertyInput label="Keycode" type="number" value={action.keycode ?? 0} onChange={(value) => onUpdate({ keycode: Number(value) })} />
+            <fieldset className="shortcut-modifiers"><legend>Modifier keys</legend>{[['command','Command'],['option','Option'],['shift','Shift'],['control','Control']].map(([key,label])=><label key={key}><input type="checkbox" checked={(action.modifiers||[]).includes(key)} onChange={event=>{const next=new Set(action.modifiers||[]);if(event.target.checked)next.add(key);else next.delete(key);onUpdate({modifiers:[...next]});}}/>{label}</label>)}</fieldset>
           </>
         )}
         {action.action === 'appleScript' && (

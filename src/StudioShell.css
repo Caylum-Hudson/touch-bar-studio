@@ -73,4 +73,7 @@
 .studio-shell .profile-add-form{margin:0 18px 8px;padding:2px 12px 10px;border:1px solid #ffffff12;border-radius:0 0 10px 10px;background:#ffffff04}
 .studio-shell .profile-add-form p{margin:8px 0 0;color:#97a1ba;font-size:11px}
 .studio-shell .profile-add-form .inline{margin-top:8px}
+.studio-shell .resolve-page-empty{margin:18px;padding:20px;border:1px solid #ffffff14;border-radius:12px;background:#ffffff05;color:#d5dcef}
+.studio-shell .resolve-page-empty p{max-width:640px;color:#97a1ba;line-height:1.5}
+.studio-shell .resolve-setup-action{border-color:#aa98ff55;color:#ddd7ff}
 @media(max-width:700px){.studio-shell .profile-toolbar{align-items:stretch;flex-wrap:wrap}.studio-shell .profile-editor-select{flex:1 1 100%;justify-content:space-between}.studio-shell .profile-editor-select select{flex:1;max-width:65%}.studio-shell .profile-runtime{flex-basis:60%}}

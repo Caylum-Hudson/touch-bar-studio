@@ -14,12 +14,30 @@ const findItem = (items, id) => {
   return null;
 };
 const mapTree = (items, fn) => items.map(item => fn(item.items ? {...item, items: mapTree(item.items, fn)} : item)).filter(Boolean);
+const resolveBundleId = 'com.blackmagic-design.DaVinciResolve';
+const commitProfileItems = (profiles, profileId, pageId, items) => {
+  const profile = profiles[profileId];
+  if (!profile) return profiles;
+  const updated = {...profile};
+  if (profile.bundleId === resolveBundleId && pageId !== 'fallback') {
+    updated.resolvePageLayouts = {...(profile.resolvePageLayouts || {}), [pageId]: items};
+  } else {
+    updated.items = items;
+  }
+  return {...profiles, [profileId]: updated};
+};
+const editorItems = (profile, pageId) => {
+  if (profile?.bundleId !== resolveBundleId || pageId === 'fallback') return profile?.items || [];
+  return profile.resolvePageLayouts?.[pageId] || null;
+};
 const seed = [createElement('escape'), createElement('timeButton'), createElement('group', {title: 'Apps', items: [createElement('staticButton', {title: 'Safari', actions: [{trigger:'singleTap', action:'openUrl', url:'https://www.apple.com'}]})]}), createElement('volumeDown'), createElement('volumeUp')];
 // Initial state
 const initialState = {
   items: seed,
   profiles: {default: {id: "default", name: "Default", enabled: true, items: seed}},
   profileId: "default",
+  resolvePageId: 'fallback',
+  resolvePageReady: true,
   selectedItemId: null,
   activePreset: null, // Track which preset is currently loaded
   myPresets: [], // User's saved presets
@@ -65,13 +83,35 @@ const ActionTypes = {
 // Reducer
 function appReducer(state, action) {
   if (action.type === 'PROFILE_SWITCH') {
-    const profiles = {...state.profiles, [state.profileId]: {...state.profiles[state.profileId], items: state.items}};
-    return {...state, profiles, profileId: action.payload, items: profiles[action.payload].items, selectedItemId:null, history:{past:[],future:[]}};
+    const profiles = state.resolvePageReady
+      ? commitProfileItems(state.profiles, state.profileId, state.resolvePageId, state.items)
+      : state.profiles;
+    const profile = profiles[action.payload];
+    const pageId = profile.bundleId===resolveBundleId&&profile.resolvePageLayouts?.edit?'edit':'fallback';
+    const items = editorItems(profile,pageId);
+    return {...state, profiles, profileId: action.payload, resolvePageId:pageId, resolvePageReady:items!==null, items:items||[], selectedItemId:null, history:{past:[],future:[]}};
+  }
+  if (action.type === 'RESOLVE_PAGE_SWITCH') {
+    if (state.profiles[state.profileId]?.bundleId !== resolveBundleId) return state;
+    const profiles = state.resolvePageReady ? commitProfileItems(state.profiles, state.profileId, state.resolvePageId, state.items) : state.profiles;
+    const pageId = action.payload;
+    const items = editorItems(profiles[state.profileId], pageId);
+    return {...state, profiles, resolvePageId:pageId, resolvePageReady:items !== null, items:items || [], selectedItemId:null, history:{past:[],future:[]}};
+  }
+  if (action.type === 'RESOLVE_PAGE_CREATE') {
+    if (state.profiles[state.profileId]?.bundleId !== resolveBundleId) return state;
+    const profiles = state.resolvePageReady ? commitProfileItems(state.profiles, state.profileId, state.resolvePageId, state.items) : state.profiles;
+    const profile = profiles[state.profileId];
+    const pages = {...(profile.resolvePageLayouts || {})};
+    if (!pages[action.payload.pageId]) pages[action.payload.pageId] = action.payload.items;
+    const updated = {...profiles, [state.profileId]: {...profile, resolvePageLayouts:pages}};
+    const next = updated[state.profileId].resolvePageLayouts[action.payload.pageId];
+    return {...state, profiles:updated, resolvePageId:action.payload.pageId, resolvePageReady:true, items:next, selectedItemId:null, history:{past:[],future:[]}, isDirty:true};
   }
   if (action.type === 'PROFILE_SET') return {...state, profiles:action.payload};
   if (action.type === 'WORKSPACE_LOAD') {
-    const profiles = Object.fromEntries(Object.entries(action.payload.profiles).map(([id,p])=>[id,{...p,items:parseJSON(JSON.stringify(p.items)).items}]));
-    return {...state, profiles, profileId:'default', items: profiles.default.items, selectedItemId:null, history:{past:[],future:[]}};
+    const profiles = Object.fromEntries(Object.entries(action.payload.profiles).map(([id,p])=>[id,{...p,items:parseJSON(JSON.stringify(p.items)).items,...(p.resolvePageLayouts?{resolvePageLayouts:Object.fromEntries(Object.entries(p.resolvePageLayouts).map(([page,items])=>[page,parseJSON(JSON.stringify(items)).items]))}:{})}]));
+    return {...state, profiles, profileId:'default', resolvePageId:'fallback', resolvePageReady:true, items: profiles.default.items, selectedItemId:null, history:{past:[],future:[]}};
   }
   if (['ADD_ITEM', 'REMOVE_ITEM', 'UPDATE_ITEM', 'ADD_ITEM_TO_GROUP', 'REMOVE_ITEM_FROM_GROUP', 'REORDER_GROUP_ITEMS', 'UPDATE_GROUP_ITEM'].includes(action.type)) {
     let items = state.items;
@@ -402,11 +442,15 @@ export function AppProvider({ children }) {
   const [groupPath, setGroupPath] = useState([]);
   const parentId = groupPath.at(-1);
   const currentItems = parentId ? (findItem(state.items,parentId)?.items || []) : state.items;
-  const profiles = {...state.profiles, [state.profileId]: {...state.profiles[state.profileId], items:state.items}};
+  const profiles = state.resolvePageReady
+    ? commitProfileItems(state.profiles, state.profileId, state.resolvePageId, state.items)
+    : state.profiles;
   useEffect(() => {
-    const saved = {...state.profiles,[state.profileId]:{...state.profiles[state.profileId],items:state.items}};
-    localStorage.setItem('touchbar-studio-profiles',JSON.stringify(saved));
-  }, [state.items, state.profiles, state.profileId]);
+    const savedProfiles = state.resolvePageReady
+      ? commitProfileItems(state.profiles, state.profileId, state.resolvePageId, state.items)
+      : state.profiles;
+    localStorage.setItem('touchbar-studio-profiles',JSON.stringify(savedProfiles));
+  }, [state.items, state.profiles, state.profileId, state.resolvePageId, state.resolvePageReady]);
 
   // Load items on mount: from MTMR (if autoLoad) or localStorage
   useEffect(() => {
@@ -687,7 +731,11 @@ export function AppProvider({ children }) {
     rootItems: state.items,
     profiles,
     profileId: state.profileId,
+    resolvePageId: state.resolvePageId,
+    resolvePageReady: state.resolvePageReady,
     switchProfile: id => {setGroupPath([]); dispatch({type:'PROFILE_SWITCH',payload:id});},
+    switchResolvePage: id => {setGroupPath([]); dispatch({type:'RESOLVE_PAGE_SWITCH',payload:id});},
+    createResolvePage: (pageId, items) => {setGroupPath([]); dispatch({type:'RESOLVE_PAGE_CREATE',payload:{pageId,items}});},
     setProfiles: profiles => dispatch({type:'PROFILE_SET',payload:profiles}),
     restoreWorkspace: data => {setGroupPath([]); dispatch({type:'WORKSPACE_LOAD',payload:data});},
     groupPath,

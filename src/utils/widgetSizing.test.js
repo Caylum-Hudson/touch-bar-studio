@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {contentFitWidth,layoutFrames,overlappingItems} from './positionLayout.js';
-import {formatTimePreview,widgetContentWidth} from './widgetSizing.js';
+import {estimateTouchBarTextWidth,formatTimePreview,widgetContentWidth} from './widgetSizing.js';
 
 test('Date and CPU previews grow past their generic saved width without changing saved geometry', () => {
   const items = [
@@ -33,4 +33,11 @@ test('tight content minimums trigger a placement warning instead of clipping sil
   ];
   assert.equal(overlappingItems(items),true);
   assert.ok(contentFitWidth(items[0])>items[0].width);
+});
+
+test('static button content fit includes the AppKit button chrome and keeps compact Resolve labels readable', () => {
+  for (const title of ['Node ⏻','All ⏻','← Node','Node →']) {
+    assert.equal(widgetContentWidth({type:'staticButton',title}),Math.ceil(estimateTouchBarTextWidth(title)+24));
+  }
+  assert.ok(widgetContentWidth({type:'staticButton',title:'Node ⏻'})>64);
 });

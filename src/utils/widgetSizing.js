@@ -52,7 +52,7 @@ export function estimateTouchBarTextWidth(text) {
   }, 0);
 }
 
-const textWidth = (text, icon = false, padding = 20) =>
+const textWidth = (text, icon = false, padding = 24) =>
   Math.ceil(estimateTouchBarTextWidth(text) + padding + (icon ? 22 : 0));
 
 /** Conservative preview width for native text/status controls whose view width is intrinsic. */

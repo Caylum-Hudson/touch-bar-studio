@@ -78,6 +78,11 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
 
     fileprivate var lastPresetPath = ""
     private var lastFocusConfigurationSignature: String?
+    var detectedResolvePage: String?
+    var resolvePageOverride: String?
+    private var pageDetectionInFlightPID: pid_t?
+    private var resolvePagePollTimer: Timer?
+    private var lastResolveProcessIdentifier: pid_t?
     var jsonItems: [BarItemDefinition] = []
     var navigationStack: [[BarItemDefinition]] = []
     func enterSubmenu(_ items: [BarItemDefinition]) {
@@ -119,6 +124,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didTerminateApplicationNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeApplicationChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
 
+        if let application=NSWorkspace.shared.frontmostApplication,application.bundleIdentifier=="com.blackmagic-design.DaVinciResolve" { beginResolvePagePolling(for:application) }
         reloadStandardConfig()
     }
 
@@ -239,6 +245,15 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func preciseFrames(_ definitions:[BarItemDefinition], preferredContentWidths: [Int: CGFloat] = [:]) -> [CGRect] {
+        if let picker=definitions.first, isResolvePagePicker(picker) {
+            let pickerWidth:CGFloat=94
+            let contentScale=(StudioLayout.width-pickerWidth)/StudioLayout.width
+            let childWidths=Dictionary(uniqueKeysWithValues:preferredContentWidths.compactMap { index,width in index>0 ? (index-1,width/contentScale) : nil })
+            let content=StudioLayout.frames(Array(definitions.dropFirst()),preferredContentWidths:childWidths).map { frame in
+                CGRect(x:pickerWidth+frame.minX*contentScale,y:0,width:frame.width*contentScale,height:frame.height)
+            }
+            return [CGRect(x:0,y:0,width:pickerWidth,height:30)]+content
+        }
         if !navigationStack.isEmpty && !definitions.isEmpty {
             let scale = (StudioLayout.width-62)/StudioLayout.width
             let childWidths = Dictionary(uniqueKeysWithValues: preferredContentWidths.compactMap { index, width in index > 0 ? (index - 1, width / scale) : nil })
@@ -250,13 +265,80 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         return StudioLayout.frames(definitions,preferredContentWidths:preferredContentWidths)
     }
 
+    private func isResolvePagePicker(_ definition:BarItemDefinition) -> Bool {
+        definition.isStudioResolvePagePicker
+    }
+
     @objc func activeApplicationChanged(_: Notification) {
+        let application=NSWorkspace.shared.frontmostApplication
+        if application?.bundleIdentifier == "com.blackmagic-design.DaVinciResolve" {
+            if let processIdentifier=application?.processIdentifier,
+               lastResolveProcessIdentifier != processIdentifier {
+                if ResolvePageDetection.shouldResetManualOverride(previousProcess:lastResolveProcessIdentifier,currentProcess:processIdentifier) { resolvePageOverride=nil }
+                detectedResolvePage=nil
+                lastResolveProcessIdentifier=processIdentifier
+            }
+            requestResolvePageDetection(for:application!)
+            beginResolvePagePolling(for:application!)
+        } else {
+            resolvePagePollTimer?.invalidate()
+            resolvePagePollTimer=nil
+            detectedResolvePage=nil
+            StudioStore.shared.resolvePageDetectionStatus="inactive"
+        }
+        refreshFrontmostLayout()
+    }
+
+    var effectiveResolvePage: String? { resolvePageOverride ?? detectedResolvePage }
+
+    private func beginResolvePagePolling(for application: NSRunningApplication) {
+        guard resolvePagePollTimer == nil else { return }
+        let processIdentifier=application.processIdentifier
+        resolvePagePollTimer=Timer.scheduledTimer(withTimeInterval:0.8,repeats:true) { [weak self] _ in
+            guard let self,
+                  let frontmost=NSWorkspace.shared.frontmostApplication,
+                  frontmost.bundleIdentifier=="com.blackmagic-design.DaVinciResolve",
+                  frontmost.processIdentifier==processIdentifier else { return }
+            self.requestResolvePageDetection(for:frontmost)
+        }
+    }
+
+    private func requestResolvePageDetection(for application: NSRunningApplication) {
+        guard application.bundleIdentifier == "com.blackmagic-design.DaVinciResolve" else { return }
+        let pid=application.processIdentifier
+        guard pageDetectionInFlightPID != pid else { return }
+        pageDetectionInFlightPID=pid
+        DispatchQueue.global(qos:.utility).async { [weak self] in
+            let result=ResolvePageDetection.detect(processIdentifier:pid)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.pageDetectionInFlightPID == pid { self.pageDetectionInFlightPID=nil }
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                      self.frontmostApplicationIdentifier == "com.blackmagic-design.DaVinciResolve" else { return }
+                let changed=self.detectedResolvePage != result.page
+                self.detectedResolvePage=result.page
+                StudioStore.shared.resolvePageDetectionStatus=result.status
+                if changed { self.refreshFrontmostLayout() }
+            }
+        }
+    }
+
+    func setResolvePageOverride(_ page: String?) {
+        if let page, ResolvePageDetection.labels[page] == nil { return }
+        if resolvePageOverride == page {
+            if frontmostApplicationIdentifier == "com.blackmagic-design.DaVinciResolve" && !navigationStack.isEmpty { leaveSubmenu() }
+            return
+        }
+        resolvePageOverride=page
+        if frontmostApplicationIdentifier == "com.blackmagic-design.DaVinciResolve" { refreshFrontmostLayout() }
+    }
+
+    private func refreshFrontmostLayout() {
         let bundleIdentifier = frontmostApplicationIdentifier
-        guard let items = StudioStore.shared.selectedItems(bundle: bundleIdentifier) else {
+        guard let items = selectedRuntimeItems(bundleIdentifier:bundleIdentifier) else {
             updateActiveApp()
             return
         }
-
         let signature = focusConfigurationSignature(bundleIdentifier: bundleIdentifier)
         guard StudioFocusRefreshPolicy.shouldRefresh(previous: lastFocusConfigurationSignature, next: signature) else {
             // Dock items observe workspace activation themselves, so a focus
@@ -268,6 +350,42 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         lastFocusConfigurationSignature = signature
         navigationStack = []
         createAndUpdatePreset(newJsonItems: items)
+    }
+
+    private func selectedRuntimeItems(bundleIdentifier: String?) -> [BarItemDefinition]? {
+        guard let items=StudioStore.shared.selectedItems(bundle:bundleIdentifier,resolvePage:bundleIdentifier == "com.blackmagic-design.DaVinciResolve" ? effectiveResolvePage : nil) else { return nil }
+        guard isResolveProfileActive(bundleIdentifier:bundleIdentifier) else { return items }
+        var result=items
+        result.insert(resolvePagePicker(currentPage:StudioStore.shared.activeResolvePage),at:0)
+        return result
+    }
+
+    private func isResolveProfileActive(bundleIdentifier: String?) -> Bool {
+        guard bundleIdentifier == "com.blackmagic-design.DaVinciResolve",
+              let profiles=StudioStore.shared.workspace["profiles"] as? [String:[String:Any]],
+              let profile=profiles[StudioStore.shared.activeProfile] else { return false }
+        return profile["bundleId"] as? String == "com.blackmagic-design.DaVinciResolve"
+    }
+
+    func resolvePagePicker(currentPage: String?) -> BarItemDefinition {
+        let options: [(String,String?)] = [("Auto",nil)] + ResolvePageDetection.labels.map { ($0.value,$0.key) }.sorted { $0.1! < $1.1! }
+        let mode=resolvePageOverride == nil ? "Auto" : "Manual"
+        let selectedPage=resolvePageOverride ?? currentPage
+        let children=options.map { (title,page) in
+            let selected = page == nil ? resolvePageOverride == nil : page == selectedPage && resolvePageOverride != nil
+            return BarItemDefinition(
+                type:.staticButton(title:selected ? "✓ \(title)" : title),
+                actions:[Action(trigger:.singleTap,value:.custom(closure:{ [weak self] in self?.setResolvePageOverride(page) }))],
+                action:.none,
+                legacyLongAction:.none,
+                additionalParameters:[.align:.align(.left),.width:.width(100)]
+            )
+        }
+        return BarItemDefinition(
+            type:.group(items:children),actions:[],action:.none,legacyLongAction:.none,
+            additionalParameters:[.align:.align(.left),.width:.width(94),.title:.title(mode)],
+            isStudioResolvePagePicker:true
+        )
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -307,7 +425,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func reloadStandardConfig() {
-        if let items = StudioStore.shared.selectedItems(bundle:frontmostApplicationIdentifier) {
+        if let items = selectedRuntimeItems(bundleIdentifier:frontmostApplicationIdentifier) {
             lastFocusConfigurationSignature = focusConfigurationSignature(bundleIdentifier: frontmostApplicationIdentifier)
             createAndUpdatePreset(newJsonItems:items)
             return
@@ -328,13 +446,15 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     private func focusConfigurationSignature(bundleIdentifier: String?) -> String? {
         let store = StudioStore.shared
         let profile = (store.workspace["profiles"] as? [String: [String: Any]])?[store.activeProfile]
-        let sourceItems = profile?["items"] as? [[String: Any]] ?? []
+        let pageLayouts=profile?["resolvePageLayouts"] as? [String:[[String:Any]]]
+        let sourceItems = store.activeResolvePage.flatMap { pageLayouts?[$0] } ?? profile?["items"] as? [[String: Any]] ?? []
         let isBlacklisted = bundleIdentifier.map { blacklistAppIdentifiers.contains($0) } ?? false
         return StudioFocusRefreshPolicy.signature(
             profileIdentifier: store.activeProfile,
             items: store.safeItems(sourceItems),
             bundleIdentifier: bundleIdentifier,
-            blacklisted: isBlacklisted
+            blacklisted: isBlacklisted,
+            selectionContext:bundleIdentifier == "com.blackmagic-design.DaVinciResolve" ? "\(store.activeResolvePage ?? "unknown")|\(resolvePageOverride == nil ? "automatic" : "manual")" : nil
         )
     }
 
@@ -547,6 +667,8 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             return { HIDPostAuxKey(keycode) }
         case let .keyPress(keycode: keycode):
             return { GenericKeyPress(keyCode: CGKeyCode(keycode)).send() }
+        case let .modifiedKeyPress(keycode:keycode,modifiers:modifiers):
+            return { GenericKeyPress(keyCode:CGKeyCode(keycode),modifiers:modifiers).send() }
         case .appleScript:
             return nil
         case .shellScript:

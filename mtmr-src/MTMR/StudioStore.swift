@@ -9,6 +9,8 @@ final class StudioStore {
     var photoFiles: [String: URL] = [:]
     var pendingPhotoFiles: [String] = []
     var activeProfile = "default"
+    var activeResolvePage: String?
+    var resolvePageDetectionStatus = "inactive"
     var keepControlStrip: Bool { AppSettings.showControlStripState }
     var apiWorkspace: [String:Any] {
         var result = workspace
@@ -32,6 +34,16 @@ final class StudioStore {
             guard let items = profile["items"] as? [[String:Any]] else { throw NSError(domain:"Studio",code:2,userInfo:[NSLocalizedDescriptionKey:"Invalid profile items."]) }
             let encoded = try JSONSerialization.data(withJSONObject: safeItems(items))
             guard encoded.barItemDefinitions() != nil else { throw NSError(domain:"Studio",code:3,userInfo:[NSLocalizedDescriptionKey:"A profile contains an unsupported runtime control."]) }
+            if let pageLayouts = profile["resolvePageLayouts"] {
+                guard let layouts = pageLayouts as? [String:[[String:Any]]] else { throw NSError(domain:"Studio",code:4,userInfo:[NSLocalizedDescriptionKey:"Invalid Resolve page layouts."]) }
+                for (page, pageItems) in layouts {
+                    guard ResolvePageDetection.labels[page] != nil,
+                          let pageData = try? JSONSerialization.data(withJSONObject:safeItems(pageItems)),
+                          pageData.barItemDefinitions() != nil else {
+                        throw NSError(domain:"Studio",code:5,userInfo:[NSLocalizedDescriptionKey:"A Resolve page layout contains an unsupported control."])
+                    }
+                }
+            }
         }
         var workspaceToSave = data
         var settings = data["settings"] as? [String:Any] ?? [:]
@@ -82,14 +94,25 @@ final class StudioStore {
             return item
         }
     }
-    func selectedItems(bundle: String?) -> [BarItemDefinition]? {
+    func selectedItems(bundle: String?, resolvePage: String? = nil) -> [BarItemDefinition]? {
+        activeResolvePage = nil
         guard let profiles = workspace["profiles"] as? [String:[String:Any]] else {
             let starter: [[String:Any]] = [["type":"escape"],["type":"timeButton","formatTemplate":"HH:mm"],["type":"group","title":"Audio","items":[["type":"volumeDown"],["type":"volumeUp"],["type":"mute"]]],["type":"volumeDown"],["type":"volumeUp"]]
             return (try? JSONSerialization.data(withJSONObject:starter))?.barItemDefinitions()
         }
         let matching = profiles.first { $0.key != "default" && $0.value["bundleId"] as? String == bundle && $0.value["enabled"] as? Bool != false }
         activeProfile = matching?.key ?? "default"
-        guard let items = (matching?.value ?? profiles["default"])?["items"] as? [[String:Any]], let data = try? JSONSerialization.data(withJSONObject:safeItems(items)) else { return nil }
+        let matchingProfile = matching?.value
+        let selectedProfile = matchingProfile ?? profiles["default"]
+        var sourceItems = selectedProfile?["items"] as? [[String:Any]]
+        if bundle == "com.blackmagic-design.DaVinciResolve", matchingProfile?["bundleId"] as? String == "com.blackmagic-design.DaVinciResolve" {
+            if let resolvePage, ResolvePageDetection.labels[resolvePage] != nil {
+                activeResolvePage = resolvePage
+                let pageLayouts = matchingProfile?["resolvePageLayouts"] as? [String:[[String:Any]]]
+                sourceItems = pageLayouts?[resolvePage] ?? sourceItems
+            }
+        }
+        guard let items = sourceItems, let data = try? JSONSerialization.data(withJSONObject:safeItems(items)) else { return nil }
         return data.barItemDefinitions()
     }
     func choose(kind: String) -> [String:Any] {

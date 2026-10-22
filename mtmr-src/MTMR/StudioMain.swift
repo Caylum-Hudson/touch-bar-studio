@@ -40,6 +40,29 @@ enum StudioMain {
             store.workspace["profiles"] = profiles
             _ = store.selectedItems(bundle:"com.apple.finder")
             precondition(store.activeProfile == "default")
+            store.workspace = ["profiles":[
+                "default":["items":[["type":"staticButton","title":"Default fallback"]]],
+                "resolve":["bundleId":"com.blackmagic-design.DaVinciResolve","enabled":true,
+                            "items":[["type":"staticButton","title":"Resolve fallback"]],
+                            "resolvePageLayouts":[
+                                "edit":[["type":"staticButton","title":"Edit layout"]],
+                                "color":[["type":"staticButton","title":"Color layout"],["type":"shellScriptTitledButton","source":["inline":"touch /tmp/never"]]]
+                            ]]
+            ]]
+            let editPage=store.selectedItems(bundle:"com.blackmagic-design.DaVinciResolve",resolvePage:"edit")!
+            precondition(store.activeProfile=="resolve" && store.activeResolvePage=="edit" && editPage.count==1)
+            if case let .staticButton(title) = editPage[0].type { precondition(title=="Edit layout") } else { fatalError("Edit page layout was not selected") }
+            let colorPage=store.selectedItems(bundle:"com.blackmagic-design.DaVinciResolve",resolvePage:"color")!
+            precondition(store.activeResolvePage=="color" && colorPage.count==1)
+            if case let .staticButton(title) = colorPage[0].type { precondition(title=="Color layout") } else { fatalError("Color page layout was not selected") }
+            let missingPage=store.selectedItems(bundle:"com.blackmagic-design.DaVinciResolve",resolvePage:"fusion")!
+            precondition(store.activeResolvePage=="fusion" && missingPage.count==1)
+            if case let .staticButton(title) = missingPage[0].type { precondition(title=="Resolve fallback") } else { fatalError("Missing page did not use profile fallback") }
+            let unknownPage=store.selectedItems(bundle:"com.blackmagic-design.DaVinciResolve",resolvePage:"not-a-page")!
+            precondition(store.activeResolvePage==nil && unknownPage.count==1)
+            let otherApp=store.selectedItems(bundle:"com.example.editor")!
+            precondition(store.activeProfile=="default" && store.activeResolvePage==nil && otherApp.count==1)
+            if case let .staticButton(title) = otherApp[0].type { precondition(title=="Default fallback") } else { fatalError("Non-Resolve app did not use Default") }
             let sanitized = store.safeItems([["type":"shellScriptTitledButton","source":["inline":"touch /tmp/never"]],["type":"staticButton","action":"shellScript","actions":[["action":"shellScript"],["action":"openUrl","url":"https://example.com"]]]])
             precondition(sanitized.count == 1 && sanitized[0]["action"] == nil && (sanitized[0]["actions"] as! [[String:Any]]).count == 1)
             let layoutData = "[{\"type\":\"staticButton\",\"title\":\"One\",\"width\":50,\"studioPosition\":120},{\"type\":\"staticButton\",\"title\":\"Two\",\"width\":100,\"studioPosition\":1080}]".data(using:.utf8)!
@@ -54,7 +77,7 @@ enum StudioMain {
             precondition(StudioPermissions.performKeyboardAction(isTrusted:{true}) { sent = true })
             precondition(sent)
             print("PASS: missing permission blocks input; granted permission allows the action, without prompting.")
-            print("PASS: native full profile replacement, unmatched and disabled fallback, recursive runtime decoding, script filtering.")
+            print("PASS: native profile replacement, app and page selection, missing/unknown page fallback, recursive decoding, script filtering.")
             return
         }
         let app = NSApplication.shared

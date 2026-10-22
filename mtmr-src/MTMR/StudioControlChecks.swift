@@ -1,11 +1,79 @@
 import Cocoa
+import ApplicationServices
+
+struct ResolvePageCheckboxSnapshot {
+    let role: String
+    let label: String
+    let selected: Bool
+}
+
+enum ResolvePageDetection {
+    static let labels: [String: String] = [
+        "media":"Media", "photo":"Photo", "cut":"Cut", "edit":"Edit",
+        "fusion":"Fusion", "color":"Color", "fairlight":"Fairlight", "deliver":"Deliver"
+    ]
+
+    static func selectedPage(in snapshots: [ResolvePageCheckboxSnapshot]) -> String? {
+        let recognized = snapshots.filter { snapshot in
+            snapshot.role == "AXCheckBox" && labels.values.contains(snapshot.label)
+        }
+        guard recognized.count >= 3 else { return nil }
+        let selected = recognized.filter(\.selected)
+        guard selected.count == 1 else { return nil }
+        return labels.first { $0.value == selected[0].label }?.key
+    }
+
+    static func shouldResetManualOverride(previousProcess: pid_t?, currentProcess: pid_t) -> Bool {
+        previousProcess != nil && previousProcess != currentProcess
+    }
+
+    static func detect(processIdentifier: pid_t) -> (page: String?, status: String) {
+        guard AXIsProcessTrusted() else { return (nil,"accessibility-required") }
+        let application = AXUIElementCreateApplication(processIdentifier)
+        AXUIElementSetMessagingTimeout(application,0.01)
+        guard let mainWindow = axElement(application,kAXMainWindowAttribute),
+              let focusedWindow = axElement(application,kAXFocusedWindowAttribute),
+              CFEqual(mainWindow,focusedWindow),
+              axString(mainWindow,kAXRoleAttribute) == kAXWindowRole,
+              axString(mainWindow,kAXSubroleAttribute) == kAXStandardWindowSubrole,
+              let children = axArray(mainWindow,kAXChildrenAttribute) else {
+            return (nil,"window-unavailable")
+        }
+        let snapshots = children.prefix(64).compactMap { child -> ResolvePageCheckboxSnapshot? in
+            guard axString(child,kAXRoleAttribute) == kAXCheckBoxRole,
+                  let label = axString(child,kAXDescriptionAttribute) ?? axString(child,kAXTitleAttribute),
+                  labels.values.contains(label),
+                  let value = axValue(child,kAXValueAttribute) as? NSNumber else { return nil }
+            return ResolvePageCheckboxSnapshot(role:kAXCheckBoxRole,label:label,selected:value.boolValue)
+        }
+        guard snapshots.filter({ $0.role == kAXCheckBoxRole }).count >= 3 else { return (nil,"page-unknown") }
+        guard let page = selectedPage(in:snapshots) else { return (nil,"page-ambiguous") }
+        return (page,"detected")
+    }
+
+    private static func axValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element,attribute as CFString,&value) == .success else { return nil }
+        return value
+    }
+    private static func axElement(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
+        guard let value=axValue(element,attribute) else { return nil }
+        return value as! AXUIElement
+    }
+    private static func axArray(_ element: AXUIElement, _ attribute: String) -> [AXUIElement]? {
+        axValue(element,attribute) as? [AXUIElement]
+    }
+    private static func axString(_ element: AXUIElement, _ attribute: String) -> String? {
+        axValue(element,attribute) as? String
+    }
+}
 
 enum StudioFocusRefreshPolicy {
-    static func signature(profileIdentifier: String, items: [[String: Any]], bundleIdentifier: String?, blacklisted: Bool = false) -> String? {
+    static func signature(profileIdentifier: String, items: [[String: Any]], bundleIdentifier: String?, blacklisted: Bool = false, selectionContext: String? = nil) -> String? {
         let visibleItems = filterVisibleItems(items, bundleIdentifier: bundleIdentifier)
         guard let data = try? JSONSerialization.data(withJSONObject: visibleItems, options: [.sortedKeys]),
               let json = String(data: data, encoding: .utf8) else { return nil }
-        return profileIdentifier + "\nblacklisted:\(blacklisted)\n" + json
+        return profileIdentifier + "\nblacklisted:\(blacklisted)\ncontext:\(selectionContext ?? "")\n" + json
     }
 
     private static func filterVisibleItems(_ items: [[String: Any]], bundleIdentifier: String?) -> [[String: Any]] {
@@ -34,6 +102,67 @@ enum StudioFocusRefreshPolicy {
 /// Read-only runtime checks: decode defaults and render local status controls without sending actions.
 enum StudioControlChecks {
     static func runFocusRefreshPolicyChecks() {
+        let pageSnapshots = [
+            ResolvePageCheckboxSnapshot(role:"AXCheckBox",label:"Media",selected:false),
+            ResolvePageCheckboxSnapshot(role:"AXCheckBox",label:"Edit",selected:true),
+            ResolvePageCheckboxSnapshot(role:"AXCheckBox",label:"Color",selected:false),
+            ResolvePageCheckboxSnapshot(role:"AXCheckBox",label:"Timeline",selected:true)
+        ]
+        precondition(ResolvePageDetection.selectedPage(in:pageSnapshots)=="edit", "Resolve detection should use recognized sibling page controls and ignore nested/non-page checkboxes")
+        precondition(ResolvePageDetection.selectedPage(in:Array(pageSnapshots.prefix(2)))==nil, "A single or incomplete page control set must not be treated as detection")
+        var ambiguousPages=pageSnapshots
+        ambiguousPages[2]=ResolvePageCheckboxSnapshot(role:"AXCheckBox",label:"Color",selected:true)
+        precondition(ResolvePageDetection.selectedPage(in:ambiguousPages)==nil, "Multiple selected page controls must fall back as ambiguous")
+        let selectedModes=StudioFocusRefreshPolicy.signature(profileIdentifier:"resolve",items:[],bundleIdentifier:"com.blackmagic-design.DaVinciResolve",selectionContext:"edit|automatic")
+        let manualSamePage=StudioFocusRefreshPolicy.signature(profileIdentifier:"resolve",items:[],bundleIdentifier:"com.blackmagic-design.DaVinciResolve",selectionContext:"edit|manual")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous:selectedModes,next:manualSamePage), "Changing Auto/Manual mode on the same page must rebuild the picker state")
+        precondition(!ResolvePageDetection.shouldResetManualOverride(previousProcess:nil,currentProcess:101), "A manual page chosen in Studio should survive the first Resolve activation")
+        precondition(!ResolvePageDetection.shouldResetManualOverride(previousProcess:101,currentProcess:101), "Changing frontmost apps must not clear the Resolve process override")
+        precondition(ResolvePageDetection.shouldResetManualOverride(previousProcess:101,currentProcess:202), "Launching a different Resolve process should clear the old page override")
+        let ordinaryAppAuto=StudioFocusRefreshPolicy.signature(profileIdentifier:"default",items:[],bundleIdentifier:"com.example.editor",selectionContext:nil)
+        let ordinaryAppManual=StudioFocusRefreshPolicy.signature(profileIdentifier:"default",items:[],bundleIdentifier:"com.example.editor",selectionContext:nil)
+        precondition(ordinaryAppAuto == ordinaryAppManual, "Resolve page mode changes must not alter other apps' focus signature")
+        let flags=GenericKeyPress.eventFlags(for:["option","shift"])
+        precondition(flags.contains(.maskAlternate) && flags.contains(.maskShift) && !flags.contains(.maskCommand), "Shortcut modifiers should be combined as simultaneous event flags")
+        let controller=TouchBarController.shared
+        let oldOverride=controller.resolvePageOverride
+        controller.resolvePageOverride="fairlight"
+        let manualPicker=controller.resolvePagePicker(currentPage:"fairlight")
+        guard case let .group(items:pageChoices)=manualPicker.type,
+              case let .title(manualTitle)?=manualPicker.additionalParameters[.title] else { fatalError("Resolve page picker definition is missing") }
+        precondition(manualPicker.isStudioResolvePagePicker, "The generated Manual selector should carry the internal picker marker")
+        precondition(manualTitle=="Manual", "Touch Bar page picker title should stay compact while mode remains clear")
+        let scale:CGFloat=760/StudioLayout.width
+        let manualWidth=(manualTitle as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:15)]).width
+        let manualFrame=controller.preciseFrames([manualPicker])[0]
+        precondition((manualWidth+12)*scale <= manualFrame.width*scale, "Manual picker title should fit at a 760-unit Touch Bar width")
+        let fairlightChoice=pageChoices.first { if case let .staticButton(title)=$0.type { return title=="✓ Fairlight" }; return false }
+        guard let fairlightChoice,
+              case let .width(choiceWidth)?=fairlightChoice.additionalParameters[.width],
+              case let .staticButton(fairlightTitle)=fairlightChoice.type else { fatalError("Selected Fairlight option is missing") }
+        let fairlightWidth=(fairlightTitle as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:15)]).width
+        precondition((fairlightWidth+12)*scale <= choiceWidth*scale, "Full page option names should fit the Touch Bar picker at 760 units")
+        controller.resolvePageOverride=nil
+        let autoPicker=controller.resolvePagePicker(currentPage:"edit")
+        if case let .title(autoTitle)?=autoPicker.additionalParameters[.title] { precondition(autoTitle=="Auto", "Automatic mode should have a compact, clear picker title") } else { fatalError("Automatic picker title is missing") }
+        precondition(autoPicker.isStudioResolvePagePicker, "The generated Auto selector should carry the internal picker marker")
+
+        for title in ["Auto", "Manual"] {
+            let userGroup=BarItemDefinition(
+                type:.group(items:[]),actions:[],action:.none,legacyLongAction:.none,
+                additionalParameters:[.align:.align(.left),.width:.width(64),.title:.title(title),.studioPosition:.studioPosition(200)]
+            )
+            let neighbor=BarItemDefinition(
+                type:.staticButton(title:"Neighbor"),actions:[],action:.none,legacyLongAction:.none,
+                additionalParameters:[.align:.align(.left),.width:.width(64),.studioPosition:.studioPosition(300)]
+            )
+            precondition(!userGroup.isStudioResolvePagePicker, "A user group titled \(title) must not be marked as the generated picker")
+            let frames=controller.preciseFrames([userGroup,neighbor])
+            precondition(frames[0].minX==200 && frames[0].width==64 && frames[1].minX==300,
+                         "A precise layout beginning with a user group titled \(title) must preserve its saved positions")
+        }
+        controller.resolvePageOverride=oldOverride
+
         let base: [[String: Any]] = [["type": "staticButton", "title": "Default"]]
         let same = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: base, bundleIdentifier: "com.example.one")
         let sameForAnotherApp = StudioFocusRefreshPolicy.signature(profileIdentifier: "default", items: base, bundleIdentifier: "com.example.two")

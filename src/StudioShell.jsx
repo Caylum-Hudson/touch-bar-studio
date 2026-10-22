@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from './context/AppContext';
 import { RuntimePermissionsProvider } from './context/RuntimePermissions';
+import { createElement } from './data/elementDefinitions';
 import { getPermissionLabel } from './data/controlAvailability';
 import { AppContent } from './App';
 import { generateJSON } from './utils/jsonGenerator';
@@ -18,12 +19,24 @@ function download(name, data) {
   const a = document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 const defaults = {accent:'#a78bfa',background:'#14151d',motion:'off',tiles:[],keepControlStrip:false};
+const RESOLVE_BUNDLE_ID='com.blackmagic-design.DaVinciResolve';
+const resolvePages=[['media','Media'],['photo','Photo'],['cut','Cut'],['edit','Edit'],['fusion','Fusion'],['color','Color'],['fairlight','Fairlight'],['deliver','Deliver']];
+const resolveEditorPages=[['fallback','Profile fallback'],...resolvePages];
+const createResolveEditLayout=()=>['resolvePlayReverse','resolveStop','resolvePlayForward','resolveFrameBack','resolveFrameForward','resolvePreviousEdit','resolveNextEdit','resolveTimelineStart','resolveTimelineEnd','resolveMarkIn','resolveMarkOut','resolveToggleSnapping'].map(key=>createElement(key));
+const createResolveColorLayout=()=>[
+  ['+Serial',1,['option']],['+Parallel',35,['option']],['+Layer',37,['option']],['+Outside',31,['option']],
+  ['Node ⏻',2,['command']],['All ⏻',2,['option']],['← Node',41,['option','shift']],['Node →',39,['option','shift']],
+].map(([title,keycode,modifiers])=>createElement('staticButton',{title,matchAppId:'^com\\.blackmagic-design\\.DaVinciResolve$',actions:[{trigger:'singleTap',action:'keyPress',keycode,modifiers}]}));
 export default function StudioShell() {
   const app = useApp();
   const [tab,setTab] = useState(document.documentElement.classList.contains('compact-launcher')?'Launcher':'Studio');
   const [settings,setSettings] = useState(()=> {try{return {...defaults,...JSON.parse(localStorage.getItem('studio-settings'))};}catch{return defaults;}});
   const [status,setStatus] = useState('Ready — changes are saved locally');
   const [active,setActive] = useState('default');
+  const [activeResolvePage,setActiveResolvePage] = useState(null);
+  const [resolvePageOverride,setResolvePageOverride] = useState(null);
+  const [resolvePageDetection,setResolvePageDetection] = useState('inactive');
+  const [activeResolvePageFallback,setActiveResolvePageFallback] = useState(false);
   const [enabled,setEnabled] = useState(null);
   const [toggling,setToggling] = useState(false);
   const [keyboardAccess,setKeyboardAccess] = useState(null);
@@ -60,7 +73,7 @@ export default function StudioShell() {
       if(studioRequestRef.current)return studioRequestRef.current;
       const request=api('studio').then(r=>{
         if(!initialStudioLoadedRef.current&&r.workspace?.profiles?.default){app.restoreWorkspace(r.workspace);if(r.workspace.settings)setSettings(s=>({...s,...defaults,...r.workspace.settings}));initialStudioLoadedRef.current=true;}
-        setActive(r.activeProfile);setEnabled(r.enabled);setKeyboardAccess(r.accessibilityTrusted ?? r.keyboardAccess ?? null);setEventPostingAllowed(r.eventPostingAllowed ?? null);
+        setActive(r.activeProfile);setActiveResolvePage(r.activeResolvePage||null);setResolvePageOverride(r.resolvePageOverride||null);setResolvePageDetection(r.resolvePageDetection||'inactive');setActiveResolvePageFallback(r.activeResolvePageFallback===true);setEnabled(r.enabled);setKeyboardAccess(r.accessibilityTrusted ?? r.keyboardAccess ?? null);setEventPostingAllowed(r.eventPostingAllowed ?? null);
         const effective=r.keepControlStrip ?? r.workspace?.settings?.keepControlStrip;
         if(typeof effective==='boolean'&&!controlStripBusyRef.current)setSettings(s=>s.keepControlStrip===effective?s:{...s,keepControlStrip:effective});
         return r;
@@ -81,7 +94,13 @@ export default function StudioShell() {
   },[]);
   const run=async fn=>{try{await fn();}catch(e){setStatus(e.message);}};
   const profile=app.profiles[app.profileId];
-  const workspace=()=>({version:1,profiles:Object.fromEntries(Object.entries(app.profiles).map(([id,p])=>[id,{...p,items:JSON.parse(generateJSON(p.items))}])),settings});
+  const activeRuntimeProfile=app.profiles[active];
+  const activeRuntimePageLabel=resolvePages.find(([id])=>id===activeResolvePage)?.[1];
+  const activeRuntimePageStatus=activeRuntimeProfile?.bundleId===RESOLVE_BUNDLE_ID&&!activeRuntimePageLabel
+    ? resolvePageDetection==='accessibility-required'?'Page unknown · Accessibility required':'Page unknown · profile fallback'
+    : activeRuntimePageLabel?`Page: ${activeRuntimePageLabel} (${resolvePageOverride?'Manual':'Auto'}${activeResolvePageFallback?' · profile fallback':''})`:null;
+  const resolveProfile=Object.entries(app.profiles).find(([,p])=>p.bundleId===RESOLVE_BUNDLE_ID);
+  const workspace=()=>({version:1,profiles:Object.fromEntries(Object.entries(app.profiles).map(([id,p])=>[id,{...p,items:JSON.parse(generateJSON(p.items)),...(p.resolvePageLayouts?{resolvePageLayouts:Object.fromEntries(Object.entries(p.resolvePageLayouts).map(([page,items])=>[page,JSON.parse(generateJSON(items))]))}:{})}])),settings});
   const save=()=>run(async()=>{const result=await api('studio',workspace());if(typeof result.keepControlStrip==='boolean')setSettings(s=>({...s,keepControlStrip:result.keepControlStrip}));setStatus(enabled?'Applied to Touch Bar · saved on this Mac':'Saved on this Mac · custom Touch Bar is off');});
   const updateControlStrip=async value=>{
     if(!native||controlStripBusyRef.current)return;
@@ -98,6 +117,7 @@ export default function StudioShell() {
     }finally{controlStripBusyRef.current=false;setControlStripBusy(false);}
   };
   const recheckAccessibility=()=>{refreshStudioRef.current?.().catch(e=>setControlStripError(e.message));};
+  const updateRuntimeResolvePage=page=>run(async()=>{await api('resolve-page',{page});setResolvePageOverride(page==='auto'?null:page);setStatus(page==='auto'?'Resolve page selection set to automatic detection.':'Touch Bar Resolve page set manually.');});
   const toggleTouchBar=()=>run(async()=>{
     setToggling(true);
     try {const result=await api('touchbar',{enabled:!enabled});setEnabled(result.enabled);setStatus(result.enabled?'Custom Touch Bar on':'Custom Touch Bar off · macOS controls restored');}
@@ -116,6 +136,37 @@ export default function StudioShell() {
     app.switchProfile(id);
     setName('');setBundle('');setProfileAddOpen(false);setStatus('App profile created from Default. Apply & Save to activate.');
   };
+  const setupResolvePages=()=>{
+    let targetId=resolveProfile?.[0];
+    let profiles={...app.profiles};
+    if(!targetId){
+      targetId=crypto.randomUUID();
+      profiles[targetId]={id:targetId,name:'DaVinci Resolve',bundleId:RESOLVE_BUNDLE_ID,enabled:true,items:JSON.parse(JSON.stringify(app.profiles.default.items)),resolvePageLayouts:{edit:createResolveEditLayout(),color:createResolveColorLayout()}};
+      app.setProfiles(profiles);
+      app.switchProfile(targetId);
+      app.switchResolvePage('edit');
+      setStatus('Resolve profile created with Edit and Color layouts. Apply & Save to activate.');
+      return;
+    }
+    const existing=profiles[targetId];
+    const missingEdit=!existing.resolvePageLayouts?.edit;
+    const missingColor=!existing.resolvePageLayouts?.color;
+    if(missingEdit||missingColor){
+      profiles[targetId]={...existing,resolvePageLayouts:{...(existing.resolvePageLayouts||{}),...(missingEdit?{edit:createResolveEditLayout()}:{}),...(missingColor?{color:createResolveColorLayout()}:{})}};
+      app.setProfiles(profiles);
+      app.switchProfile(targetId);
+      app.switchResolvePage('edit');
+      setStatus('Missing Edit and Color layouts added without changing existing layouts. Apply & Save to activate.');
+    } else {
+      app.switchProfile(targetId);
+      app.switchResolvePage('fallback');
+    }
+  };
+  const createResolvePageLayout=pageId=>{
+    const base=app.profiles[app.profileId]?.items||app.profiles.default.items;
+    app.createResolvePage(pageId,JSON.parse(JSON.stringify(base)));
+    setStatus(`${resolvePages.find(([id])=>id===pageId)?.[1]||'Resolve'} layout copied from the profile. Apply & Save to activate.`);
+  };
   const addTile=kind=>run(async()=>{
     const r=await api('choose?kind='+kind);if(r.cancelled)return;
     setSettings({...settings,tiles:[...settings.tiles,{id:crypto.randomUUID(),name:r.name,path:r.path,color:settings.accent,hidden:false,kind}]});
@@ -129,8 +180,11 @@ export default function StudioShell() {
     {tab==='Studio'&&<>
       <div className="profile-toolbar">
         <label className="profile-editor-select"><span>Editing</span><select aria-label="Editing profile" value={app.profileId} onChange={e=>app.switchProfile(e.target.value)}>{Object.entries(app.profiles).map(([id,p])=><option key={id} value={id}>{id==='default'?'Default bar':p.name}{p.enabled===false?' (disabled)':''}</option>)}</select></label>
-        <div className="profile-runtime" aria-live="polite"><small>Active on Touch Bar</small><strong>{enabled===null?'Checking…':enabled?app.profiles[active]?.name||'Default bar':'Off'}</strong></div>
+        {profile?.bundleId===RESOLVE_BUNDLE_ID&&<label className="profile-editor-select resolve-page-select"><span>Editing Resolve page</span><select aria-label="Editing Resolve page" value={app.resolvePageId} onChange={e=>app.switchResolvePage(e.target.value)}>{resolveEditorPages.map(([id,label])=><option key={id} value={id}>{label}{id!=='fallback'&&!profile.resolvePageLayouts?.[id]?' · profile fallback':''}</option>)}</select></label>}
+        <div className="profile-runtime" aria-live="polite"><small>Active on Touch Bar</small><strong>{enabled===null?'Checking…':enabled?`${activeRuntimeProfile?.name||'Default bar'}${activeRuntimePageStatus?` · ${activeRuntimePageStatus}`:''}`:'Off'}</strong></div>
+        {resolveProfile&&<label className="profile-editor-select resolve-runtime-page-select"><span>Touch Bar page</span><select aria-label="Touch Bar Resolve page" value={resolvePageOverride||'auto'} disabled={!native} onChange={e=>updateRuntimeResolvePage(e.target.value)}><option value="auto">Auto detect</option>{resolvePages.map(([id,label])=><option key={id} value={id}>{label} · manual</option>)}</select></label>}
         <button type="button" className="profile-add-action" aria-expanded={profileAddOpen} onClick={()=>setProfileAddOpen(open=>!open)}>{profileAddOpen?'Close':'＋ Add app profile'}</button>
+        {profile?.bundleId!==RESOLVE_BUNDLE_ID&&<button type="button" className="profile-add-action resolve-setup-action" onClick={setupResolvePages}>{resolveProfile?'Set up Resolve pages':'＋ Resolve page layouts'}</button>}
       </div>
       {profileAddOpen&&<div className="profile-add-form"><p>Starts with a copy of Default.</p><div className="inline"><button type="button" onClick={()=>run(chooseProfile)}>Choose installed app…</button><select aria-label="Installed app" value="" onChange={e=>{const a=apps.find(a=>a.bundleId===e.target.value);if(a){setName(a.name);setBundle(a.bundleId);}}}><option value="">Installed apps…</option>{apps.map(a=><option key={a.bundleId} value={a.bundleId}>{a.name}</option>)}</select><input ref={profileNameRef} aria-label="Profile name" placeholder="Profile name" value={name} onChange={e=>setName(e.target.value)}/><input aria-label="App bundle ID" placeholder="Bundle ID, e.g. com.apple.finder" value={bundle} onChange={e=>setBundle(e.target.value)}/><button disabled={!name.trim()||!bundle.trim()} onClick={addProfile}>Create app profile</button></div></div>}
       <details className="studio-options"><summary>Studio options <span>{profile?.name||'Default'} profile</span></summary><div className="studio-options-content"><div className="profile-strip">
@@ -139,7 +193,7 @@ export default function StudioShell() {
       <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const file=e.target.files[0];if(!file)return;const w=JSON.parse(await file.text());if(w.version!==1||!w.profiles?.default||Object.values(w.profiles).some(p=>!Array.isArray(p.items)))throw Error('Expected a version 1 workspace with a Default profile.');app.restoreWorkspace(w);if(w.settings)setSettings({...defaults,...w.settings});setStatus('Workspace imported locally. Apply & Save to activate.');e.target.value='';})}/>
       </div></div></details>
       {app.groupPath.length>0&&<div className="submenu-strip"><button onClick={app.leaveGroup}>‹ Back</button><span>{profile?.name||'Default'}{app.groupNames.map((n,i)=><span key={i}> / {n}</span>)}</span>{app.selectedItemId&&<select aria-label="Move selected control" value="" onChange={e=>app.moveItem(app.selectedItemId,e.target.value==='root'?null:e.target.value)}><option value="">Move selected to…</option><option value="root">Root layout</option>{app.items.filter(i=>i.type==='group'&&i.id!==app.selectedItemId).map(i=><option key={i.id} value={i.id}>{i.title||'Submenu'}</option>)}</select>}</div>}
-      <div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native} keepControlStrip={settings.keepControlStrip===true} updateKeepControlStrip={updateControlStrip} controlStripBusy={controlStripBusy}><AppContent/></RuntimePermissionsProvider></div>
+      {profile?.bundleId===RESOLVE_BUNDLE_ID&&!app.resolvePageReady&&app.resolvePageId!=='fallback'?<section className="resolve-page-empty"><h2>No {resolvePages.find(([id])=>id===app.resolvePageId)?.[1]} layout yet</h2><p>The Touch Bar uses the profile fallback layout for that page. Create a separate layout by copying the profile fallback; this will not change other pages.</p><button type="button" className="primary" onClick={()=>createResolvePageLayout(app.resolvePageId)}>Create layout from profile</button></section>:<div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native} keepControlStrip={settings.keepControlStrip===true} updateKeepControlStrip={updateControlStrip} controlStripBusy={controlStripBusy}><AppContent/></RuntimePermissionsProvider></div>}
     </>}
     {tab==='Launcher'&&<main className="workspace-page"><div className="page-heading"><div><p className="eyebrow">MAKE SPACE FOR YOUR WORK</p><h1>Everything, one touch away.</h1><p>Apps and folders for whatever you’re working on.</p></div><div><button onClick={()=>addTile('app')}>+ App</button> <button onClick={()=>addTile('folder')}>+ Folder</button></div></div>
       {!settings.tiles.length&&<div className="empty-card"><h2>Build your launchpad</h2><p>Add an app or folder above. Click a tile to open it.</p><button onClick={()=>addTile('app')}>Choose your first app</button></div>}

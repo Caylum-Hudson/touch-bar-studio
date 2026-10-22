@@ -14,18 +14,21 @@ struct BarItemDefinition: Decodable {
     let legacyAction: LegacyActionType
     let legacyLongAction: LegacyLongActionType
     let additionalParameters: [GeneralParameters.CodingKeys: GeneralParameter]
+    // Runtime-only identity for the generated Resolve page selector. It is never decoded or encoded.
+    let isStudioResolvePagePicker: Bool
 
     private enum CodingKeys: String, CodingKey {
         case type
         case actions
     }
 
-    init(type: ItemType, actions: [Action], action: LegacyActionType, legacyLongAction: LegacyLongActionType, additionalParameters: [GeneralParameters.CodingKeys: GeneralParameter]) {
+    init(type: ItemType, actions: [Action], action: LegacyActionType, legacyLongAction: LegacyLongActionType, additionalParameters: [GeneralParameters.CodingKeys: GeneralParameter], isStudioResolvePagePicker: Bool = false) {
         self.type = type
         self.actions = actions
         self.legacyAction = action
         self.legacyLongAction = legacyLongAction
         self.additionalParameters = additionalParameters
+        self.isStudioResolvePagePicker = isStudioResolvePagePicker
     }
 
     init(from decoder: Decoder) throws {
@@ -472,6 +475,7 @@ struct Action: Decodable {
         case none
         case hidKey(keycode: Int32)
         case keyPress(keycode: Int)
+        case modifiedKeyPress(keycode: Int, modifiers: [String])
         case appleScript(source: SourceProtocol)
         case shellScript(executable: String, parameters: [String])
         case custom(closure: () -> Void)
@@ -490,6 +494,7 @@ struct Action: Decodable {
         case trigger
         case action
         case keycode
+        case modifiers
         case actionAppleScript
         case executablePath
         case shellArguments
@@ -512,7 +517,8 @@ struct Action: Decodable {
 
         case .some(.keyPress):
             let keycode = try container.decode(Int.self, forKey: .keycode)
-            value = .keyPress(keycode: keycode)
+            let modifiers = try container.decodeIfPresent([String].self, forKey: .modifiers) ?? []
+            value = modifiers.isEmpty ? .keyPress(keycode: keycode) : .modifiedKeyPress(keycode:keycode,modifiers:modifiers)
 
         case .some(.appleScript):
             let source = try container.decode(Source.self, forKey: .actionAppleScript)

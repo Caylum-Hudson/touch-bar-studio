@@ -374,3 +374,6 @@
 .properties-content::-webkit-scrollbar-thumb:hover {
   background: #444;
 }
+.properties-panel .shortcut-modifiers{display:flex;flex-wrap:wrap;gap:8px;border:1px solid #ffffff1c;border-radius:7px;padding:8px}
+.properties-panel .shortcut-modifiers legend{color:#aab4cc;font-size:11px}
+.properties-panel .shortcut-modifiers label{display:flex;align-items:center;gap:4px;color:#d5dcef;font-size:11px}

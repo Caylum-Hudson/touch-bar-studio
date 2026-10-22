@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 — Resolve page layouts (source update; native verification pending)
+
+- Add independent per-page layouts for Resolve profiles, with an explicit profile fallback for pages without a custom layout. A one-time setup creates an app profile from Default and seeds Edit and Color layouts without replacing existing profiles or page layouts.
+- Detect the selected Resolve page from direct Accessibility controls in its standard window while Resolve is frontmost. Offer Auto detection and a manual page picker in Studio and on the Touch Bar; unresolved detection uses the profile fallback.
+- Add simultaneous Command, Option, Shift, and Control modifiers to editable keyPress shortcuts. Preserve existing unmodified and legacy actions.
+- Browser QA confirmed Edit and Color templates, shortcut editing, page isolation, and saved reload. Staged native compilation and self-tests passed; live Accessibility page detection and page transitions remain unverified. Physical Touch Bar actions are unverified. This source version is not a published GitHub release.
+
 ## 0.5.2 — Focused Studio workspace (prerelease)
 
 - Give the main Touch Bar preview and icon-based control library more room; collapse secondary options by default.

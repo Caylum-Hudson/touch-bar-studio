@@ -23,6 +23,34 @@ reducer({type:'PROFILE_SWITCH',payload:'default'});assert.equal(JSON.stringify(s
 reducer({type:'WORKSPACE_LOAD',payload:{profiles:{default:{items:[{type:'group',future:{x:7},items:[{type:'staticButton',title:'restored'}]}]}}}});
 assert.ok(s.items[0].id);assert.ok(s.items[0].items[0].id);assert.equal(s.items[0].future.x,7);
 const {parseJSON,generateJSON}=await import('../src/utils/jsonGenerator.js');
+const resolveFallback=[{id:'fallback',type:'staticButton',title:'Fallback'}];
+const resolveEdit=[{id:'edit',type:'staticButton',title:'Edit'}];
+const resolveColor=[{id:'color',type:'staticButton',title:'Color'}];
+reducer({type:'PROFILE_SET',payload:{
+  default:{id:'default',items:resolveFallback},
+  resolve:{id:'resolve',name:'Resolve',bundleId:'com.blackmagic-design.DaVinciResolve',items:resolveFallback,resolvePageLayouts:{edit:resolveEdit,color:resolveColor}},
+}});
+reducer({type:'PROFILE_SWITCH',payload:'resolve'});
+assert.equal(s.resolvePageId,'edit');assert.equal(s.items[0].title,'Edit');
+reducer({type:'RESOLVE_PAGE_SWITCH',payload:'color'});
+reducer({type:'UPDATE_ITEM',payload:{id:'color',updates:{title:'Color edited'}}});
+reducer({type:'RESOLVE_PAGE_SWITCH',payload:'edit'});
+assert.equal(s.profiles.resolve.resolvePageLayouts.color[0].title,'Color edited');
+reducer({type:'RESOLVE_PAGE_SWITCH',payload:'fusion'});
+assert.equal(s.resolvePageReady,false);assert.equal(s.profiles.resolve.resolvePageLayouts.fusion,undefined);
+reducer({type:'PROFILE_SWITCH',payload:'default'});
+assert.equal(s.profiles.resolve.resolvePageLayouts.fusion,undefined,'Switching away from a missing page must not create an empty layout');
+assert.equal(s.profiles.resolve.items[0].title,'Fallback','Editing a page must not overwrite the profile fallback');
+reducer({type:'PROFILE_SWITCH',payload:'resolve'});
+assert.equal(s.resolvePageId,'edit');assert.equal(s.items[0].title,'Edit');
+reducer({type:'RESOLVE_PAGE_SWITCH',payload:'fusion'});
+reducer({type:'RESOLVE_PAGE_CREATE',payload:{pageId:'fusion',items:resolveFallback.map(item=>({...item}))}});
+assert.equal(s.profiles.resolve.resolvePageLayouts.fusion[0].title,'Fallback');
+assert.equal(s.profiles.resolve.resolvePageLayouts.color[0].title,'Color edited');
+const serializedResolve=JSON.parse(generateJSON(s.profiles.resolve.resolvePageLayouts.color));
+assert.equal(parseJSON(JSON.stringify(serializedResolve)).items[0].title,'Color edited');
+assert.equal(s.profiles.resolve.items[0].title,'Fallback');
+console.log('PASS: Resolve per-page reducer isolation, missing-page/profile-switch fallback, explicit layout creation, and page JSON round trip.');
 const original=[{type:'group',future:{x:7},items:[{type:'unreleasedWidget',custom:42,actions:[{trigger:'singleTap',action:'futureAction',future:9}]}]}];
 const parsed=parseJSON(JSON.stringify(original));assert.equal(parsed.error,null);
 const output=JSON.parse(generateJSON(parsed.items));assert.equal(output[0].future.x,7);assert.equal(output[0].items[0].custom,42);assert.equal(output[0].items[0].actions[0].future,9);assert.equal(output[0].id,undefined);
@@ -32,6 +60,10 @@ console.log('PASS: nested editing, cycle prevention, root moves, undo/redo, comp
 assert.equal(parseJSON('[{"type":"staticButton","title":",] and ,}"}]').items[0].title,',] and ,}');
 assert.ok(parseJSON('[{"title":"missing type"}]').error);
 console.log('PASS: trailing commas do not corrupt strings; invalid controls produce an import error.');
+const modifiedShortcut=[{type:'staticButton',title:'+Serial',actions:[{trigger:'singleTap',action:'keyPress',keycode:1,modifiers:['option']}]}];
+const modifierRoundtrip=JSON.parse(generateJSON(parseJSON(JSON.stringify(modifiedShortcut)).items));
+assert.deepEqual(modifierRoundtrip[0].actions[0].modifiers,['option']);
+console.log('PASS: simultaneous shortcut modifiers survive editor JSON serialization.');
 
 const {layoutFrames,clampPosition,overlappingItems,contentMinimumWidth}=await import('../src/utils/positionLayout.js');
 const positioned=[{id:'left',type:'staticButton',align:'left',width:50,studioPosition:120},{id:'right',type:'staticButton',align:'right',width:100,studioPosition:985}];

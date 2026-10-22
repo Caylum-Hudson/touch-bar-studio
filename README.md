@@ -2,7 +2,7 @@
 
 Touch Bar Studio is a macOS app for designing Touch Bar layouts, switching layouts by app, launching apps and folders, and browsing photos. It builds on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime; upstream history and source notices are retained.
 
-The current source version is **0.5.2**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
+The current source version is **0.6.0**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
 
 ## Edit and apply profiles
 
@@ -22,7 +22,17 @@ The palette includes 12 Resolve-specific timeline buttons for J/K/L playback, fr
 
 ![Resolve timeline controls in the Studio library](docs/screenshots/resolve-widget-library.png)
 
-Shortcut defaults and app filtering are documented in [Resolve timeline controls](docs/RESOLVE-TIMELINE-CONTROLS.md). The palette, shortcut editing, serialization, native decoding, and permission-state checks passed. Physical Touch Bar behavior and live shortcut delivery in Resolve have not been verified. Switching to a specific Resolve page is not implemented; that investigation is deferred.
+Shortcut defaults and app filtering are documented in [Resolve timeline controls](docs/RESOLVE-TIMELINE-CONTROLS.md). The palette, shortcut editing, serialization, native decoding, and permission-state checks passed. The final installed binary has Accessibility access and Auto mode followed Edit → Color → Fairlight → Edit; Fairlight used the profile fallback. Manual Color selection followed by returning to Auto was verified on the immediately preceding 0.6.0 build. Physical Touch Bar behavior and shortcut delivery remain untested.
+
+## Resolve page layouts
+
+Create a Resolve app profile with **＋ Resolve page layouts**. It starts from a copy of Default and adds separate Edit and Color layouts; existing profiles and layouts are preserved. Edit starts with the 12 timeline controls above, and Color starts with eight shortcuts verified against Blackmagic's Resolve manual. Other Resolve pages are listed too: until you create a layout for one, it uses that profile's fallback layout. Editing a page never changes the fallback or another page.
+
+When Resolve is frontmost, Touch Bar Studio reads the selected page from the standard window's Accessibility controls. Page detection requires Accessibility access; if it is unavailable or ambiguous, the app uses the profile fallback. Choose **Auto detect** or a manual page in the Studio toolbar, or use the page picker on the Touch Bar. The editor's **Editing Resolve page** selector only chooses which layout you edit; it does not switch Resolve itself. The final installed binary followed Edit → Color → Fairlight → Edit in Auto mode, using the profile fallback for Fairlight. Manual Color selection followed by returning to Auto was verified on the immediately preceding 0.6.0 build. Physical Touch Bar page switching and shortcut delivery have not been tested.
+
+![Editing the Resolve Edit page layout](docs/screenshots/resolve-pages-edit.png)
+
+![Editing the Resolve Color page layout](docs/screenshots/resolve-pages-color.png)
 
 ## Other features
 
@@ -49,7 +59,7 @@ See [first-run instructions](FIRST-RUN.md) for permissions, saved configuration,
 
 ## Current limits
 
-The 0.5.2 local build, frontend checks, native checks, and strict installed code-signature verification passed. Browser QA covered the profile selector and Resolve controls. The Dock layout was checked with editor fixtures. These checks do not confirm physical Touch Bar pixels or taps, real app switching on the Touch Bar, or keyboard/media action delivery on hardware. The preview is a design surface; dynamic values shown there can be illustrative. MTMR uses private macOS Touch Bar APIs that Apple may change. Script and swipe controls are import/export only, and Sleep controls are unavailable.
+The 0.5.2 installed build passed its frontend/native checks and strict code-signature verification. Version 0.6.0 passed the focused frontend reducer/serialization checks, Vite build, installed native self-tests, and strict code-signature verification. Browser QA covered page templates, the editing selector, and saved layout separation; the installed app also passed live Auto and manual Resolve page checks. The installed build distinguishes its generated picker from user groups titled Auto or Manual. Physical Touch Bar pixels or taps and keyboard/media action delivery on hardware remain unverified. The preview is a design surface; dynamic values shown there can be illustrative. MTMR uses private macOS Touch Bar APIs that Apple may change. Script and swipe controls are import/export only, and Sleep controls are unavailable.
 
 ## Attribution and licensing
 
