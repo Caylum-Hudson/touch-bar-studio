@@ -404,7 +404,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         if enabled {
             reloadStandardConfig()
         } else if let bar = touchBar {
-            NSTouchBar.dismissSystemModalTouchBar(bar)
+            dismissSystemModal(bar)
         }
         updateControlStripPresence()
         (NSApp.delegate as? AppDelegate)?.createMenu()
@@ -412,7 +412,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func updateActiveApp() {
         guard AppSettings.touchBarEnabled else {
-            if let bar = touchBar { NSTouchBar.dismissSystemModalTouchBar(bar) }
+            if let bar = touchBar { dismissSystemModal(bar) }
             updateControlStripPresence()
             return
         }

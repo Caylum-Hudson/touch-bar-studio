@@ -31,3 +31,9 @@ extern void DFRSystemModalShowsCloseBoxWhenFrontMost(BOOL);
 
 @end
 
+
+// Studio-owned compact overlay, availability/signature checked at runtime.
+extern BOOL StudioPresentCompactOverlay(NSTouchBar *, NSTouchBarItemIdentifier);
+extern BOOL StudioMinimizeCompactOverlay(NSTouchBar *);
+extern BOOL StudioDismissCompactOverlay(NSTouchBar *);
+extern BOOL StudioCompactOverlaySelfTest(void);

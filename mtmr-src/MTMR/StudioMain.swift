@@ -39,6 +39,11 @@ enum StudioMain {
             return
         }
         if CommandLine.arguments.contains("--self-test") {
+            if StudioCompactOverlaySelfTest() {
+                print("PASS: Studio compact overlay suppresses its own close update; native AppKit overlay implementation is unchanged.")
+            } else {
+                print("UNAVAILABLE: scoped compact overlay; normal AppKit presenter remains the fallback.")
+            }
             StudioControlChecks.runFocusRefreshPolicyChecks()
             StudioControlChecks.runDockAutoResizeChecks()
             StudioControlChecks.runDockPreviewCacheChecks()
