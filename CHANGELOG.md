@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 — CPU temperature (installed native build verified)
+
+- Replace the unavailable motherboard-temperature palette entry with CPU Temperature, read from available AppleSMC `Tp`/`Te` float sensor keys. The item displays the hottest plausible sensor reading and labels it as a CPU sensor, not a die average. Legacy saved motherboard entries still decode as unavailable.
+- Enumerate SMC key metadata once when the CPU-temperature widget is first used, keep that metadata cached across profile changes, and read values through the shared two-second sampler. No elevated helper, shell polling, or additional permission is used.
+- A bounded read-only probe on MacBookPro17,1 found 36 `Tp`/`Te` float keys and finite sampled values from 35.60–59.91°C. The staged native diagnostic returned `CPU 63°C`; one-time inventory measured 13.05 ms and the cached-key sample 10.62 ms. Sensor keys are undocumented and vary across SoCs; Macs without valid keys show **CPU —**.
+- Frontend checks, five sizing tests, scoped lint, Vite build, Swift compilation, installed native self-tests, and installed UI review passed. The live widget self-test read RAM 65%, GPU 18%, and CPU 63°C; a second diagnostic read CPU 74°C and measured 11.25 ms for one-time key inventory and 9.83 ms for cached-key sampling. Strict signature and 0.7.1 version checks passed. Browser QA confirmed the CPU card, absence of a new motherboard card, add/remove, and full labels at 1280×720. See [verification](VERIFICATION.md) and [release notes](docs/releases/0.7.1.md).
+- Follow-up refinements keep CPU, RAM, and GPU names in accessibility labels/tooltips while showing only whole-number percentages; distinct system icons identify each metric, and CPU temperature uses a thermometer with a compact °C label. Preview sizing includes the 18px icon, 4px gap, button padding, and font allowance. Final rebuild, native widget checks, live-width checks, five sizing tests, strict signature verification, and the 0.7.1 bundle-version check pass.
+- Modal close-box policy is reapplied after system-modal presentation to prevent macOS from adding an unconfigured leading close control when the user's Touch Bar is enabled. This behavior still needs physical Touch Bar confirmation.
+
 ## 0.7.0 — System metrics (source update; native staged verification pending)
 
 - Added native RAM and system-wide GPU usage items to the Studio palette. A single background sampler reads only the requested metric and refreshes every two seconds while RAM or GPU items are in use. The unavailable board item starts no sampler.

@@ -220,7 +220,7 @@ export const elementTypes = {
     type: 'gpuUsage',
     category: 'plugins',
     label: 'GPU Usage',
-    icon: 'cpu',
+    icon: 'display',
     defaultTitle: 'GPU —',
     defaultProps: {},
   },
@@ -230,6 +230,14 @@ export const elementTypes = {
     label: 'Motherboard Temperature',
     icon: 'thermometer.medium',
     defaultTitle: 'Board —',
+    defaultProps: {},
+  },
+  cpuTemperature: {
+    type: 'cpuTemperature',
+    category: 'plugins',
+    label: 'CPU Temperature',
+    icon: 'thermometer.medium',
+    defaultTitle: 'CPU —',
     defaultProps: {},
   },
   currency: {

@@ -43,7 +43,8 @@ class CPUBarItem: CustomButtonTouchBarItem {
         DispatchQueue.main.async {
             // Get CPU load
             let usage = 100 - CPU.systemUsage().idle
-            guard usage.isFinite else {
+            let label = SystemMetrics.cpuUsageLabel(usage)
+            guard label != "—" else {
                 return
             }
             
@@ -58,12 +59,14 @@ class CPUBarItem: CustomButtonTouchBarItem {
             }
             
             // Update layout
-            let attrTitle = NSMutableAttributedString.init(attributedString: String(format: "%.1f%%", usage).defaultTouchbarAttributedString)
+            let attrTitle = NSMutableAttributedString(attributedString: label.defaultTouchbarAttributedString)
             if let color = color {
                 attrTitle.addAttributes([.foregroundColor: color], range: NSRange(location: 0, length: attrTitle.length))
             }
             self.attributedTitle = attrTitle
             self.backgroundColor = bgColor
+            self.view.toolTip = "CPU usage: \(label)."
+            self.view.setAccessibilityLabel("CPU usage")
         }
         
         refreshQueue?.asyncAfter(deadline: .now() + refreshInterval) { [weak self] in
@@ -90,10 +93,11 @@ struct SystemMetricsSnapshot {
     let ramUsedBytes: UInt64?
     let ramTotalBytes: UInt64
     let gpuUtilization: Double?
+    let cpuTemperatureCelsius: Double?
 }
 
 enum SystemMetrics {
-    enum Monitor: Hashable { case ram, gpu }
+    enum Monitor: Hashable { case ram, gpu, cpuTemperature }
     static let didUpdate = Notification.Name("TouchBarStudio.SystemMetricsDidUpdate")
     private static let queue = DispatchQueue(label: "mtmr.system-metrics", qos: .utility)
     // mach_host_self() returns a send right; keep one for this sampler's
@@ -101,16 +105,20 @@ enum SystemMetrics {
     private static let hostPort = mach_host_self()
     private static var timer: DispatchSourceTimer?
     private static var monitorCounts: [Monitor: Int] = [:]
-    private static var cached = SystemMetricsSnapshot(ramUsedBytes: nil, ramTotalBytes: ProcessInfo.processInfo.physicalMemory, gpuUtilization: nil)
+    private static var cpuTemperatureReader: AppleSMCTemperatureReader?
+    private static var cached = SystemMetricsSnapshot(ramUsedBytes: nil, ramTotalBytes: ProcessInfo.processInfo.physicalMemory, gpuUtilization: nil, cpuTemperatureCelsius: nil)
 
     static func startMonitoring(_ monitor: Monitor) {
         queue.async {
             monitorCounts[monitor, default: 0] += 1
+            if monitor == .cpuTemperature, cpuTemperatureReader == nil {
+                cpuTemperatureReader = AppleSMCTemperatureReader()
+            }
             if timer == nil {
                 let source = DispatchSource.makeTimerSource(queue: queue)
                 source.schedule(deadline: .now(), repeating: 2)
                 source.setEventHandler {
-                    cached = readSnapshot(includeRAM: (monitorCounts[.ram] ?? 0) > 0, includeGPU: (monitorCounts[.gpu] ?? 0) > 0)
+                    cached = readSnapshot(includeRAM: (monitorCounts[.ram] ?? 0) > 0, includeGPU: (monitorCounts[.gpu] ?? 0) > 0, includeCPUTemperature: (monitorCounts[.cpuTemperature] ?? 0) > 0)
                     let sample = cached
                     DispatchQueue.main.async {
                         NotificationCenter.default.post(name: didUpdate, object: sample)
@@ -126,6 +134,9 @@ enum SystemMetrics {
         queue.async {
             monitorCounts[monitor] = max(0, (monitorCounts[monitor] ?? 0) - 1)
             if monitorCounts[monitor] == 0 { monitorCounts.removeValue(forKey: monitor) }
+            if monitor == .cpuTemperature, monitorCounts[monitor] == nil {
+                cpuTemperatureReader?.close()
+            }
             guard monitorCounts.isEmpty else { return }
             timer?.cancel()
             timer = nil
@@ -133,6 +144,14 @@ enum SystemMetrics {
     }
 
     static func snapshot() -> SystemMetricsSnapshot { queue.sync { cached } }
+    static var cpuTemperatureReadTiming: (inventoryMilliseconds: Double, sampleMilliseconds: Double)? {
+        queue.sync {
+            guard let reader = cpuTemperatureReader,
+                  let inventory = reader.inventoryMilliseconds,
+                  let sample = reader.lastSampleMilliseconds else { return nil }
+            return (inventory, sample)
+        }
+    }
     static var monitorSubscriberCount: Int { queue.sync { monitorCounts.values.reduce(0, +) } }
     static func monitorSubscriberCount(for monitor: Monitor) -> Int { queue.sync { monitorCounts[monitor] ?? 0 } }
 
@@ -161,9 +180,19 @@ enum SystemMetrics {
         return Int(value.rounded())
     }
 
+    static func cpuUsageLabel(_ value: Double?) -> String {
+        guard let value, value.isFinite, (0...100).contains(value) else { return "—" }
+        return "\(Int(value.rounded()))%"
+    }
+
     static let unsupportedBoardLabel = "Board —"
 
-    private static func readSnapshot(includeRAM: Bool, includeGPU: Bool) -> SystemMetricsSnapshot {
+    static func cpuTemperatureLabel(_ value: Double?) -> String {
+        guard let value, value.isFinite, (0.1...130).contains(value) else { return "CPU —" }
+        return "CPU \(Int(value.rounded()))°C"
+    }
+
+    private static func readSnapshot(includeRAM: Bool, includeGPU: Bool, includeCPUTemperature: Bool) -> SystemMetricsSnapshot {
         let total = ProcessInfo.processInfo.physicalMemory
         let used: UInt64?
         if includeRAM {
@@ -182,7 +211,7 @@ enum SystemMetrics {
         } else {
             used = nil
         }
-        return SystemMetricsSnapshot(ramUsedBytes: used, ramTotalBytes: total, gpuUtilization: includeGPU ? readGPUUtilization() : nil)
+        return SystemMetricsSnapshot(ramUsedBytes: used, ramTotalBytes: total, gpuUtilization: includeGPU ? readGPUUtilization() : nil, cpuTemperatureCelsius: includeCPUTemperature ? cpuTemperatureReader?.hottestReadingCelsius() : nil)
     }
 
     /// IOAccelerator exposes a system-wide device utilization counter on this
@@ -210,16 +239,157 @@ enum SystemMetrics {
         }
         return busiest
     }
+
+    /// Read only model-exposed Apple Silicon CPU sensor keys. `Tp` and `Te`
+    /// prefixes are the SMC CPU performance/efficiency sensor families; only
+    /// four-byte IEEE float entries are accepted. The hottest valid reading is
+    /// displayed, avoiding a guess at the identities of opaque individual keys.
+    private final class AppleSMCTemperatureReader {
+        private static let structureSize = 80
+        private static let resultOffset = 40
+        private static let commandOffset = 42
+        private static let data32Offset = 44
+        private static let bytesOffset = 48
+        private static let dataSizeOffset = 28
+        private static let dataTypeOffset = 32
+
+        private var connection: io_connect_t = 0
+        private var cpuSensorKeys: [(code: UInt32, size: UInt32)] = []
+        private var didDiscoverKeys = false
+        private(set) var inventoryMilliseconds: Double?
+        private(set) var lastSampleMilliseconds: Double?
+
+        init() {}
+
+        private func openIfNeeded() -> Bool {
+            if connection != 0 { return true }
+            guard let matching = IOServiceMatching("AppleSMC") else { return false }
+            let service = IOServiceGetMatchingService(kIOMainPortDefault, matching)
+            guard service != 0 else { return false }
+            defer { IOObjectRelease(service) }
+            guard IOServiceOpen(service, mach_task_self_, 0, &connection) == KERN_SUCCESS else {
+                connection = 0
+                return false
+            }
+            if !didDiscoverKeys {
+                let start = DispatchTime.now().uptimeNanoseconds
+                cpuSensorKeys = discoverCPUSensorKeys()
+                inventoryMilliseconds = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+                didDiscoverKeys = true
+            }
+            return true
+        }
+
+        func close() {
+            guard connection != 0 else { return }
+            IOServiceClose(connection)
+            connection = 0
+        }
+
+        deinit { close() }
+
+        func hottestReadingCelsius() -> Double? {
+            guard openIfNeeded() else { return nil }
+            let start = DispatchTime.now().uptimeNanoseconds
+            let hottest = cpuSensorKeys.compactMap { readFloat(key: $0.code, size: $0.size) }
+                .filter { $0.isFinite && (0.1...130).contains($0) }
+                .max()
+            lastSampleMilliseconds = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+            return hottest
+        }
+
+        private func discoverCPUSensorKeys() -> [(code: UInt32, size: UInt32)] {
+            guard let countBytes = readData(for: Self.fourCC("#KEY"), expectedSize: 4) else { return [] }
+            let count = Self.readBigEndianUInt32(countBytes, offset: 0)
+            guard count > 0, count <= 4_096 else { return [] }
+
+            var keys: [(code: UInt32, size: UInt32)] = []
+            for index in 0..<count {
+                guard let keyOutput = call(command: 8, key: 0, data32: index),
+                      keyOutput[Self.resultOffset] == 0 else { continue }
+                let code = Self.readNativeUInt32(keyOutput, offset: 0)
+                let name = Self.fourCCString(code)
+                guard name.hasPrefix("Tp") || name.hasPrefix("Te") else { continue }
+                guard let info = call(command: 9, key: code, data32: 0),
+                      info[Self.resultOffset] == 0,
+                      Self.readNativeUInt32(info, offset: Self.dataTypeOffset) == Self.fourCC("flt ") else { continue }
+                let size = Self.readNativeUInt32(info, offset: Self.dataSizeOffset)
+                if size == 4 { keys.append((code, size)) }
+            }
+            return keys
+        }
+
+        private func readFloat(key: UInt32, size: UInt32) -> Double? {
+            // Sensor metadata was validated during the one-time key inventory;
+            // only request its four-byte value on each two-second sample.
+            guard size == 4,
+                  let output = call(command: 5, key: key, data32: 0, dataSize: size),
+                  output[Self.resultOffset] == 0 else { return nil }
+            let bitPattern = Self.readNativeUInt32(output, offset: Self.bytesOffset)
+            return Double(Float(bitPattern: bitPattern))
+        }
+
+        private func readData(for key: UInt32, expectedSize: UInt32) -> [UInt8]? {
+            guard let info = call(command: 9, key: key, data32: 0),
+                  info[Self.resultOffset] == 0 else { return nil }
+            let size = Self.readNativeUInt32(info, offset: Self.dataSizeOffset)
+            guard size == expectedSize, let output = call(command: 5, key: key, data32: 0, dataSize: size),
+                  output[Self.resultOffset] == 0 else { return nil }
+            return Array(output[Self.bytesOffset..<(Self.bytesOffset + Int(size))])
+        }
+
+        private func call(command: UInt8, key: UInt32, data32: UInt32, dataSize: UInt32 = 0) -> [UInt8]? {
+            guard connection != 0 else { return nil }
+            var input = [UInt8](repeating: 0, count: Self.structureSize)
+            var output = [UInt8](repeating: 0, count: Self.structureSize)
+            Self.writeNativeUInt32(key, to: &input, offset: 0)
+            Self.writeNativeUInt32(dataSize, to: &input, offset: Self.dataSizeOffset)
+            input[Self.commandOffset] = command
+            Self.writeNativeUInt32(data32, to: &input, offset: Self.data32Offset)
+            var outputSize = Self.structureSize
+            let result = input.withUnsafeBytes { inputBuffer in
+                output.withUnsafeMutableBytes { outputBuffer in
+                    IOConnectCallStructMethod(connection, 2, inputBuffer.baseAddress!, Self.structureSize, outputBuffer.baseAddress!, &outputSize)
+                }
+            }
+            guard result == KERN_SUCCESS, outputSize >= Self.structureSize else { return nil }
+            return output
+        }
+
+        private static func fourCC(_ string: String) -> UInt32 {
+            string.utf8.prefix(4).reduce(0) { ($0 << 8) | UInt32($1) }
+        }
+
+        private static func fourCCString(_ code: UInt32) -> String {
+            String(bytes: [(code >> 24) & 0xff, (code >> 16) & 0xff, (code >> 8) & 0xff, code & 0xff].map(UInt8.init), encoding: .ascii) ?? ""
+        }
+
+        private static func readNativeUInt32(_ bytes: [UInt8], offset: Int) -> UInt32 {
+            UInt32(bytes[offset]) | UInt32(bytes[offset + 1]) << 8 | UInt32(bytes[offset + 2]) << 16 | UInt32(bytes[offset + 3]) << 24
+        }
+
+        private static func readBigEndianUInt32(_ bytes: [UInt8], offset: Int) -> UInt32 {
+            UInt32(bytes[offset]) << 24 | UInt32(bytes[offset + 1]) << 16 | UInt32(bytes[offset + 2]) << 8 | UInt32(bytes[offset + 3])
+        }
+
+        private static func writeNativeUInt32(_ value: UInt32, to bytes: inout [UInt8], offset: Int) {
+            bytes[offset] = UInt8(truncatingIfNeeded: value)
+            bytes[offset + 1] = UInt8(truncatingIfNeeded: value >> 8)
+            bytes[offset + 2] = UInt8(truncatingIfNeeded: value >> 16)
+            bytes[offset + 3] = UInt8(truncatingIfNeeded: value >> 24)
+        }
+    }
 }
 
 class SystemMetricBarItem: CustomButtonTouchBarItem {
     private var observer: NSObjectProtocol?
     private let monitor: SystemMetrics.Monitor
 
-    init(identifier: NSTouchBarItem.Identifier, title: String, symbol: String, monitor: SystemMetrics.Monitor) {
+    init(identifier: NSTouchBarItem.Identifier, title: String, symbol: String, monitor: SystemMetrics.Monitor, accessibilityLabel: String) {
         self.monitor = monitor
         super.init(identifier: identifier, title: title)
         image = StudioControlStyle.image(symbol)
+        view.setAccessibilityLabel(accessibilityLabel)
         observer = NotificationCenter.default.addObserver(forName: SystemMetrics.didUpdate, object: nil, queue: .main) { [weak self] _ in self?.refresh() }
         SystemMetrics.startMonitoring(monitor)
     }
@@ -237,21 +407,30 @@ class SystemMetricBarItem: CustomButtonTouchBarItem {
 }
 
 final class RAMUsageBarItem: SystemMetricBarItem {
-    init(identifier: NSTouchBarItem.Identifier) { super.init(identifier: identifier, title: "RAM —", symbol: "ramUsage", monitor: .ram) }
+    init(identifier: NSTouchBarItem.Identifier) { super.init(identifier: identifier, title: "—", symbol: "ramUsage", monitor: .ram, accessibilityLabel: "RAM usage") }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func refresh() {
         let sample = SystemMetrics.snapshot()
         let percent = SystemMetrics.ramPercent(used: sample.ramUsedBytes, total: sample.ramTotalBytes)
-        display(percent.map { "RAM \($0)%" } ?? "RAM —", detail: SystemMetrics.ramDetail(used: sample.ramUsedBytes, total: sample.ramTotalBytes))
+        display(percent.map { "\($0)%" } ?? "—", detail: "RAM usage: " + SystemMetrics.ramDetail(used: sample.ramUsedBytes, total: sample.ramTotalBytes))
     }
 }
 
 final class GPUUsageBarItem: SystemMetricBarItem {
-    init(identifier: NSTouchBarItem.Identifier) { super.init(identifier: identifier, title: "GPU —", symbol: "gpuUsage", monitor: .gpu) }
+    init(identifier: NSTouchBarItem.Identifier) { super.init(identifier: identifier, title: "—", symbol: "gpuUsage", monitor: .gpu, accessibilityLabel: "GPU usage") }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func refresh() {
         let value = SystemMetrics.gpuPercent(SystemMetrics.snapshot().gpuUtilization)
-        display(value.map { "GPU \($0)%" } ?? "GPU —", detail: value.map { "System-wide GPU device utilization: \($0)%. Multiple GPUs show the busiest device." } ?? "GPU utilization unavailable: this Mac did not expose an IOAccelerator device utilization counter.")
+        display(value.map { "\($0)%" } ?? "—", detail: value.map { "System-wide GPU device utilization: \($0)%. Multiple GPUs show the busiest device." } ?? "GPU utilization unavailable: this Mac did not expose an IOAccelerator device utilization counter.")
+    }
+}
+
+final class CPUTemperatureBarItem: SystemMetricBarItem {
+    init(identifier: NSTouchBarItem.Identifier) { super.init(identifier: identifier, title: "—", symbol: "cpuTemperature", monitor: .cpuTemperature, accessibilityLabel: "CPU temperature") }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func refresh() {
+        let value = SystemMetrics.snapshot().cpuTemperatureCelsius
+        display(value.map { "\(Int($0.rounded()))°C" } ?? "—", detail: value.map { "Hottest available AppleSMC CPU sensor reading: \(Int($0.rounded()))°C (Tp/Te temperature keys)." } ?? "CPU temperature unavailable: no readable AppleSMC Tp/Te float sensors were exposed.")
     }
 }
 

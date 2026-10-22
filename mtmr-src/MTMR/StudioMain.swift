@@ -7,13 +7,19 @@ enum StudioMain {
         if CommandLine.arguments.contains("--metrics-diagnostic") {
             SystemMetrics.startMonitoring(.ram)
             SystemMetrics.startMonitoring(.gpu)
+            SystemMetrics.startMonitoring(.cpuTemperature)
             RunLoop.current.run(until:Date().addingTimeInterval(2.2))
             let sample=SystemMetrics.snapshot()
             let ram=SystemMetrics.ramPercent(used:sample.ramUsedBytes,total:sample.ramTotalBytes).map { "RAM \($0)%" } ?? "RAM —"
             let gpu=SystemMetrics.gpuPercent(sample.gpuUtilization).map { "GPU \($0)%" } ?? "GPU —"
-            print("SYSTEM METRICS (local read-only sample): \(ram), \(gpu), \(SystemMetrics.unsupportedBoardLabel)")
+            let cpu=SystemMetrics.cpuTemperatureLabel(sample.cpuTemperatureCelsius)
+            print("SYSTEM METRICS (local read-only sample): \(ram), \(gpu), \(cpu), \(SystemMetrics.unsupportedBoardLabel)")
+            if let timing = SystemMetrics.cpuTemperatureReadTiming {
+                print(String(format: "CPU SENSOR TIMING: one-time key inventory %.2f ms; cached-key sample %.2f ms", timing.inventoryMilliseconds, timing.sampleMilliseconds))
+            }
             SystemMetrics.stopMonitoring(.ram)
             SystemMetrics.stopMonitoring(.gpu)
+            SystemMetrics.stopMonitoring(.cpuTemperature)
             return
         }
         if CommandLine.arguments.contains("--native-slider-self-test") {

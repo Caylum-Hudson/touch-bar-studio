@@ -17,15 +17,16 @@
 <body>
   <header>
     <strong>Isolated metrics fixture</strong>
-    <span>RAM, GPU, and Board in a fresh local editor profile; no MTMR API server is started.</span>
+    <span>CPU, RAM, GPU, and CPU temperature in a fresh local editor profile; no MTMR API server is started.</span>
     <button type="button" id="reset">Reset fixture</button>
   </header>
   <iframe title="Touch Bar Studio metrics fixture"></iframe>
   <script>
     const items = [
+      {id:'fixture-cpu', type:'cpu', align:'center'},
       {id:'fixture-ram', type:'ramUsage', align:'center'},
       {id:'fixture-gpu', type:'gpuUsage', align:'center'},
-      {id:'fixture-board', type:'boardTemperature', align:'center'},
+      {id:'fixture-cpu-temperature', type:'cpuTemperature', align:'center'},
     ];
     function seedFixture() {
       localStorage.setItem('touchbar-studio-profiles', JSON.stringify({

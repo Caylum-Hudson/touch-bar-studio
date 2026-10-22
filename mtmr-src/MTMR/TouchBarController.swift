@@ -37,6 +37,8 @@ extension ItemType {
             return "com.toxblh.mtmr.gpuUsage."
         case .boardTemperature:
             return "com.toxblh.mtmr.boardTemperature."
+        case .cpuTemperature:
+            return "com.toxblh.mtmr.cpuTemperature."
         case .dock(autoResize: _, filter: _):
             return "com.toxblh.mtmr.dock"
         case .volume:
@@ -534,6 +536,12 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         } else {
             presentSystemModal(touchBar, placement: 1, systemTrayItemIdentifier: .controlStripItem)
         }
+        // macOS can restore its modal close box during presentation. Reapply
+        // the user's configured policy on the next main-loop turn so it does
+        // not add an unconfigured leading control beside the user's widgets.
+        DispatchQueue.main.async {
+            DFRSystemModalShowsCloseBoxWhenFrontMost(!AppSettings.touchBarEnabled)
+        }
         updateControlStripPresence()
     }
 
@@ -581,6 +589,8 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             barItem = GPUUsageBarItem(identifier: identifier)
         case .boardTemperature:
             barItem = BoardTemperatureBarItem(identifier: identifier)
+        case .cpuTemperature:
+            barItem = CPUTemperatureBarItem(identifier: identifier)
         case let .dock(autoResize: autoResize, filter: regexString):
             if let regexString = regexString {
                 guard let regex = try? NSRegularExpression(pattern: regexString, options: []) else {

@@ -21,14 +21,15 @@ test('Date and CPU previews grow past their generic saved width without changing
 
 test('system metric preview widths fit worst-case percentages and unavailable labels', () => {
   const cases = [
-    [createElement('ramUsage'), 'RAM 100%'],
-    [createElement('gpuUsage'), 'GPU 100%'],
-    [createElement('boardTemperature'), 'Board —'],
+    [createElement('cpu'), '100%'],
+    [createElement('ramUsage'), '100%'],
+    [createElement('gpuUsage'), '100%'],
+    [createElement('cpuTemperature'), '130°C'],
   ];
   for (const [item, title] of cases) {
     const width = widgetContentWidth(item);
-    const actualLabelWidth = Math.ceil(estimateTouchBarTextWidth(title) + 24);
-    assert.ok(width >= actualLabelWidth, `${title} must fit with native control padding`);
+    const actualLabelWidth = Math.ceil(estimateTouchBarTextWidth(title) + 52);
+    assert.ok(width >= actualLabelWidth, `${title} must fit with an 18px icon, 4px gap, 20px padding, and font allowance`);
     assert.ok(contentFitWidth({...item,studioPosition:0,width:24}) >= width);
   }
 });

@@ -64,13 +64,15 @@ function getItemDisplay(item, definition) {
     case 'yandexWeather':
       return { type: 'sample', controlType: type, content: 'Weather' };
     case 'cpu':
-      return { type: 'sample', controlType: type, content: '100.0%' };
+      return { type: 'sample', controlType: type, content: '100%' };
     case 'ramUsage':
-      return { type: 'sample', controlType: type, content: 'RAM 100%' };
+      return { type: 'sample', controlType: type, content: '100%' };
     case 'gpuUsage':
-      return { type: 'sample', controlType: type, content: 'GPU 100%' };
+      return { type: 'sample', controlType: type, content: '100%' };
     case 'boardTemperature':
       return { type: 'sample', controlType: type, content: 'Board —' };
+    case 'cpuTemperature':
+      return { type: 'sample', controlType: type, content: '130°C' };
     case 'currency':
       return { type: 'text', content: `${item.from || 'BTC'}→${item.to || 'USD'}` };
     case 'music':
@@ -250,7 +252,7 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
       className={classNames}
       onClick={onSelect}
       onContextMenu={onContextMenu}
-      title={['cpu', 'ramUsage', 'gpuUsage', 'boardTemperature'].includes(item.type) ? 'Illustrative preview only; system metrics are not read in the editor' : undefined}
+      title={['cpu', 'ramUsage', 'gpuUsage', 'boardTemperature', 'cpuTemperature'].includes(item.type) ? 'Illustrative preview only; system metrics are not read in the editor' : undefined}
       {...attributes}
       {...listeners}
       aria-label={`${definition.label}${item.title ? `: ${item.title}` : ''} — editor preview`}

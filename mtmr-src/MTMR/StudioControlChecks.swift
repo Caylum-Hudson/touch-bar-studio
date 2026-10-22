@@ -300,14 +300,14 @@ enum StudioControlChecks {
     static func runStudioContentWidthChecks() {
         _ = NSApplication.shared
         let scale: CGFloat = 760 / StudioLayout.width
-        let automaticCPU = CustomButtonTouchBarItem(identifier: .init("test.studio.automaticCPU"), title: "CPU 100.0%")
+        let automaticCPU = CustomButtonTouchBarItem(identifier: .init("test.studio.automaticCPU"), title: "100%")
         automaticCPU.image = NSImage(size: NSSize(width: 20, height: 20))
         let widthConfig: CanSetWidth = automaticCPU
         widthConfig.setWidth(value: 64)
         guard let automaticWidthConstraint = automaticCPU.view.constraints.first(where: { $0.firstAttribute == .width }) else {
             preconditionFailure("Automatic custom-button layout should retain its explicit width constraint")
         }
-        automaticCPU.title = "CPU utilization 100.0%"
+        automaticCPU.title = "100%"
         precondition(automaticWidthConstraint.constant >= automaticCPU.studioNaturalContentWidth,
                      "Automatic layouts should grow their existing saved-width constraint when live button content grows")
 
@@ -315,7 +315,7 @@ enum StudioControlChecks {
         date.attributedTitle = "Wednesday, October 20, 2026".defaultTouchbarAttributedString
         date.setWidth(value: 64)
 
-        let cpu = CustomButtonTouchBarItem(identifier: .init("test.studio.cpu"), title: "100.0%")
+        let cpu = CustomButtonTouchBarItem(identifier: .init("test.studio.cpu"), title: "100%")
         cpu.image = NSImage(size: NSSize(width: 20, height: 20))
         cpu.setWidth(value: 64)
 
@@ -341,7 +341,7 @@ enum StudioControlChecks {
                      cpuButton.fittingSize.width <= cpuButton.frame.width + 0.25,
                      "Actual AppKit Date and CPU buttons should fit their allocated frames at a scaled canvas width")
         precondition(dateButton.frame.width > 64 * scale && cpuButton.frame.width > 64 * scale,
-                     "Long Date and 100.0% CPU labels should override stale 64-point saved widths transiently")
+                     "Long Date and whole-number CPU usage labels should override stale 64-point saved widths transiently")
 
         date.title = "Wednesday, September 30, 2026"
         positioned.layoutSubtreeIfNeeded()
@@ -423,22 +423,30 @@ enum StudioControlChecks {
         precondition(SystemMetrics.monitorSubscriberCount == 0, "Unavailable board-only item must not start hardware sampling")
         let ram = RAMUsageBarItem(identifier:.init("test.ram"))
         let gpu = GPUUsageBarItem(identifier:.init("test.gpu"))
-        precondition(SystemMetrics.monitorSubscriberCount == 2, "RAM and GPU items should share one active sampler")
-        precondition(SystemMetrics.monitorSubscriberCount(for: .ram) == 1 && SystemMetrics.monitorSubscriberCount(for: .gpu) == 1)
+        let temperature = CPUTemperatureBarItem(identifier:.init("test.cpu-temperature"))
+        precondition(SystemMetrics.monitorSubscriberCount == 3, "RAM, GPU, and CPU temperature items should share one active sampler")
+        precondition(SystemMetrics.monitorSubscriberCount(for: .ram) == 1 && SystemMetrics.monitorSubscriberCount(for: .gpu) == 1 && SystemMetrics.monitorSubscriberCount(for: .cpuTemperature) == 1)
         RunLoop.current.run(until:Date().addingTimeInterval(2.2))
-        precondition(ram.title.hasPrefix("RAM ") && ram.title != "RAM —", "RAM widget should show a real host-statistics reading")
-        precondition(gpu.title == "GPU —" || gpu.title.range(of: #"^GPU (100|[0-9]{1,2})%$"#, options: .regularExpression) != nil, "GPU widget must show a bounded real reading or unavailable")
+        precondition(ram.title == "—" || ram.title.range(of: #"^(100|[0-9]{1,2})%$"#, options: .regularExpression) != nil, "RAM widget should show a percentage without a text prefix")
+        precondition(gpu.title == "—" || gpu.title.range(of: #"^(100|[0-9]{1,2})%$"#, options: .regularExpression) != nil, "GPU widget must show a bounded percentage or unavailable without a prefix")
+        precondition(temperature.title == "—" || temperature.title.range(of: #"^(130|[0-9]{1,2})°C$"#, options: .regularExpression) != nil, "CPU temperature must show a bounded Tp/Te reading or unavailable without a prefix")
         precondition(board.title == "Board —", "No unidentified temperature sensor may be presented as motherboard temperature")
-        precondition(ram.studioNaturalContentWidth > 0 && gpu.studioNaturalContentWidth > 0 && board.studioNaturalContentWidth > 0)
-        print("SYSTEM METRIC SELF-TEST: \(ram.title), \(gpu.title), \(board.title)")
+        precondition(ram.studioNaturalContentWidth > 0 && gpu.studioNaturalContentWidth > 0 && temperature.studioNaturalContentWidth > 0 && board.studioNaturalContentWidth > 0)
+        print("SYSTEM METRIC SELF-TEST: RAM \(ram.title), GPU \(gpu.title), CPU temperature \(temperature.title), \(board.title)")
         let slider = VolumeViewController(identifier:.init("test.volume"))
         precondition((0...100).contains(slider.sliderItem.doubleValue))
-        print("PASS: RAM and GPU widgets read local metrics through the shared sampler; board sensor absence stays explicit; metric format and live widths pass.")
+        print("PASS: RAM, GPU, and CPU temperature widgets read local metrics through the shared sampler; board sensor absence stays explicit; metric format and live widths pass.")
         print("PASS: clock, battery, CPU, focus timer and volume slider initialize with local data; malformed input returns an error without crashing.")
         print("NOT TESTED: physical taps, keyboard delivery, hardware changes, external services, Automation and private system toggles.")
     }
 
     private static func runSystemMetricsChecks() {
+        precondition(SystemMetrics.cpuUsageLabel(57.3) == "57%")
+        precondition(SystemMetrics.cpuUsageLabel(57.5) == "58%")
+        precondition(SystemMetrics.cpuUsageLabel(99.6) == "100%")
+        precondition(SystemMetrics.cpuUsageLabel(nil) == "—")
+        precondition(SystemMetrics.cpuUsageLabel(.nan) == "—" && SystemMetrics.cpuUsageLabel(.infinity) == "—")
+        precondition(SystemMetrics.cpuUsageLabel(-1) == "—" && SystemMetrics.cpuUsageLabel(101) == "—")
         precondition(SystemMetrics.ramPercent(used: nil, total: 100) == nil)
         precondition(SystemMetrics.ramPercent(used: 0, total: 100) == 0)
         precondition(SystemMetrics.ramPercent(used: 1, total: 4) == 25)
@@ -449,6 +457,11 @@ enum StudioControlChecks {
         precondition(SystemMetrics.gpuPercent(-1) == nil && SystemMetrics.gpuPercent(101) == nil)
         precondition(SystemMetrics.gpuPercent(0) == 0 && SystemMetrics.gpuPercent(100) == 100)
         precondition(SystemMetrics.unsupportedBoardLabel == "Board —")
+        precondition(SystemMetrics.cpuTemperatureLabel(nil) == "CPU —")
+        precondition(SystemMetrics.cpuTemperatureLabel(.nan) == "CPU —" && SystemMetrics.cpuTemperatureLabel(.infinity) == "CPU —")
+        precondition(SystemMetrics.cpuTemperatureLabel(0) == "CPU —", "uninitialized zero must remain unavailable")
+        precondition(SystemMetrics.cpuTemperatureLabel(-1) == "CPU —" && SystemMetrics.cpuTemperatureLabel(131) == "CPU —")
+        precondition(SystemMetrics.cpuTemperatureLabel(56.7) == "CPU 57°C")
         precondition(SystemMetrics.ramUsedBytes(internalPages: 100, purgeablePages: 20, wiredPages: 30, compressedPages: 10, pageSize: 4096) == 491_520)
         precondition(SystemMetrics.ramUsedBytes(internalPages: 10, purgeablePages: 11, wiredPages: 0, compressedPages: 0, pageSize: 4096) == nil)
         precondition(SystemMetrics.ramUsedBytes(internalPages: 1, purgeablePages: 0, wiredPages: 0, compressedPages: 0, pageSize: 0) == nil)

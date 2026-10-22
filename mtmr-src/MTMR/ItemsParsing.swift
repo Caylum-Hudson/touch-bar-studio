@@ -269,6 +269,7 @@ enum ItemType: Decodable {
     case ramUsage
     case gpuUsage
     case boardTemperature
+    case cpuTemperature
     case dock(autoResize: Bool, filter: String?)
     case volume
     case brightness(refreshInterval: Double)
@@ -329,6 +330,7 @@ enum ItemType: Decodable {
         case ramUsage
         case gpuUsage
         case boardTemperature
+        case cpuTemperature
         case dock
         case volume
         case brightness
@@ -385,6 +387,8 @@ enum ItemType: Decodable {
             self = .gpuUsage
         case .boardTemperature:
             self = .boardTemperature
+        case .cpuTemperature:
+            self = .cpuTemperature
 
         case .dock:
             let autoResize = try container.decodeIfPresent(Bool.self, forKey: .autoResize) ?? false

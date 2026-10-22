@@ -43,7 +43,7 @@ const commonGroups = [
       ['cpu', 'Local display · Automation on tap', 'Show CPU load locally; tapping Activity Monitor needs Automation access.'],
       ['ramUsage', 'Built in · Local', 'Show physical memory usage.'],
       ['gpuUsage', 'Hardware dependent · Local', 'Show GPU load; multiple GPUs use the busiest device.'],
-      ['boardTemperature', 'Unavailable on this build', 'Motherboard sensor unavailable in this build.'],
+      ['cpuTemperature', 'Apple Silicon · Local', 'Show the hottest available CPU temperature sensor.'],
     ],
   },
   {
