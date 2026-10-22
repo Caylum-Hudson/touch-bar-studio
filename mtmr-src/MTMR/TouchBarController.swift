@@ -428,6 +428,15 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         }
     }
     
+    // Bounds assigned by AppKit, before submenu/Resolve child reservations.
+    // The Control Strip is a separate native region outside this view.
+    var studioLayoutCapacity: [String: Any]? {
+        guard AppSettings.touchBarEnabled, expandedNativeSliderItem == nil,
+              let width = basicView?.view.bounds.width, width.isFinite, width > 0 else { return nil }
+        return ["physicalWidth": width, "logicalWidth": StudioLayout.width,
+                "keepControlStrip": AppSettings.showControlStripState]
+    }
+
     func touchBarContainsAnyItems() -> Bool {
         return items.count != 0 || swipeItems.count != 0
     }

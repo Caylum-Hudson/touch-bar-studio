@@ -1,5 +1,12 @@
 # Verification — 22 October 2026
 
+## 0.8.0 — Even placement
+
+- Added a one-step auto-placement action with conservative content widths, native physical/logical capacity conversion, current editor profile/submenu scope, and no mutation on overflow. Native Control Strip space is counted once; submenu/Resolve navigation uses the existing runtime reservations. Missing geometry/Dock data gives a wait message.
+- Focused layout/widget tests pass, scoped lint has no errors (the existing StudioShell effect-dependency warning remains), and Vite production build passes. Browser fixture QA verified successful placement, exact Undo, and an explicit remove-items error with unchanged JSON on failure. Placement feedback clears when the edited layout/context changes. Final 0.8.0 native build, self-tests, 56-entry audit, widget/live-width checks, strict signature verification, and bundle version check pass. The widget sample read RAM 70%, GPU 27%, and CPU temperature 66°C. Installed UI review reopened 0.8.0, confirmed Accessibility granted, and verified the enabled Auto-place evenly action beside the preview. The action was exercised only in the isolated fixture; the user’s saved layout was preserved. Saved workspace snapshots remain byte-identical with the six-control Default.
+
+- [Installed editor screenshot](docs/screenshots/auto-place-installed-0.8.0.png) records the visible 0.8.0 action and preserved user layout. It is not a physical Touch Bar capture. Browser QA after reloading the final frontend confirms success feedback clears on Undo, Undo restores exact JSON, and the no-fit alert preserves exact JSON. [Even placement](docs/screenshots/auto-place-evenly-0.8.0.png) and [no-fit error](docs/screenshots/auto-place-overflow-0.8.0.png) show the isolated browser fixture with injected native capacity; these are not physical Touch Bar captures.
+
 ## 0.7.1 — CPU temperature (installed native build and UI verified)
 
 - Follow-up source edits remove metric-name prefixes from visible CPU/RAM/GPU percentages and CPU temperature while keeping full metric names in accessibility labels and tooltips. CPU percentages are rounded to whole numbers. Distinct CPU, memory-chip, display, and thermometer icons are exported; preview width calculations include the icon, gap, button padding, and font allowance. Focused JS sizing and catalog checks pass. The final native rebuild, widget checks, signature verification, and five sizing tests pass; installed-app review of these final refinements passes.

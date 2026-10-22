@@ -2,7 +2,7 @@
 
 Touch Bar Studio is a macOS app for designing Touch Bar layouts, switching layouts by app, launching apps and folders, and browsing photos. It builds on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime; upstream history and source notices are retained.
 
-The current source version is **0.7.1**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
+The current source version is **0.8.0**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
 
 ## Edit and apply profiles
 
@@ -10,7 +10,7 @@ The **Editing** selector stays above the preview so it is clear which profile yo
 
 ![Profile editor selector, active Touch Bar status, and app profile action](docs/screenshots/profile-editing-selector.png)
 
-Studio provides an icon-based control library, a Touch Bar preview, precise placement, nested groups, presets, JSON import/export, and undo/redo. Secondary options start collapsed to leave more room for the preview and controls. Drag a control or use its **+** action to add it. Open **Precise placement** in Layout settings to set a control's leading-edge X position and width on the 1085-unit design canvas. The runtime scales that canvas to the area macOS provides; overlapping controls show a warning.
+Studio provides an icon-based control library, a Touch Bar preview, precise placement, nested groups, presets, JSON import/export, and undo/redo. Secondary options start collapsed to leave more room for the preview and controls. Drag a control or use its **+** action to add it. Open **Precise placement** in Layout settings to set a control's leading-edge X position and width on the 1085-unit design canvas. The runtime scales that canvas to the area macOS provides; overlapping controls show a warning. **Auto-place evenly** beside the preview arranges the current profile or submenu with equal free gaps while keeping widget sizes and visual order. If the items do not fit, it asks you to remove items and leaves the layout unchanged. Undo restores the previous positions. Native fit checks use the actual custom-region bounds, including room reserved for native navigation and the right-side Control Strip.
 
 The **Dock** preview uses the current Dock app list and icons. It expands when room is available, then reduces icon and gap sizes to fit all apps without internal scrolling. Other controls keep their positions. Date, CPU, RAM, GPU, and CPU-temperature controls use minimum content-fit widths in the preview and native layout; saved positions and widths are not changed by this behavior. Metrics shown in the editor are illustrative labels, never live system readings. The native macOS Control Strip is a separate tile at the preview's right edge. It is controlled by **Keep macOS Control Strip** and is not a saved profile item. The screenshots show the preview with the Control Strip collapsed and expanded: [collapsed](docs/screenshots/control-strip-preview-collapsed.jpg), [expanded](docs/screenshots/control-strip-preview-expanded.jpg).
 

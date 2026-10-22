@@ -27,13 +27,15 @@ export function fitDockIcons(frameWidth, count, iconSize = 32, itemSpacing = 1) 
   return {iconSize: iconSize * scale, itemSpacing: itemSpacing * scale};
 }
 
-export function layoutFrames(items, {dockPreferredWidth, visibleRightEdge = BAR_WIDTH} = {}) {
+export function layoutFrames(items, {dockPreferredWidth, visibleRightEdge = BAR_WIDTH, contentScale = 1} = {}) {
+  const scale = Number.isFinite(contentScale) && contentScale > 0 ? contentScale : 1;
+  const dockWidth = Number.isFinite(dockPreferredWidth) ? (dockPreferredWidth + 14) / scale - 14 : dockPreferredWidth;
   const frames = new Map();
   for (const alignment of ['left', 'center', 'right']) {
     const group = items.filter(item => (item.align || 'center') === alignment);
     const widths = new Map(group.map(item => [item.id, item.type === 'dock'
-      ? autoDockDisplayWidth(items, item.id, dockPreferredWidth, visibleRightEdge) ?? itemWidth(item)
-      : contentFitWidth(item)]));
+      ? autoDockDisplayWidth(items, item.id, dockWidth, visibleRightEdge) ?? itemWidth(item)
+      : Math.max(itemWidth(item), Math.ceil(contentMinimumWidth(item) / scale))]));
     const total = group.reduce((sum, item) => sum + widths.get(item.id), 0) + Math.max(0, group.length - 1) * 4;
     let cursor = alignment === 'left' ? 0 : alignment === 'right' ? BAR_WIDTH - total : (BAR_WIDTH - total) / 2;
     for (const item of group) {
@@ -96,4 +98,45 @@ export function nextSpacedPosition(items, width, gap = spacingGap(items)) {
   const frames = orderedFrames(items);
   const candidates = [0, ...frames.map(frame => frame.x+frame.width+gap)];
   return candidates.find(x => x+width <= BAR_WIDTH && frames.every(frame => x+width+gap <= frame.x || x >= frame.x+frame.width+gap)) ?? null;
+}
+
+/** Place current controls across the custom region without shrinking their content.
+ * The native runtime maps this logical region into the area beside the Control
+ * Strip; the strip is not one of these items and must not be subtracted twice.
+ */
+export function distributeItemsEvenly(items, {availableWidth = BAR_WIDTH, dockPreferredWidth, contentScale = 1} = {}) {
+  const width = Math.max(0, Math.min(BAR_WIDTH, Number(availableWidth) || 0));
+  const scale = Number.isFinite(contentScale) && contentScale > 0 ? contentScale : 1;
+  const ordered = orderedFrames(items);
+  const widths = new Map(items.map(item => [item.id,
+    item.type === 'dock' && item.autoResize !== false && Number.isFinite(dockPreferredWidth)
+      ? Math.ceil((Math.max(0, dockPreferredWidth) + 14) / scale)
+      : Math.max(itemWidth(item), Math.ceil(contentMinimumWidth(item) / scale)),
+  ]));
+  const contentWidth = items.reduce((total, item) => total + widths.get(item.id), 0);
+  const gap = items.length ? (width - contentWidth) / (items.length + 1) : 0;
+  const dockNeedsGap = items.length > 1 && items.some(item => item.type === 'dock' && item.autoResize !== false);
+  if (contentWidth > width || (dockNeedsGap && gap < 4)) {
+    throw new Error('Not enough room to place all items evenly. Remove one or more items, then try again. Your layout has not changed.');
+  }
+  if (!items.length) return [];
+  let cursor = gap;
+  const positions = new Map();
+  for (const {item} of ordered) {
+    positions.set(item.id, Math.round(cursor));
+    cursor += widths.get(item.id) + gap;
+  }
+  return items.map(item => {
+    const next = {...item, studioPosition: positions.get(item.id)};
+    // This is a one-time arrangement, independent of the local snapping grid.
+    delete next.studioGap;
+    return next;
+  });
+}
+
+/** Convert AppKit's base custom bounds into this editor level's logical scale. */
+export function layoutContentScale(capacity, {submenu = false, resolveProfile = false} = {}) {
+  if (!capacity || !Number.isFinite(capacity.physicalWidth) || capacity.physicalWidth <= 0) return null;
+  const reserved = submenu ? 62 : resolveProfile ? 94 : 0;
+  return capacity.physicalWidth / BAR_WIDTH * (BAR_WIDTH - reserved) / BAR_WIDTH;
 }

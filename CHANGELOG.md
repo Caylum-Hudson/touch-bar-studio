@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0 — Even placement
+
+- Add **Auto-place evenly** beside the preview for the current profile/submenu. Keep control sizes and visual order; use equal free gaps. If content does not fit, prompt removal and preserve the current layout. Undo restores the previous arrangement.
+- Read native custom-region bounds and convert conservative intrinsic widget/Dock widths into logical coordinates; reserve submenu/Resolve navigation once, with the native Control Strip kept separately at the right. Missing native size or Dock data prompts waiting rather than claiming insufficient room.
+- Browser fixture verifies arrangement, exact Undo, and unchanged JSON on no-fit. Native build and final installed UI checks are recorded in [verification](VERIFICATION.md).
+
 ## 0.7.1 — CPU temperature (installed native build verified)
 
 - Replace the unavailable motherboard-temperature palette entry with CPU Temperature, read from available AppleSMC `Tp`/`Te` float sensor keys. The item displays the hottest plausible sensor reading and labels it as a CPU sensor, not a die average. Legacy saved motherboard entries still decode as unavailable.

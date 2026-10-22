@@ -754,3 +754,7 @@
 .touchbar-screen::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+.auto-place-button { margin-left: auto; white-space: nowrap; }
+.auto-place-feedback { margin: 0 0 10px; font-size: 12px; color: #aaa; }
+.auto-place-feedback.layout-warning { color: #f4be79; }

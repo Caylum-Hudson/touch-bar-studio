@@ -7,14 +7,14 @@ import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
 import TouchBarItem from './TouchBarItem';
 import './TouchBar.css';
-import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsistentSpacing,autoDockDisplayWidth,contentFitWidth} from '../../utils/positionLayout';
+import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsistentSpacing,autoDockDisplayWidth,contentFitWidth,distributeItemsEvenly,layoutContentScale} from '../../utils/positionLayout';
 import ControlIcon from '../ControlIcon/ControlIcon';
 import ControlStripPreview from './ControlStripPreview';
 import { useRuntimePermissions } from '../../context/useRuntimePermissions';
 
 export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}}) {
-  const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems } = useApp();
-  const { keepControlStrip, updateKeepControlStrip } = useRuntimePermissions();
+  const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems, profiles, profileId, groupPath } = useApp();
+  const { keepControlStrip, updateKeepControlStrip, native, layoutCapacity } = useRuntimePermissions();
   const { active: draggedThing } = useDndContext();
   const draggingControlStrip = draggedThing?.data.current?.type === 'native-control-strip';
   const precise=isPrecise(items);
@@ -22,6 +22,18 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   const [visibleRightEdge, setVisibleRightEdge] = useState(BAR_WIDTH);
   const [contextMenu, setContextMenu] = useState(null);
   const [spacingError, setSpacingError] = useState('');
+  const [placementError, setPlacementError] = useState('');
+  const [placementStatus, setPlacementStatus] = useState('');
+  const placementFeedbackKey = useRef(null);
+  const placementContextKey = JSON.stringify([profileId, groupPath]);
+  const currentPlacementKey = JSON.stringify([placementContextKey, items]);
+  useEffect(() => {
+    if (placementFeedbackKey.current !== currentPlacementKey) {
+      setPlacementError('');
+      setPlacementStatus('');
+      placementFeedbackKey.current = null;
+    }
+  }, [currentPlacementKey]);
   const [previewId, setPreviewId] = useState(null);
   const [previewValue, setPreviewValue] = useState(50);
   const [controlStripExpanded, setControlStripExpanded] = useState(false);
@@ -41,6 +53,26 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
       reorderItems(setConsistentSpacing(source,value));
       setSpacingError('');
     } catch (error) { setSpacingError(error.message); }
+  };
+  const contentScale = layoutContentScale(layoutCapacity, {
+    submenu: groupPath.length > 0,
+    resolveProfile: profiles[profileId]?.bundleId === 'com.blackmagic-design.DaVinciResolve',
+  });
+  const placementUnavailable = native && (!contentScale || layoutCapacity.keepControlStrip !== keepControlStrip);
+  const autoPlaceItems = () => {
+    try {
+      if (placementUnavailable) throw new Error('Turn on the Touch Bar and wait for its size to be available, then try again.');
+      if (native && items.some(item => item.type === 'dock' && item.autoResize !== false) && !Number.isFinite(dockPreview.preferredWidth)) throw new Error('Wait for the Dock preview to load, then try again.');
+      const arranged = distributeItemsEvenly(items, {dockPreferredWidth: dockPreview.preferredWidth, contentScale: contentScale || 1});
+      placementFeedbackKey.current = JSON.stringify([placementContextKey, arranged]);
+      reorderItems(arranged);
+      setPlacementError('');
+      setPlacementStatus('Items placed evenly.');
+    } catch (error) {
+      placementFeedbackKey.current = currentPlacementKey;
+      setPlacementError(error.message);
+      setPlacementStatus('');
+    }
   };
   const disableSpacing = () => reorderItems(items.map(item => { const next={...item}; delete next.studioGap; return next; }));
   const containerRef = useRef(null);
@@ -62,7 +94,7 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
     observer.observe(viewportNode);
     return () => { viewportNode.removeEventListener('scroll', measure); observer.disconnect(); };
   }, [viewportNode]);
-  const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge};
+  const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge,contentScale:contentScale || 1};
   const frames=layoutFrames(items,layoutOptions);
   const dockItem = items.find(item=>item.type==='dock');
   const automaticOtherWidth = items.filter(item=>item.type!=='dock').reduce((total,item)=>total+contentFitWidth(item),0);
@@ -129,7 +161,7 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
 
   return (
     <div className="touchbar-container" ref={containerRef}>
-      <div className="layout-heading"><strong>Touch Bar layout</strong><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
+      <div className="layout-heading"><strong>Touch Bar layout</strong><button type="button" className="auto-place-button" disabled={!items.length} onClick={autoPlaceItems} title="Distribute current items with equal space around them. Keeps their sizes and can be undone.">Auto-place evenly</button><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
       <div className="layout-toolbar"><div><strong>Placement</strong><span>{precise?'Drag freely or set X in Properties':'Automatic left, centre and right alignment'}</span></div><button aria-pressed={precise} onClick={()=>reorderItems(items.map(item=>{if(precise){const rest={...item};delete rest.studioPosition;delete rest.studioGap;return rest;}return {...item,studioPosition:frames.get(item.id).x};}))}>{precise?'Use automatic alignment':'Precise placement'}</button></div>
       <div className="spacing-toolbar">
         <label><input type="checkbox" checked={gap !== null} disabled={!items.length} onChange={event => event.target.checked ? applySpacing(12) : disableSpacing()}/>Consistent spacing</label>
@@ -139,6 +171,8 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
       {precise && <p className="position-help">The ruler uses the full 1085-unit Touch Bar coordinate system.</p>}
       {spacingError && <p className="layout-warning" role="alert">{spacingError}</p>}
       </div></details></div>
+      {placementError && <p className="layout-warning auto-place-feedback" role="alert">{placementError}</p>}
+      {placementStatus && <p className="auto-place-feedback" role="status">{placementStatus}</p>}
       {expanded && <div className="expanded-slider-preview">
         <div className="expanded-slider-caption"><strong>{expanded.type === 'volume' ? 'Volume' : 'Brightness'} · expanded preview</strong><span>Preview only · adjust your Mac on the physical Touch Bar</span></div>
         <div className="expanded-slider-bar"><button onClick={()=>setPreviewId(null)} aria-label="Close expanded slider preview">‹ Back</button><div className="expanded-slider-center"><ControlIcon type={expanded.type === 'volume' ? 'mute' : 'brightnessDown'}/><input aria-label={`${expanded.type} slider preview`} type="range" min="0" max="100" value={previewValue} onChange={event=>setPreviewValue(+event.target.value)}/><ControlIcon type={expanded.type === 'volume' ? 'volumeUp' : 'brightnessUp'}/></div></div>
@@ -158,7 +192,7 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
               {controlStripDropTarget}
             </div>
           </div>
-          {overlappingItems(items,{dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge})&&<p className="layout-warning" role="status">Some controls overlap or need more room. Move them apart or adjust their widths so all content stays visible.</p>}
+          {overlappingItems(items,layoutOptions)&&<p className="layout-warning" role="status">Some controls overlap or need more room. Move them apart or adjust their widths so all content stays visible.</p>}
         </>
       ) : <div className={`touchbar-frame ${showControlStrip?'with-control-strip':''} ${isOver ? 'drag-over' : ''}`}>
         <div className={`touchbar-screen ${showControlStrip?'with-control-strip':''}`}>
