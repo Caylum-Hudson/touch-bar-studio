@@ -266,6 +266,9 @@ enum ItemType: Decodable {
     case timeButton(formatTemplate: String, timeZone: String?, locale: String?)
     case battery
     case cpu(refreshInterval: Double)
+    case ramUsage
+    case gpuUsage
+    case boardTemperature
     case dock(autoResize: Bool, filter: String?)
     case volume
     case brightness(refreshInterval: Double)
@@ -323,6 +326,9 @@ enum ItemType: Decodable {
         case timeButton
         case battery
         case cpu
+        case ramUsage
+        case gpuUsage
+        case boardTemperature
         case dock
         case volume
         case brightness
@@ -372,6 +378,13 @@ enum ItemType: Decodable {
         case .cpu:
             let refreshInterval = try container.decodeIfPresent(Double.self, forKey: .refreshInterval) ?? 5.0
             self = .cpu(refreshInterval: refreshInterval)
+
+        case .ramUsage:
+            self = .ramUsage
+        case .gpuUsage:
+            self = .gpuUsage
+        case .boardTemperature:
+            self = .boardTemperature
 
         case .dock:
             let autoResize = try container.decodeIfPresent(Bool.self, forKey: .autoResize) ?? false

@@ -41,6 +41,9 @@ const commonGroups = [
       ['timeButton', 'Built in', 'Show the current time.'], ['dateButton', 'Built in', 'Show today’s date.'], ['battery', 'Built in', 'Show battery status.'],
       ['inputsource', 'Built in', 'Show the active input source.'], ['pomodoro', 'Built in', 'Start a focus timer.'],
       ['cpu', 'Local display · Automation on tap', 'Show CPU load locally; tapping Activity Monitor needs Automation access.'],
+      ['ramUsage', 'Built in · Local', 'Show physical memory usage.'],
+      ['gpuUsage', 'Hardware dependent · Local', 'Show GPU load; multiple GPUs use the busiest device.'],
+      ['boardTemperature', 'Unavailable on this build', 'Motherboard sensor unavailable in this build.'],
     ],
   },
   {

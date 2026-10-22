@@ -383,6 +383,7 @@ enum StudioControlChecks {
     }
 
     static func run(path: String) throws {
+        _ = NSApplication.shared
         TouchBarController.registerNavigationControls(dismiss:{},back:{})
         let data = try Data(contentsOf:URL(fileURLWithPath:path))
         let fixtures = try JSONSerialization.jsonObject(with:data) as! [[String:Any]]
@@ -416,9 +417,41 @@ enum StudioControlChecks {
         let cpu = CPUBarItem(identifier:.init("test.cpu"),refreshInterval:60)
         RunLoop.current.run(until:Date().addingTimeInterval(0.1))
         precondition(cpu.title.contains("%"))
+        runSystemMetricsChecks()
+        let board = BoardTemperatureBarItem(identifier:.init("test.board"))
+        precondition(board.title == "Board —" && board.image != nil)
+        precondition(SystemMetrics.monitorSubscriberCount == 0, "Unavailable board-only item must not start hardware sampling")
+        let ram = RAMUsageBarItem(identifier:.init("test.ram"))
+        let gpu = GPUUsageBarItem(identifier:.init("test.gpu"))
+        precondition(SystemMetrics.monitorSubscriberCount == 2, "RAM and GPU items should share one active sampler")
+        precondition(SystemMetrics.monitorSubscriberCount(for: .ram) == 1 && SystemMetrics.monitorSubscriberCount(for: .gpu) == 1)
+        RunLoop.current.run(until:Date().addingTimeInterval(2.2))
+        precondition(ram.title.hasPrefix("RAM ") && ram.title != "RAM —", "RAM widget should show a real host-statistics reading")
+        precondition(gpu.title == "GPU —" || gpu.title.range(of: #"^GPU (100|[0-9]{1,2})%$"#, options: .regularExpression) != nil, "GPU widget must show a bounded real reading or unavailable")
+        precondition(board.title == "Board —", "No unidentified temperature sensor may be presented as motherboard temperature")
+        precondition(ram.studioNaturalContentWidth > 0 && gpu.studioNaturalContentWidth > 0 && board.studioNaturalContentWidth > 0)
+        print("SYSTEM METRIC SELF-TEST: \(ram.title), \(gpu.title), \(board.title)")
         let slider = VolumeViewController(identifier:.init("test.volume"))
         precondition((0...100).contains(slider.sliderItem.doubleValue))
+        print("PASS: RAM and GPU widgets read local metrics through the shared sampler; board sensor absence stays explicit; metric format and live widths pass.")
         print("PASS: clock, battery, CPU, focus timer and volume slider initialize with local data; malformed input returns an error without crashing.")
         print("NOT TESTED: physical taps, keyboard delivery, hardware changes, external services, Automation and private system toggles.")
+    }
+
+    private static func runSystemMetricsChecks() {
+        precondition(SystemMetrics.ramPercent(used: nil, total: 100) == nil)
+        precondition(SystemMetrics.ramPercent(used: 0, total: 100) == 0)
+        precondition(SystemMetrics.ramPercent(used: 1, total: 4) == 25)
+        precondition(SystemMetrics.ramPercent(used: 200, total: 100) == 100)
+        precondition(SystemMetrics.ramPercent(used: 1, total: 0) == nil)
+        precondition(SystemMetrics.gpuPercent(nil) == nil)
+        precondition(SystemMetrics.gpuPercent(.nan) == nil && SystemMetrics.gpuPercent(.infinity) == nil)
+        precondition(SystemMetrics.gpuPercent(-1) == nil && SystemMetrics.gpuPercent(101) == nil)
+        precondition(SystemMetrics.gpuPercent(0) == 0 && SystemMetrics.gpuPercent(100) == 100)
+        precondition(SystemMetrics.unsupportedBoardLabel == "Board —")
+        precondition(SystemMetrics.ramUsedBytes(internalPages: 100, purgeablePages: 20, wiredPages: 30, compressedPages: 10, pageSize: 4096) == 491_520)
+        precondition(SystemMetrics.ramUsedBytes(internalPages: 10, purgeablePages: 11, wiredPages: 0, compressedPages: 0, pageSize: 4096) == nil)
+        precondition(SystemMetrics.ramUsedBytes(internalPages: 1, purgeablePages: 0, wiredPages: 0, compressedPages: 0, pageSize: 0) == nil)
+        print("PASS: system metric calculations clamp invalid data and show explicit unavailable sensor values.")
     }
 }

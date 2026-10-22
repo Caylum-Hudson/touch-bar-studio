@@ -31,6 +31,12 @@ extension ItemType {
             return "com.toxblh.mtmr.battery."
         case .cpu(refreshInterval: _):
             return "com.toxblh.mtmr.cpu."
+        case .ramUsage:
+            return "com.toxblh.mtmr.ramUsage."
+        case .gpuUsage:
+            return "com.toxblh.mtmr.gpuUsage."
+        case .boardTemperature:
+            return "com.toxblh.mtmr.boardTemperature."
         case .dock(autoResize: _, filter: _):
             return "com.toxblh.mtmr.dock"
         case .volume:
@@ -569,6 +575,12 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             barItem = BatteryBarItem(identifier: identifier)
         case let .cpu(refreshInterval: refreshInterval):
             barItem = CPUBarItem(identifier: identifier, refreshInterval: refreshInterval)
+        case .ramUsage:
+            barItem = RAMUsageBarItem(identifier: identifier)
+        case .gpuUsage:
+            barItem = GPUUsageBarItem(identifier: identifier)
+        case .boardTemperature:
+            barItem = BoardTemperatureBarItem(identifier: identifier)
         case let .dock(autoResize: autoResize, filter: regexString):
             if let regexString = regexString {
                 guard let regex = try? NSRegularExpression(pattern: regexString, options: []) else {

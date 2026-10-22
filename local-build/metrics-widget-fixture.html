@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Touch Bar Studio metric controls fixture</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #151515; color: #eee; font: 13px system-ui, sans-serif; }
+    header { height: 42px; display: flex; align-items: center; gap: 12px; padding: 0 14px; }
+    header strong { font-weight: 600; }
+    header span { color: #aaa; }
+    header button { margin-left: auto; }
+    iframe { display: block; width: 100%; height: calc(100% - 42px); border: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Isolated metrics fixture</strong>
+    <span>RAM, GPU, and Board in a fresh local editor profile; no MTMR API server is started.</span>
+    <button type="button" id="reset">Reset fixture</button>
+  </header>
+  <iframe title="Touch Bar Studio metrics fixture"></iframe>
+  <script>
+    const items = [
+      {id:'fixture-ram', type:'ramUsage', align:'center'},
+      {id:'fixture-gpu', type:'gpuUsage', align:'center'},
+      {id:'fixture-board', type:'boardTemperature', align:'center'},
+    ];
+    function seedFixture() {
+      localStorage.setItem('touchbar-studio-profiles', JSON.stringify({
+        default: {id:'default', name:'Default', enabled:true, items},
+      }));
+      localStorage.removeItem('mtmr-designer-items');
+      localStorage.removeItem('mtmr-my-presets');
+      localStorage.removeItem('mtmr-auto-load');
+      localStorage.removeItem('studio-settings');
+    }
+    const frame = document.querySelector('iframe');
+    document.getElementById('reset').addEventListener('click', () => {
+      seedFixture();
+      frame.contentWindow.location.reload();
+    });
+    seedFixture();
+    frame.src = '/';
+  </script>
+</body>
+</html>

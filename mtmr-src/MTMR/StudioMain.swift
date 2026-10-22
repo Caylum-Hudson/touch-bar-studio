@@ -4,6 +4,18 @@ import Darwin
 @main
 enum StudioMain {
     static func main() {
+        if CommandLine.arguments.contains("--metrics-diagnostic") {
+            SystemMetrics.startMonitoring(.ram)
+            SystemMetrics.startMonitoring(.gpu)
+            RunLoop.current.run(until:Date().addingTimeInterval(2.2))
+            let sample=SystemMetrics.snapshot()
+            let ram=SystemMetrics.ramPercent(used:sample.ramUsedBytes,total:sample.ramTotalBytes).map { "RAM \($0)%" } ?? "RAM —"
+            let gpu=SystemMetrics.gpuPercent(sample.gpuUtilization).map { "GPU \($0)%" } ?? "GPU —"
+            print("SYSTEM METRICS (local read-only sample): \(ram), \(gpu), \(SystemMetrics.unsupportedBoardLabel)")
+            SystemMetrics.stopMonitoring(.ram)
+            SystemMetrics.stopMonitoring(.gpu)
+            return
+        }
         if CommandLine.arguments.contains("--native-slider-self-test") {
             StudioControlChecks.runNativeSliderChecks()
             return

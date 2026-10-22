@@ -27,6 +27,12 @@ const fixtures=Object.keys(elementTypes).map(key=>{
   assert.ok(fs.statSync(`public/control-icons/${key}.png`).size>100,key);
   return {key,items:JSON.parse(generateJSON([createElement(key)]))};
 });
+for (const key of ['ramUsage','gpuUsage','boardTemperature']) {
+  const fixture=fixtures.find(entry=>entry.key===key);
+  assert.equal(fixture.items[0].type,key,`${key} keeps its native type`);
+  assert.equal(Object.hasOwn(fixture.items[0],'title'),false,`${key} starts without a persisted placeholder title`);
+  assert.equal(parseJSON(JSON.stringify(fixture.items)).items[0].type,key,`${key} type survives editor serialization`);
+}
 assert.equal(fixtures.find(f=>f.key==='dateButton').items[0].formatTemplate,'MMM d');
 assert.equal(fixtures.find(f=>f.key==='dateButton').items[0].type,'timeButton');
 fs.writeFileSync('local-build/control-fixtures.generated.json',JSON.stringify(fixtures));

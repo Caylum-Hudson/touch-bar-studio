@@ -65,6 +65,11 @@ export function widgetContentWidth(item) {
       return Math.max(textWidth(formatTimePreview(format,item.timeZone), true),textWidth(longestDateText(format),true));
     }
     case 'cpu': return textWidth('100.0%', true, 16);
+    // The Studio shell uses 18px metric icons, a 4px gap, and 20px item
+    // padding. Reserve 10px beyond that measured chrome for font variation.
+    case 'ramUsage': return textWidth('RAM 100%', false, 52);
+    case 'gpuUsage': return textWidth('GPU 100%', false, 52);
+    case 'boardTemperature': return textWidth('Board —', false, 52);
     case 'battery': return textWidth('100% 999:59', true, 16);
     case 'weather': return textWidth('☀ 999°F', true, 16);
     case 'yandexWeather': return textWidth('☀ 999°', true, 16);

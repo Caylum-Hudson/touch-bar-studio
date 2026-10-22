@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 — System metrics (source update; native staged verification pending)
+
+- Added native RAM and system-wide GPU usage items to the Studio palette. A single background sampler reads only the requested metric and refreshes every two seconds while RAM or GPU items are in use. The unavailable board item starts no sampler.
+- RAM uses non-purgeable internal + wired + compressed pages over physical memory, with used/total bytes and the exact formula in native item details. GPU reports the busiest device when multiple IOAccelerator devices are present and shows unavailable when the counter is absent.
+- Added a motherboard-temperature library item with an explicit unavailable state on this build. It does not substitute CPU, GPU, PMU, or package temperatures. See [verification](VERIFICATION.md) for the bounded local sensor check and source references.
+- Added worst-case preview width and native metric calculation/absent-sensor checks. Editor labels remain illustrative; physical Touch Bar pixels and interactions still require hardware verification.
+
 ## 0.6.0 — Resolve page layouts (source update; native verification pending)
 
 - Add independent per-page layouts for Resolve profiles, with an explicit profile fallback for pages without a custom layout. A one-time setup creates an app profile from Default and seeds Edit and Color layouts without replacing existing profiles or page layouts.
