@@ -9,7 +9,7 @@
 import Cocoa
 import WebKit
 
-class DesignerWindowController: NSObject, NSWindowDelegate {
+class DesignerWindowController: NSObject, NSWindowDelegate, WKUIDelegate {
     static let shared = DesignerWindowController()
     static let launcher: DesignerWindowController = { let controller = DesignerWindowController(); controller.compact = true; return controller }()
     var compact = false
@@ -59,6 +59,7 @@ class DesignerWindowController: NSObject, NSWindowDelegate {
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.autoresizingMask = [.width, .height]
+        webView.uiDelegate = self
         self.webView = webView
 
         // Create window
@@ -91,6 +92,45 @@ class DesignerWindowController: NSObject, NSWindowDelegate {
 
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // HTML file inputs need an explicit host panel in the embedded editor.
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.canChooseFiles = !parameters.allowsDirectories
+        let complete: (NSApplication.ModalResponse) -> Void = { response in
+            completionHandler(response == .OK ? panel.urls : nil)
+        }
+        if let window = webView.window { panel.beginSheetModal(for:window, completionHandler:complete) }
+        else { panel.begin(completionHandler:complete) }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "Touch Bar Studio"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle:"Continue").keyEquivalent = ""
+        alert.addButton(withTitle:"Cancel").keyEquivalent = "\r"
+        let complete: (NSApplication.ModalResponse) -> Void = { response in
+            completionHandler(response == .alertFirstButtonReturn)
+        }
+        if let window = webView.window { alert.beginSheetModal(for:window, completionHandler:complete) }
+        else { complete(alert.runModal()) }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "Touch Bar Studio"
+        alert.informativeText = message
+        alert.addButton(withTitle:"OK")
+        if let window = webView.window { alert.beginSheetModal(for:window) { _ in completionHandler() } }
+        else { alert.runModal(); completionHandler() }
     }
 
     // MARK: - NSWindowDelegate

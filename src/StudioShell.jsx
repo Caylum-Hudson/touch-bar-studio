@@ -5,6 +5,7 @@ import { createElement } from './data/elementDefinitions';
 import { getPermissionLabel } from './data/controlAvailability';
 import { AppContent } from './App';
 import { generateJSON } from './utils/jsonGenerator';
+import { workspaceImportError } from './utils/workspaceValidation';
 import './StudioShell.css';
 import appMetadata from '../package.json';
 const native = location.protocol === 'mtmr-app:';
@@ -52,6 +53,7 @@ export default function StudioShell() {
   const studioRequestRef=useRef(null);
   const refreshStudioRef=useRef(null);
   const initialStudioLoadedRef=useRef(false);
+  const studioWorkspaceFetchedRef=useRef(false);
   useEffect(()=>{
     if(enabled===null)return;
     setStatus(previous=>previous.startsWith('Custom Touch Bar')?(enabled?'Custom Touch Bar on':'Custom Touch Bar off · macOS controls restored'):previous);
@@ -76,7 +78,9 @@ export default function StudioShell() {
     if(!native)return;
     const refreshStudio=()=>{
       if(studioRequestRef.current)return studioRequestRef.current;
-      const request=api('studio').then(r=>{
+      const includeWorkspace=!studioWorkspaceFetchedRef.current;
+      const request=api(includeWorkspace?'studio':'studio?statusOnly=1').then(r=>{
+        if(includeWorkspace)studioWorkspaceFetchedRef.current=true;
         const loadError=typeof r.workspaceLoadError==='string'?r.workspaceLoadError:'';
         setWorkspaceLoadError(loadError);
         if(!loadError)setWorkspaceReplacementPrepared(false);
@@ -98,7 +102,7 @@ export default function StudioShell() {
     const refreshWhenVisible=()=>{if(document.visibilityState==='visible')refreshOnFocus();};
     window.addEventListener('focus',refreshOnFocus);
     document.addEventListener('visibilitychange',refreshWhenVisible);
-    const timer=setInterval(()=>{refreshStudio().catch(()=>{});if(!document.documentElement.classList.contains('compact-launcher'))api('pending-photos').then(r=>{if(r.photos){setPendingPhotos(r);setTab('Photos');}}).catch(()=>{});},2000);
+    const timer=setInterval(()=>{refreshStudio().catch(()=>{});if(!document.documentElement.classList.contains('compact-launcher'))api('pending-photos').then(r=>{if(r.photos){setPendingPhotos(r);setTab('Photos');}}).catch(e=>setStatus(`Photo import failed: ${e.message}`));},2000);
     const navigate=e=>setTab(e.detail || 'Launcher'); window.addEventListener('studio-tab',navigate);
     return ()=>{clearInterval(timer);window.removeEventListener('studio-tab',navigate);window.removeEventListener('focus',refreshOnFocus);document.removeEventListener('visibilitychange',refreshWhenVisible);refreshStudioRef.current=null;};
   },[]);
@@ -215,7 +219,7 @@ export default function StudioShell() {
       <details className="studio-options"><summary>Studio options <span>{profile?.name||'Default'} profile</span></summary><div className="studio-options-content"><div className="profile-strip">
       {app.profileId!=='default'&&<><input aria-label="Profile name" value={profile.name} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,name:e.target.value}})}/><label><input type="checkbox" checked={profile.enabled} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,enabled:e.target.checked}})}/>Enabled</label><button onClick={()=>{const id=app.profileId;app.switchProfile('default');const p={...app.profiles};delete p[id];app.setProfiles(p);}}>Delete profile</button></>}
       <button onClick={()=>download('touchbar-workspace.json',workspace())}>Export workspace</button><button onClick={()=>importRef.current.click()}>Import workspace</button>
-      <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const file=e.target.files[0];if(!file)return;const w=JSON.parse(await file.text());if(w.version!==1||!w.profiles?.default||Object.values(w.profiles).some(p=>!Array.isArray(p.items)))throw Error('Expected a version 1 workspace with a Default profile.');app.restoreWorkspace(w);if(w.settings)setSettings({...defaults,...w.settings});setWorkspaceReplacementPrepared(true);setStatus('Workspace imported locally. Apply & Save to activate.');e.target.value='';})}/>
+      <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const input=e.target;const file=input.files[0];if(!file)return;try{const w=JSON.parse(await file.text());const error=workspaceImportError(w);if(error)throw Error(error);app.restoreWorkspace(w);if(w.settings)setSettings({...defaults,...w.settings});setWorkspaceReplacementPrepared(true);setStatus('Workspace imported locally. Apply & Save to activate.');}finally{input.value='';}})}/>
       </div></div></details>
       {app.groupPath.length>0&&<div className="submenu-strip"><button onClick={app.leaveGroup}>‹ Back</button><span>{profile?.name||'Default'}{app.groupNames.map((n,i)=><span key={i}> / {n}</span>)}</span>{app.selectedItemId&&<select aria-label="Move selected control" value="" onChange={e=>app.moveItem(app.selectedItemId,e.target.value==='root'?null:e.target.value)}><option value="">Move selected to…</option><option value="root">Root layout</option>{app.items.filter(i=>i.type==='group'&&i.id!==app.selectedItemId).map(i=><option key={i.id} value={i.id}>{i.title||'Submenu'}</option>)}</select>}</div>}
       {profile?.bundleId===RESOLVE_BUNDLE_ID&&!app.resolvePageReady&&app.resolvePageId!=='fallback'?<section className="resolve-page-empty"><h2>No {resolvePages.find(([id])=>id===app.resolvePageId)?.[1]} layout yet</h2><p>The Touch Bar uses the profile fallback layout for that page. Create a separate layout by copying the profile fallback; this will not change other pages.</p><button type="button" className="primary" onClick={()=>createResolvePageLayout(app.resolvePageId)}>Create layout from profile</button></section>:<div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native} keepControlStrip={settings.keepControlStrip===true} updateKeepControlStrip={updateControlStrip} controlStripBusy={controlStripBusy} layoutCapacity={layoutCapacity}><AppContent/></RuntimePermissionsProvider></div>}

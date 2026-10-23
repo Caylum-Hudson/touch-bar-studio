@@ -2,7 +2,7 @@
 
 Touch Bar Studio is a macOS app for designing Touch Bar layouts, switching layouts by app, launching apps and folders, and browsing photos. It builds on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime; upstream history and source notices are retained.
 
-The current source version is **0.8.1**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
+The current source version is **0.8.2**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
 
 ## Edit and apply profiles
 

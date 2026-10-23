@@ -1,5 +1,11 @@
 # Verification — 23 October 2026
 
+## 0.8.2 — Follow-up review
+
+- 33 Node/staging tests, state/reducer checks, 56-entry catalog audit, Vite/native build, application self-tests, read-only widget checks, strict signature verification, and 0.8.2 version checks pass. Scoped lint has zero errors and three existing Hook-dependency warnings. New tests verify malformed restore refusal, profile identifiers, status-only response policy, deadline timing, active Pomodoro release, stopped/superseded/failed photo requests, and bounded icon conversion with alpha/source preservation.
+- Captured before and after build: `workspace.json` and `workspace.previous.json` both retain SHA-256 `2989dbdac5d49260342668ec9b46951cb975c5cd97e50bc78fdace23439c7f38`. No saved layout was rewritten during build verification.
+- Read-only widget sample: RAM 59%, GPU 7%, CPU temperature 73°C; these are momentary readings, not benchmarks. Installed UI review passes: the native file picker opens, malformed workspace controls produce an explicit error and retain all six current controls, and the final build reports Accessibility granted. Four synthetic images under `/private/tmp/tbs-photo-review-ui` loaded; filename filtering returned one result and the selected image rendered its thumbnail with 1200×800 dimensions and 1.500 ratio. No Apply & Save was used. Post-UI workspace hashes remain identical to the prebuild hash. The [rejected-import screenshot](docs/screenshots/rejected-import-0.8.2.png) shows the editor UI, not physical Touch Bar pixels. See the [follow-up report](docs/reviews/0.8.2-code-review.md).
+
 ## 0.8.1 — Workspace safety and runtime cleanup (installed app verified)
 
 - The final local 0.8.1 build passed state/catalog source checks, the 29-test frontend suite, Vite build, Swift compilation, the full native self-test, the 20-cycle read-only widget lifecycle test, the 56-entry control audit, and read-only widget/system-metric checks. Strict signature verification passes; both source and installed bundle report 0.8.1.

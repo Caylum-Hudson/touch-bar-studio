@@ -41,6 +41,7 @@ class PomodoroBarItem: CustomButtonTouchBarItem, Widget {
     private let restTime: TimeInterval
     private var typeTime: TimeTypes = .none
     private var timer: DispatchSourceTimer?
+    private var deadline: Date?
 
     private var timeLeft: Int = 0
     private var timeLeftString: String {
@@ -78,18 +79,24 @@ class PomodoroBarItem: CustomButtonTouchBarItem, Widget {
     }
 
     func startStopTimer() {
-        timer == nil ? start() : reset()
+        timer == nil ? start(beep:true) : reset()
     }
 
-    private func start() {
-        timeLeft = Int(typeTime == .work ? workTime : restTime)
-        let queue: DispatchQueue = DispatchQueue(label: "Timer")
-        timer = DispatchSource.makeTimerSource(flags: .strict, queue: queue)
-        timer?.schedule(deadline: .now(), repeating: .seconds(1), leeway: .never)
-        timer?.setEventHandler(handler: tick)
+    // Used by the lifecycle self-test to exercise cancellation without
+    // beeping or waiting for a notification interval to complete.
+    func startTimerForLifecycleCheck() {
+        typeTime = .work
+        start(beep:false)
+    }
+
+    private func start(beep: Bool) {
+        deadline=Date().addingTimeInterval(typeTime == .work ? workTime : restTime)
+        timer = DispatchSource.makeTimerSource(queue: .main)
+        timer?.schedule(deadline: .now(), repeating: .seconds(1), leeway: .milliseconds(100))
+        timer?.setEventHandler { [weak self] in self?.tick() }
         timer?.resume()
 
-        NSSound.beep()
+        if beep { NSSound.beep() }
     }
 
     private func finish() {
@@ -102,20 +109,24 @@ class PomodoroBarItem: CustomButtonTouchBarItem, Widget {
 
     private func reset() {
         typeTime = .none
+        deadline = nil
         timer?.cancel()
         timer = nil
         title = defaultTitle
     }
 
     private func tick() {
-        timeLeft -= 1
-        DispatchQueue.main.async {
-            if self.timeLeft >= 0 {
-                self.title = self.timeLeftString
-            } else {
-                self.finish()
-            }
+        guard timer != nil, let deadline else { return }
+        timeLeft = Self.remainingSeconds(deadline:deadline,now:Date())
+        if timeLeft > 0 {
+            title = timeLeftString
+        } else {
+            finish()
         }
+    }
+
+    static func remainingSeconds(deadline: Date, now: Date) -> Int {
+        max(0,Int(ceil(deadline.timeIntervalSince(now))))
     }
 
     private func sendNotification() {

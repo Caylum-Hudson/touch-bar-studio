@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2 — Import validation and bounded photo work
+
+- Validate every imported profile and Resolve layout before restoring editor state; reject malformed controls instead of silently replacing them with empty layouts. Enabled app profiles require bundle identifiers, and nil frontmost app identifiers use Default.
+- Run photo metadata and thumbnail work on a two-operation queue with cooperative cancellation. Stopped WebKit requests receive no callbacks; only the latest successful scan installs its map, while failed scans preserve the previous map. Selected icons downsample through ImageIO to at most 512px; photo thumbnails remain bounded to 420px.
+- Provide native file-picker and confirmation/alert delegates for the embedded editor; imports can select files and workspace replacement requires an explicit Continue decision. Cancel remains the default.
+- Release Pomodoro timers with removed widgets, compute remaining time from a deadline, and permit 100ms timer leeway. After initial workspace loading, periodic status responses omit the unchanged workspace payload.
+- 33 Node/staging tests, state/catalog checks, native build/self-tests, read-only widget checks, and strict signing pass. Installed UI review confirms a working native import picker, rejected malformed controls with all six current controls preserved, synthetic-photo loading/filtering/thumbnails, and Accessibility granted. Saved workspace hashes remain unchanged. See [review](docs/reviews/0.8.2-code-review.md) and [verification](VERIFICATION.md).
+
 ## 0.8.1 — Workspace safety and runtime cleanup (installed build verified)
 
 - Report unreadable workspace files in Studio, require an explicit import or replacement decision, preserve the original bytes and prior valid backup, and enforce the guard in the native save API. Reject duplicate enabled app-profile bundle IDs.

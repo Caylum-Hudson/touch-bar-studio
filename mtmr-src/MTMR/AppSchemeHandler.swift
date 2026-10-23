@@ -9,14 +9,46 @@
 import Cocoa
 import WebKit
 
+enum StudioWorkspaceResponsePolicy {
+    static func includesWorkspace(method: String, statusOnly: Bool) -> Bool {
+        method != "GET" || !statusOnly
+    }
+}
+
+private final class PhotoRequestCancellation {
+    private let lock=NSLock()
+    private var workCancelled=false
+    private var stopped=false
+    let isScan: Bool
+    init(isScan: Bool = false) { self.isScan=isScan }
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return workCancelled || stopped }
+    var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
+    func cancelWork() { lock.lock(); workCancelled=true; lock.unlock() }
+    func cancel() { lock.lock(); workCancelled=true; stopped=true; lock.unlock() }
+}
+
 class AppSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "mtmr-app"
 
     private let webRoot: URL
+    private let photoQueue: OperationQueue = {
+        let queue=OperationQueue()
+        queue.name="TouchBarStudio.PhotoIO"
+        queue.maxConcurrentOperationCount=2
+        queue.qualityOfService = .userInitiated
+        return queue
+    }()
+    private var photoRequests: [ObjectIdentifier:PhotoRequestCancellation] = [:]
+    private var latestPhotoScan: UInt64 = 0
 
     init(webRoot: URL) {
         self.webRoot = webRoot
         super.init()
+    }
+
+    deinit {
+        photoRequests.values.forEach { $0.cancel() }
+        photoQueue.cancelAllOperations()
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
@@ -77,7 +109,12 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
                 let controller=TouchBarController.shared
                 let runtimeProfile=(store.workspace["profiles"] as? [String:[String:Any]])?[store.activeProfile]
                 let runtimeLayouts=runtimeProfile?["resolvePageLayouts"] as? [String:[[String:Any]]]
-                var response: [String: Any] = ["success": true,"workspace":store.apiWorkspace,"workspaceLoadError":store.workspaceLoadError.map { $0 as Any } ?? NSNull(),"activeProfile":store.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState,"frontmostBundleId":controller.frontmostApplicationIdentifier.map { $0 as Any } ?? NSNull(),"activeResolvePage":store.activeResolvePage.map { $0 as Any } ?? NSNull(),"resolvePageOverride":controller.resolvePageOverride.map { $0 as Any } ?? NSNull(),"resolvePageMode":controller.resolvePageOverride == nil ? "automatic" : "manual","resolvePageDetection":store.resolvePageDetectionStatus,"activeResolvePageFallback":store.activeResolvePage.map { runtimeLayouts?[$0] == nil } ?? false]
+                let query=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
+                let statusOnly=query.contains { $0.name == "statusOnly" && $0.value == "1" }
+                var response: [String: Any] = ["success": true,"workspaceLoadError":store.workspaceLoadError.map { $0 as Any } ?? NSNull(),"activeProfile":store.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState,"frontmostBundleId":controller.frontmostApplicationIdentifier.map { $0 as Any } ?? NSNull(),"activeResolvePage":store.activeResolvePage.map { $0 as Any } ?? NSNull(),"resolvePageOverride":controller.resolvePageOverride.map { $0 as Any } ?? NSNull(),"resolvePageMode":controller.resolvePageOverride == nil ? "automatic" : "manual","resolvePageDetection":store.resolvePageDetectionStatus,"activeResolvePageFallback":store.activeResolvePage.map { runtimeLayouts?[$0] == nil } ?? false]
+                if StudioWorkspaceResponsePolicy.includesWorkspace(method:taskMethod(urlSchemeTask),statusOnly:statusOnly) {
+                    response["workspace"] = store.apiWorkspace
+                }
                 response["layoutCapacity"] = controller.studioLayoutCapacity.map { $0 as Any } ?? NSNull()
                 StudioPermissions.statusFields.forEach { response[$0.key] = $0.value }
                 respondJSON(urlSchemeTask,dict:response)
@@ -130,15 +167,16 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
             if selected.isEmpty { respondJSON(urlSchemeTask,dict:["success":true]); return }
             var isDirectory: ObjCBool = false
             if selected.count == 1, FileManager.default.fileExists(atPath:selected[0],isDirectory:&isDirectory),isDirectory.boolValue {
-                var result = StudioStore.shared.photos(folder:selected[0]); result["folder"] = selected[0]; respondJSON(urlSchemeTask,dict:result)
+                startPhotoScan(urlSchemeTask,folder:selected[0],selected:nil,folderLabel:selected[0])
             } else {
-                var result = StudioStore.shared.photos(folder:"",selected:selected); result["folder"] = "Selected Finder photos"; respondJSON(urlSchemeTask,dict:result)
+                startPhotoScan(urlSchemeTask,folder:"",selected:selected,folderLabel:"Selected Finder photos")
             }
             return
         }
-        if path == "/api/photos" { respondJSON(urlSchemeTask,dict:StudioStore.shared.photos(folder:value("folder"))); return }
+        if path == "/api/photos" { startPhotoScan(urlSchemeTask,folder:value("folder"),selected:nil,folderLabel:value("folder")); return }
         if path == "/api/thumbnail" {
-            if let data = StudioStore.shared.thumbnail(id:value("id")) { respond(urlSchemeTask,data:data,mimeType:"image/jpeg",statusCode:200) } else { respond(urlSchemeTask,data:Data(),mimeType:"text/plain",statusCode:404) }; return
+            guard let photoURL=StudioStore.shared.photoFiles[value("id")] else { respond(urlSchemeTask,data:Data(),mimeType:"text/plain",statusCode:404); return }
+            startThumbnail(urlSchemeTask,url:photoURL); return
         }
         if path == "/api/open" {
             let path = value("path")
@@ -154,7 +192,52 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
-        // No-op: requests complete synchronously or on the main queue
+        photoRequests.removeValue(forKey:ObjectIdentifier(urlSchemeTask))?.cancel()
+    }
+
+    func startPhotoScan(_ task: WKURLSchemeTask, folder: String, selected: [String]?, folderLabel: String) {
+        let taskID=ObjectIdentifier(task)
+        photoRequests.values.filter(\.isScan).forEach { $0.cancelWork() }
+        let cancellation=PhotoRequestCancellation(isScan:true)
+        photoRequests[taskID]=cancellation
+        latestPhotoScan &+= 1
+        let generation=latestPhotoScan
+        photoQueue.addOperation { [weak self, weak task] in
+            let result=StudioStore.scanPhotos(folder:folder,selected:selected,shouldCancel:{ cancellation.isCancelled })
+            DispatchQueue.main.async {
+                guard let self, self.photoRequests[taskID] === cancellation else { return }
+                self.photoRequests.removeValue(forKey:taskID)
+                guard !cancellation.isStopped, let task else { return }
+                guard generation == self.latestPhotoScan else {
+                    self.respondJSON(task,dict:["success":false,"error":"A newer photo scan replaced this request."],statusCode:409)
+                    return
+                }
+                guard result.response["success"] as? Bool == true else {
+                    self.respondJSON(task,dict:result.response,statusCode:400)
+                    return
+                }
+                StudioStore.shared.photoFiles=result.files
+                var response=result.response
+                response["folder"]=folderLabel
+                self.respondJSON(task,dict:response)
+            }
+        }
+    }
+
+    private func startThumbnail(_ task: WKURLSchemeTask, url: URL) {
+        let taskID=ObjectIdentifier(task)
+        let cancellation=PhotoRequestCancellation()
+        photoRequests[taskID]=cancellation
+        photoQueue.addOperation { [weak self, weak task] in
+            let data=cancellation.isCancelled ? nil : StudioStore.thumbnail(at:url)
+            DispatchQueue.main.async {
+                guard let self, self.photoRequests[taskID] === cancellation else { return }
+                self.photoRequests.removeValue(forKey:taskID)
+                guard !cancellation.isStopped, let task else { return }
+                if let data { self.respond(task,data:data,mimeType:"image/jpeg",statusCode:200) }
+                else { self.respond(task,data:Data(),mimeType:"text/plain",statusCode:404) }
+            }
+        }
     }
 
     private func taskMethod(_ task: WKURLSchemeTask) -> String { task.request.httpMethod ?? "GET" }

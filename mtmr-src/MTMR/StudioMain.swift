@@ -49,6 +49,8 @@ enum StudioMain {
                 print("UNAVAILABLE: scoped compact overlay; normal AppKit presenter remains the fallback.")
             }
             StudioControlChecks.runFocusRefreshPolicyChecks()
+            StudioControlChecks.runStudioPolicyChecks()
+            StudioControlChecks.runPhotoRequestCancellationChecks()
             StudioControlChecks.runWidgetLifecycleChecks()
             StudioControlChecks.runDockAutoResizeChecks()
             StudioControlChecks.runDockPreviewCacheChecks()
@@ -85,6 +87,13 @@ enum StudioMain {
             } catch {
                 precondition(error.localizedDescription.contains("unique bundle identifiers"))
             }
+            do {
+                try StudioStore.validateUniqueProfileBundleIdentifiers(["default":["items":[]],"missing":["enabled":true,"items":[]]])
+                fatalError("Enabled app profiles without bundle identifiers must be rejected")
+            } catch {
+                precondition(error.localizedDescription.contains("need a bundle identifier"))
+            }
+            try! StudioStore.validateUniqueProfileBundleIdentifiers(["default":["items":[]],"disabled":["enabled":false,"items":[]]])
             let unreadableBackup=try! StudioStore.preserveWorkspaceBeforeReplacement(file:workspaceTestFile,directory:workspaceTestDirectory)
             precondition(unreadableBackup?.lastPathComponent.hasPrefix("workspace.unreadable-") == true)
             precondition((try! Data(contentsOf:unreadableBackup!)) == corruptBytes)
@@ -95,8 +104,26 @@ enum StudioMain {
             precondition(validBackup == previousBackup)
             precondition(try! JSONSerialization.jsonObject(with:Data(contentsOf:previousBackup)) is [String:Any])
             print("PASS: unreadable workspace bytes and the prior valid backup are preserved separately before replacement.")
+            let imageFixtureDirectory=FileManager.default.temporaryDirectory.appendingPathComponent("TouchBarStudio-photo-selftest-\(UUID().uuidString)")
+            try! FileManager.default.createDirectory(at:imageFixtureDirectory,withIntermediateDirectories:true)
+            defer { try? FileManager.default.removeItem(at:imageFixtureDirectory) }
+            let largeImage=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:1800,pixelsHigh:1200,bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bitmapFormat:[],bytesPerRow:0,bitsPerPixel:0)!
+            let imageURL=imageFixtureDirectory.appendingPathComponent("fixture.png")
+            let sourcePNG=largeImage.representation(using:.png,properties:[:])!
+            try! sourcePNG.write(to:imageURL)
+            let thumbnailPNG=StudioStore.thumbnailPNG(at:imageURL)!
+            let boundedImage=NSBitmapImageRep(data:thumbnailPNG)!
+            precondition(max(boundedImage.pixelsWide,boundedImage.pixelsHigh)<=512 && boundedImage.hasAlpha)
+            precondition((try! Data(contentsOf:imageURL))==sourcePNG,"Thumbnail generation must preserve the original image file")
+            let photoScan=StudioStore.scanPhotos(folder:imageFixtureDirectory.path)
+            precondition(photoScan.response["success"] as? Bool == true && (photoScan.response["photos"] as? [[String:Any]])?.count == 1 && photoScan.files.count == 1)
+            let cancelledPhotoScan=StudioStore.scanPhotos(folder:imageFixtureDirectory.path,shouldCancel:{true})
+            precondition(cancelledPhotoScan.response["success"] as? Bool == false && cancelledPhotoScan.files.isEmpty)
+            print("PASS: image icon conversion is bounded to 512px with alpha and source preservation; photo scan cancellation is cooperative.")
             let store = StudioStore.shared
             store.workspace = ["version":1,"profiles":["default":["items":[["type":"staticButton","title":"Default"]]],"finder":["bundleId":"com.apple.finder","enabled":true,"items":[["type":"group","title":"Finder","items":[["type":"staticButton","title":"Nested"]]]]]]]
+            _ = store.selectedItems(bundle:nil)
+            precondition(store.activeProfile == "default", "A nil frontmost bundle identifier must always select Default")
             let matched = store.selectedItems(bundle:"com.apple.finder")!
             precondition(store.activeProfile == "finder" && matched.count == 1)
             if case let .group(items:children) = matched[0].type { precondition(children.count == 1) } else { fatalError("Missing nested group") }

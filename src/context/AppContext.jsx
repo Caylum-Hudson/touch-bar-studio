@@ -2,6 +2,7 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, useState } from 'react';
 import { createElement, getElementDefinition } from '../data/elementDefinitions';
 import { generateJSON, parseJSON } from '../utils/jsonGenerator';
+import { restoreWorkspaceProfiles } from '../utils/workspaceValidation';
 import {spacingGap,nextSpacedPosition,itemWidth} from '../utils/positionLayout';
 import { loadFromMTMR as loadFromMTMRFile, saveToMTMR as saveToMTMRFile, isServerRunning } from '../utils/mtmrFileSystem';
 
@@ -114,7 +115,8 @@ function appReducer(state, action) {
   }
   if (action.type === 'PROFILE_SET') return {...state, profiles:action.payload};
   if (action.type === 'WORKSPACE_LOAD') {
-    const profiles = Object.fromEntries(Object.entries(action.payload.profiles).map(([id,p])=>[id,{...p,items:parseJSON(JSON.stringify(p.items)).items,...(p.resolvePageLayouts?{resolvePageLayouts:Object.fromEntries(Object.entries(p.resolvePageLayouts).map(([page,items])=>[page,parseJSON(JSON.stringify(items)).items]))}:{})}]));
+    const profiles = restoreWorkspaceProfiles(action.payload);
+    if (!profiles) return state;
     return {...state, profiles, profileId:'default', resolvePageId:'fallback', resolvePageReady:true, items: profiles.default.items, selectedItemId:null, history:{past:[],future:[]}};
   }
   if (['ADD_ITEM', 'REMOVE_ITEM', 'UPDATE_ITEM', 'ADD_ITEM_TO_GROUP', 'REMOVE_ITEM_FROM_GROUP', 'REORDER_GROUP_ITEMS', 'UPDATE_GROUP_ITEM'].includes(action.type)) {

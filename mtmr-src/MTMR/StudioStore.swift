@@ -44,10 +44,13 @@ final class StudioStore {
     }
 
     static func validateUniqueProfileBundleIdentifiers(_ profiles: [String:[String:Any]]) throws {
-        let bundleIdentifiers = profiles.compactMap { key, profile -> String? in
-            guard key != "default", profile["enabled"] as? Bool != false,
-                  let bundleIdentifier = profile["bundleId"] as? String, !bundleIdentifier.isEmpty else { return nil }
-            return bundleIdentifier
+        var bundleIdentifiers: [String] = []
+        for (key, profile) in profiles where key != "default" && profile["enabled"] as? Bool != false {
+            guard let bundleIdentifier = profile["bundleId"] as? String,
+                  !bundleIdentifier.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else {
+                throw NSError(domain:"Studio",code:8,userInfo:[NSLocalizedDescriptionKey:"Enabled app profiles need a bundle identifier."])
+            }
+            bundleIdentifiers.append(bundleIdentifier)
         }
         guard Set(bundleIdentifiers).count == bundleIdentifiers.count else {
             throw NSError(domain:"Studio",code:7,userInfo:[NSLocalizedDescriptionKey:"Enabled app profiles must use unique bundle identifiers."])
@@ -146,7 +149,9 @@ final class StudioStore {
             let starter: [[String:Any]] = [["type":"escape"],["type":"timeButton","formatTemplate":"HH:mm"],["type":"group","title":"Audio","items":[["type":"volumeDown"],["type":"volumeUp"],["type":"mute"]]],["type":"volumeDown"],["type":"volumeUp"]]
             return (try? JSONSerialization.data(withJSONObject:starter))?.barItemDefinitions()
         }
-        let matching = profiles.first { $0.key != "default" && $0.value["bundleId"] as? String == bundle && $0.value["enabled"] as? Bool != false }
+        let matching = bundle.flatMap { bundleIdentifier in
+            profiles.first { $0.key != "default" && $0.value["bundleId"] as? String == bundleIdentifier && $0.value["enabled"] as? Bool != false }
+        }
         activeProfile = matching?.key ?? "default"
         let matchingProfile = matching?.value
         let selectedProfile = matchingProfile ?? profiles["default"]
@@ -170,27 +175,56 @@ final class StudioStore {
         guard panel.runModal() == .OK, let url = panel.url else { return ["success":true,"cancelled":true] }
         var result: [String:Any] = ["success":true,"path":url.path,"name":url.deletingPathExtension().lastPathComponent]
         if kind == "app" { result["bundleId"] = Bundle(url:url)?.bundleIdentifier }
-        if kind == "image", let image = NSImage(contentsOf:url), let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data:tiff), let png = rep.representation(using:.png,properties:[:]) { result["image"] = "data:image/png;base64," + png.base64EncodedString() }
+        if kind == "image", let png = Self.thumbnailPNG(at:url) { result["image"] = "data:image/png;base64," + png.base64EncodedString() }
         return result
     }
+
+    static func thumbnailPNG(at url: URL, maxPixelSize: Int = 512) -> Data? {
+        guard maxPixelSize > 0,
+              let source = CGImageSourceCreateWithURL(url as CFURL,nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source,0,[
+                kCGImageSourceCreateThumbnailFromImageAlways:true,
+                kCGImageSourceThumbnailMaxPixelSize:maxPixelSize,
+                kCGImageSourceCreateThumbnailWithTransform:true
+              ] as CFDictionary) else { return nil }
+        return NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:])
+    }
     func photos(folder: String, selected: [String]? = nil) -> [String:Any] {
+        let result = Self.scanPhotos(folder:folder,selected:selected)
+        if result.response["success"] as? Bool == true { photoFiles = result.files }
+        return result.response
+    }
+
+    static func scanPhotos(folder: String, selected: [String]? = nil, shouldCancel: () -> Bool = { false }) -> (response: [String:Any], files: [String:URL]) {
         let url = URL(fileURLWithPath:folder)
         do {
             let files = try selected.map { $0.map { URL(fileURLWithPath:$0) } } ?? FileManager.default.contentsOfDirectory(at:url,includingPropertiesForKeys:[.contentModificationDateKey],options:.skipsHiddenFiles)
-            photoFiles = [:]
+            var photoFiles: [String:URL] = [:]
             var output: [[String:Any]] = []
             for file in files where ["jpg","jpeg","png","heic","tif","tiff","webp","gif"].contains(file.pathExtension.lowercased()) {
-                guard let source = CGImageSourceCreateWithURL(file as CFURL,nil), let props = CGImageSourceCopyPropertiesAtIndex(source,0,nil) as? [String:Any] else { continue }
+                if shouldCancel() { return (["success":false,"error":"Photo scan cancelled."],[:]) }
+                let dimensions: (Any,Any)? = autoreleasepool {
+                    guard let source=CGImageSourceCreateWithURL(file as CFURL,nil),
+                          let properties=CGImageSourceCopyPropertiesAtIndex(source,0,nil) as? [String:Any],
+                          let width=properties[kCGImagePropertyPixelWidth as String],
+                          let height=properties[kCGImagePropertyPixelHeight as String] else { return nil }
+                    return (width,height)
+                }
+                guard let dimensions else { continue }
                 let id = UUID().uuidString
                 photoFiles[id] = file
                 let date = (try? file.resourceValues(forKeys:[.contentModificationDateKey]))?.contentModificationDate
-                output.append(["id":id,"name":file.lastPathComponent,"type":file.pathExtension.lowercased(),"width":props[kCGImagePropertyPixelWidth as String] ?? 0,"height":props[kCGImagePropertyPixelHeight as String] ?? 0,"date":date.map { ISO8601DateFormatter().string(from:$0) } ?? ""])
+                output.append(["id":id,"name":file.lastPathComponent,"type":file.pathExtension.lowercased(),"width":dimensions.0,"height":dimensions.1,"date":date.map { ISO8601DateFormatter().string(from:$0) } ?? ""])
             }
-            return ["success":true,"photos":output.sorted { ($0["name"] as? String ?? "") < ($1["name"] as? String ?? "") }]
-        } catch { return ["success":false,"error":error.localizedDescription] }
+            return (["success":true,"photos":output.sorted { ($0["name"] as? String ?? "") < ($1["name"] as? String ?? "") }],photoFiles)
+        } catch { return (["success":false,"error":error.localizedDescription],[:]) }
     }
     func thumbnail(id: String) -> Data? {
-        guard let url = photoFiles[id], let source = CGImageSourceCreateWithURL(url as CFURL,nil), let cg = CGImageSourceCreateThumbnailAtIndex(source,0,[kCGImageSourceCreateThumbnailFromImageAlways:true,kCGImageSourceThumbnailMaxPixelSize:420,kCGImageSourceCreateThumbnailWithTransform:true] as CFDictionary) else { return nil }
+        guard let url = photoFiles[id] else { return nil }
+        return Self.thumbnail(at:url)
+    }
+    static func thumbnail(at url: URL) -> Data? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL,nil), let cg = CGImageSourceCreateThumbnailAtIndex(source,0,[kCGImageSourceCreateThumbnailFromImageAlways:true,kCGImageSourceThumbnailMaxPixelSize:420,kCGImageSourceCreateThumbnailWithTransform:true] as CFDictionary) else { return nil }
         return NSBitmapImageRep(cgImage:cg).representation(using:.jpeg,properties:[.compressionFactor:0.8])
     }
 }

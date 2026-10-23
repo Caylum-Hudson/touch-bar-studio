@@ -20,8 +20,11 @@ reducer({type:'MOVE_ITEM',payload:{id:'outer',target:'inner'}});assert.equal(JSO
 reducer({type:'PROFILE_SET',payload:{...s.profiles,test:{id:'test',name:'Finder',bundleId:'com.apple.finder',enabled:true,items:[{id:'finder',type:'escape'}]}}});
 reducer({type:'PROFILE_SWITCH',payload:'test'});assert.equal(s.items[0].id,'finder');
 reducer({type:'PROFILE_SWITCH',payload:'default'});assert.equal(JSON.stringify(s.items),before);
-reducer({type:'WORKSPACE_LOAD',payload:{profiles:{default:{items:[{type:'group',future:{x:7},items:[{type:'staticButton',title:'restored'}]}]}}}});
+reducer({type:'WORKSPACE_LOAD',payload:{version:1,profiles:{default:{items:[{type:'group',future:{x:7},items:[{type:'staticButton',title:'restored'}]}]}}}});
 assert.ok(s.items[0].id);assert.ok(s.items[0].items[0].id);assert.equal(s.items[0].future.x,7);
+const validWorkspaceState=s;
+reducer({type:'WORKSPACE_LOAD',payload:{version:1,profiles:{default:{items:[{}]}}}});
+assert.equal(s,validWorkspaceState,'Malformed workspace restore must preserve the complete editor state');
 const {parseJSON,generateJSON}=await import('../src/utils/jsonGenerator.js');
 const resolveFallback=[{id:'fallback',type:'staticButton',title:'Fallback'}];
 const resolveEdit=[{id:'edit',type:'staticButton',title:'Edit'}];

@@ -1,5 +1,18 @@
 import Cocoa
 import ApplicationServices
+import WebKit
+
+private final class RecordingURLSchemeTask: NSObject, WKURLSchemeTask {
+    let request: URLRequest
+    private(set) var callbackCount=0
+    private(set) var statusCode: Int?
+    private(set) var finished=false
+    init(url: URL) { request=URLRequest(url:url) }
+    func didReceive(_ response: URLResponse) { callbackCount += 1; statusCode=(response as? HTTPURLResponse)?.statusCode }
+    func didReceive(_ data: Data) { callbackCount += 1 }
+    func didFinish() { callbackCount += 1; finished=true }
+    func didFailWithError(_ error: Error) { callbackCount += 1 }
+}
 
 struct ResolvePageCheckboxSnapshot {
     let role: String
@@ -108,10 +121,59 @@ enum StudioControlChecks {
             precondition(objectReleasesAfterScope { NightShiftBarItem(identifier:.init("lifecycle.nightshift.\(iteration)")) })
             precondition(objectReleasesAfterScope { DnDBarItem(identifier:.init("lifecycle.dnd.\(iteration)")) })
             precondition(objectReleasesAfterScope { VolumeViewController(identifier:.init("lifecycle.volume.\(iteration)")) })
+            precondition(objectReleasesAfterScope {
+                let item=PomodoroBarItem(identifier:.init("lifecycle.pomodoro.\(iteration)"),workTime:1500,restTime:300)
+                item.startTimerForLifecycleCheck()
+                return item
+            })
             precondition(batteryContextReleasesAfterStop())
             precondition(objectReleasesAfterScope { NetworkBarItem(identifier:.init("lifecycle.network.\(iteration)"),units:"B/s") })
         }
         print("PASS: 20 read-only widget lifecycle cycles release timers, audio listeners, battery callback contexts, and owned network monitors.")
+    }
+
+    static func runStudioPolicyChecks() {
+        precondition(StudioWorkspaceResponsePolicy.includesWorkspace(method:"GET",statusOnly:false))
+        precondition(!StudioWorkspaceResponsePolicy.includesWorkspace(method:"GET",statusOnly:true))
+        precondition(StudioWorkspaceResponsePolicy.includesWorkspace(method:"POST",statusOnly:true))
+        let deadline=Date(timeIntervalSince1970:10_000)
+        precondition(PomodoroBarItem.remainingSeconds(deadline:deadline,now:Date(timeIntervalSince1970:9_997.2))==3)
+        precondition(PomodoroBarItem.remainingSeconds(deadline:deadline,now:Date(timeIntervalSince1970:10_000))==0)
+        print("PASS: status-only polling omits workspace data; Pomodoro deadline math tolerates delayed timer ticks.")
+    }
+
+    static func runPhotoRequestCancellationChecks() {
+        _ = NSApplication.shared
+        let directory=FileManager.default.temporaryDirectory.appendingPathComponent("TouchBarStudio-photo-task-selftest-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
+        defer { try? FileManager.default.removeItem(at:directory) }
+        let bitmap=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:4,pixelsHigh:4,bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bitmapFormat:[],bytesPerRow:0,bitsPerPixel:0)!
+        try! bitmap.representation(using:.png,properties:[:])!.write(to:directory.appendingPathComponent("fixture.png"))
+        let handler=AppSchemeHandler(webRoot:directory)
+        let stopped=RecordingURLSchemeTask(url:URL(string:"mtmr-app://app/api/photos")!)
+        handler.startPhotoScan(stopped,folder:directory.path,selected:nil,folderLabel:directory.path)
+        handler.webView(WKWebView(frame:.zero),stop:stopped)
+        let stale=RecordingURLSchemeTask(url:URL(string:"mtmr-app://app/api/photos")!)
+        let latest=RecordingURLSchemeTask(url:URL(string:"mtmr-app://app/api/photos")!)
+        handler.startPhotoScan(stale,folder:directory.path,selected:nil,folderLabel:directory.path)
+        handler.startPhotoScan(latest,folder:directory.path,selected:nil,folderLabel:directory.path)
+        let scanTimeout=Date().addingTimeInterval(2)
+        while (!stale.finished || !latest.finished) && Date()<scanTimeout { RunLoop.current.run(until:Date().addingTimeInterval(0.01)) }
+        precondition(stopped.callbackCount==0,"A stopped WebKit task must receive no late callbacks")
+        precondition(stale.finished && stale.statusCode==409,"A superseded scan must finish as stale without installing its map")
+        precondition(latest.finished && latest.statusCode==200,"The latest successful scan must complete")
+        precondition(!StudioStore.shared.photoFiles.isEmpty)
+        precondition(StudioStore.shared.photoFiles.values.allSatisfy{$0.deletingLastPathComponent().standardizedFileURL.path==directory.standardizedFileURL.path})
+        let installedFiles=StudioStore.shared.photoFiles
+        let failed=RecordingURLSchemeTask(url:URL(string:"mtmr-app://app/api/photos")!)
+        handler.startPhotoScan(failed,folder:directory.appendingPathComponent("missing").path,selected:nil,folderLabel:"missing")
+        let timeout=Date().addingTimeInterval(2)
+        while !failed.finished && Date()<timeout { RunLoop.current.run(until:Date().addingTimeInterval(0.01)) }
+        precondition(failed.finished && failed.statusCode==400)
+        precondition(StudioStore.shared.photoFiles==installedFiles,"A failed asynchronous scan must preserve the previous photo map")
+        _ = StudioStore.shared.photos(folder:directory.appendingPathComponent("missing").path)
+        precondition(StudioStore.shared.photoFiles==installedFiles,"A failed synchronous scan must preserve the previous photo map")
+        print("PASS: stopped photo tasks receive no callbacks; only the latest successful scan installs a map; failed scans preserve the previous map.")
     }
 
     private static func objectReleasesAfterScope<T: AnyObject>(_ create: () -> T) -> Bool {
