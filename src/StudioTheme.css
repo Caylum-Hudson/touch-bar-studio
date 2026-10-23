@@ -42,6 +42,9 @@
 .studio-shell .preview-projected .touchbar-custom-region{box-sizing:border-box;overflow:hidden}
 .studio-shell .preview-projected .positioned-control{top:0;height:30px}
 .studio-shell .preview-projected .positioned-control .touchbar-item{height:30px;min-height:0;padding:2px 4px}
+.studio-shell .preview-projected .positioned-control .touchbar-item:is(.type-timeButton,.type-systemMonitor){gap:6px}
+.studio-shell .preview-projected .positioned-control .touchbar-item:is(.type-timeButton,.type-systemMonitor) .touchbar-item-title{font-size:15px;font-weight:400;letter-spacing:0}
+.studio-shell .preview-projected .positioned-control .touchbar-item.type-systemMonitor .touchbar-icon.control-icon{width:20px;height:20px;font-size:20px}
 .studio-shell .preview-native-navigation{position:absolute;inset:0 auto 0 0;display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;padding-right:8px;z-index:1;background:#080b12}
 .studio-shell .preview-native-navigation span{display:flex;align-items:center;justify-content:center;height:28px;box-sizing:border-box;border-radius:5px;background:#252a38;color:#f0f3fc;font-size:11px;white-space:nowrap;overflow:hidden}
 .studio-shell .touchbar-item.selected{box-shadow:0 0 0 2px var(--studio-accent),0 0 0 4px var(--studio-accent-soft)}

@@ -6,6 +6,7 @@ import {RuntimePermissionsProvider} from '../src/context/RuntimePermissions';
 import TouchBar from '../src/components/TouchBar/TouchBar';
 import PropertiesPanel from '../src/components/Properties/PropertiesPanel';
 import '../src/StudioShell.css';
+import '../src/StudioTheme.css';
 
 const legacy=[
   {id:'cpu',type:'cpu',width:64,align:'left',studioPosition:96},

@@ -1,7 +1,7 @@
 import {systemMonitorPreview} from './systemMonitor.js';
 
 const DATE_TOKENS = {
-  EEEE: 'Wednesday', EEE: 'Wednesday', MMMM: 'September', MMM: 'September',
+  EEEE: 'Wednesday', EEE: 'Wed', MMMM: 'September', MMM: 'Sep',
   yyyy: '8888', yy: '88', MM: '12', M: '12', dd: '31', d: '31',
   HH: '23', H: '23', hh: '12', h: '12', mm: '59', ss: '59', aa: 'PM', a: 'PM', A: 'PM',
 };
@@ -64,10 +64,11 @@ export function widgetContentWidth(item) {
   switch (item.type) {
     case 'timeButton': {
       const format=item.formatTemplate || 'HH:mm';
-      return Math.max(textWidth(formatTimePreview(format,item.timeZone), true),textWidth(longestDateText(format),true));
+      // Native TimeTouchBarItem is a text-only, unbordered NSButton. Match its
+      // preview and retain the native's compact minimum touch target.
+      return Math.max(50,textWidth(formatTimePreview(format,item.timeZone),false,26),textWidth(longestDateText(format),false,26));
     }
-    // The Studio shell uses an 18px icon, 4px gap, 20px horizontal item
-    // padding, plus a small font-variation allowance.
+    // Keep legacy metric controls at their existing conservative widths.
     case 'cpu': return textWidth('100%', true, 30);
     case 'ramUsage': return textWidth('100%', true, 30);
     case 'gpuUsage': return textWidth('100%', true, 30);
@@ -75,7 +76,9 @@ export function widgetContentWidth(item) {
     case 'cpuTemperature': return textWidth('130°C', true, 30);
     case 'systemMonitor': {
       const readings = systemMonitorPreview(item).join(' · ');
-      return readings ? textWidth(readings, true, 30) : 42;
+      // Studio preview: 18px icon + 4px gap + 20px padding, with a small
+      // allowance for the AppKit font and native button-cell measurement.
+      return readings ? textWidth(readings, true, 27) : 42;
     }
     case 'battery': return textWidth('100% 999:59', true, 16);
     case 'weather': return textWidth('☀ 999°F', true, 16);
@@ -95,7 +98,11 @@ export function widgetContentWidth(item) {
 }
 
 export function systemMonitorWidthForSelection(metrics, contentScale = 1) {
+  return widgetWidthForContent({type:'systemMonitor',metrics},contentScale);
+}
+
+export function widgetWidthForContent(item, contentScale = 1) {
   const scale = Number.isFinite(contentScale) && contentScale > 0 ? contentScale : 1;
-  const contentWidth = widgetContentWidth({type:'systemMonitor',metrics}) || 42;
+  const contentWidth = widgetContentWidth(item) || 24;
   return Math.min(1085, Math.max(24, Math.ceil(contentWidth / scale)));
 }

@@ -415,6 +415,22 @@ enum StudioControlChecks {
     static func runStudioContentWidthChecks() {
         _ = NSApplication.shared
         let scale: CGFloat = 760 / StudioLayout.width
+        let compactDate = TimeTouchBarItem(identifier:.init("test.studio.compact-date"),formatTemplate:"MMM d",locale:"en_US")
+        compactDate.title = "Sep 30"
+        let shortDateWidth = compactDate.studioNaturalContentWidth
+        compactDate.title = "Wed Sep 30"
+        let wideDateWidth = compactDate.studioNaturalContentWidth
+        let compactMonitor = CustomButtonTouchBarItem(identifier:.init("test.studio.compact-monitor"),title:"100% · 100% · 100% · 130°C")
+        compactMonitor.image = StudioControlStyle.image("systemMonitor",fallback:NSImage(size:NSSize(width:20,height:20)))
+        let compactMonitorWidth = compactMonitor.studioNaturalContentWidth
+        let compactDateTextWidth = compactDate.attributedTitle.size().width
+        let compactMonitorTextWidth = compactMonitor.attributedTitle.size().width
+        let compactMonitorImageWidth = compactMonitor.image?.size.width ?? 0
+        precondition(shortDateWidth <= 80, "A short abbreviated Date label should fit its compact native intrinsic width")
+        precondition(wideDateWidth <= 100, "An abbreviated weekday and month Date label should fit its native intrinsic width")
+        precondition(compactMonitorWidth <= 270, "The worst-case four-reading System Monitor should fit its native intrinsic width")
+        print(String(format:"PASS: native intrinsic content widths fit Date 'Sep 30' %.1f pt / 'Wed Sep 30' %.1f pt and full System Monitor %.1f pt.",shortDateWidth,wideDateWidth,compactMonitorWidth))
+        print(String(format:"NATIVE WIDTH DETAIL: Date text %.1f pt; System Monitor text %.1f + icon %.1f + remaining cell/gap %.1f pt.",compactDateTextWidth,compactMonitorTextWidth,compactMonitorImageWidth,compactMonitorWidth-compactMonitorTextWidth-compactMonitorImageWidth))
         let automaticCPU = CustomButtonTouchBarItem(identifier: .init("test.studio.automaticCPU"), title: "100%")
         automaticCPU.image = NSImage(size: NSSize(width: 20, height: 20))
         let widthConfig: CanSetWidth = automaticCPU

@@ -4,7 +4,7 @@ import { getElementDefinition, commonProperties, actionTypes, actionTriggers } f
 import './Properties.css';
 import {BAR_WIDTH,contentFitWidth,contentMinimumWidth,clampPosition,layoutContentScale} from '../../utils/positionLayout';
 import {SYSTEM_MONITOR_METRICS, selectedSystemMonitorMetrics} from '../../utils/systemMonitor';
-import {systemMonitorWidthForSelection} from '../../utils/widgetSizing';
+import {systemMonitorWidthForSelection,widgetWidthForContent} from '../../utils/widgetSizing';
 import {getControlInfo} from '../../data/controlCatalog';
 import { getControlStatus } from '../../data/controlAvailability';
 import { useRuntimePermissions } from '../../context/useRuntimePermissions';
@@ -24,6 +24,7 @@ export default function PropertiesPanel() {
   const definition = item ? getElementDefinition(item.type) : null;
   const control = item ? getControlInfo(item.type, item) : null;
   const fittedWidth = item ? contentFitWidth(item) : 0;
+  const canFitToContent = item && ['timeButton','systemMonitor'].includes(item.type);
   const contentScale = layoutContentScale(layoutCapacity, {
     submenu: groupPath.length > 0,
     resolveProfile: profiles[profileId]?.bundleId === 'com.blackmagic-design.DaVinciResolve',
@@ -67,6 +68,10 @@ export default function PropertiesPanel() {
               updateItem(item.id,{width,...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,Math.max(width||64,contentMinimumWidth(item)))}:{})});
             }}
             placeholder="Auto"
+            action={canFitToContent ? <button type="button" className="fit-content-button" onClick={() => {
+              const width=widgetWidthForContent(item,contentScale);
+              updateItem(item.id,{width,...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,width)}:{})});
+            }}>Fit to content</button> : null}
           />
           {Number.isFinite(item.width) && item.width < fittedWidth && <p className="placement-help">This control needs about {Math.ceil(fittedWidth)} units for its full content. The preview grows to fit; it may overlap nearby controls.</p>}
           <PropertySelect
@@ -164,17 +169,20 @@ function PropertySection({ title, children }) {
   );
 }
 
-function PropertyInput({ label, type, value, onChange, placeholder }) {
+function PropertyInput({ label, type, value, onChange, placeholder, action }) {
   return (
     <div className="property-field">
       <label className="property-label">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="property-input"
-      />
+      <div className={action ? 'property-input-row with-action' : 'property-input-row'}>
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="property-input"
+        />
+        {action}
+      </div>
     </div>
   );
 }

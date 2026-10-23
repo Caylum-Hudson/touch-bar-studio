@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2 — Compact Date and System Monitor widths
+
+- Correct abbreviated weekday and month samples used to size Date controls.
+- Match the Studio Date preview to the native text-only button and trim System Monitor's extra width allowance while retaining worst-case metric values.
+- Add an explicit Fit to content action for Date and System Monitor controls. Existing manual widths remain unchanged unless the action is selected.
+
 ## 0.9.1 — Consistent themes and native-sized preview
 
 - Apply the selected background and accent across the Studio editor, controls, menus, settings, launcher, and Photos surfaces, with readable foregrounds for light and dark themes. The simulated Touch Bar retains its hardware-style appearance.

@@ -60,7 +60,7 @@ function getItemDisplay(item, definition) {
     case 'battery':
       return { type: 'sample', controlType: type, content: 'Battery' };
     case 'timeButton':
-      return { type: 'sample', controlType: type, content: formatTimePreview(item.formatTemplate || 'HH:mm', item.timeZone) };
+      return { type: 'text', content: formatTimePreview(item.formatTemplate || 'HH:mm', item.timeZone) };
     case 'weather':
     case 'yandexWeather':
       return { type: 'sample', controlType: type, content: 'Weather' };
