@@ -4,6 +4,7 @@ import { getElementDefinition } from '../../data/elementDefinitions';
 import ControlIcon from '../ControlIcon/ControlIcon';
 import {fitDockIcons} from '../../utils/positionLayout';
 import {formatTimePreview} from '../../utils/widgetSizing';
+import {selectedSystemMonitorMetrics, systemMonitorPreview} from '../../utils/systemMonitor';
 import './TouchBar.css';
 
 // Get display content for an item based on its type
@@ -73,6 +74,8 @@ function getItemDisplay(item, definition) {
       return { type: 'sample', controlType: type, content: 'Board —' };
     case 'cpuTemperature':
       return { type: 'sample', controlType: type, content: '130°C' };
+    case 'systemMonitor':
+      return { type: 'sample', controlType: type, content: systemMonitorPreview(item).join(' · ') };
     case 'currency':
       return { type: 'text', content: `${item.from || 'BTC'}→${item.to || 'USD'}` };
     case 'music':
@@ -252,10 +255,12 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
       className={classNames}
       onClick={onSelect}
       onContextMenu={onContextMenu}
-      title={['cpu', 'ramUsage', 'gpuUsage', 'boardTemperature', 'cpuTemperature'].includes(item.type) ? 'Illustrative preview only; system metrics are not read in the editor' : undefined}
+      title={item.type === 'systemMonitor'
+        ? `Illustrative preview only; selected readings: ${selectedSystemMonitorMetrics(item).map(metric => ({cpu:'CPU usage',gpu:'GPU usage',memory:'Memory usage',temperature:'CPU temperature'})[metric]).join(', ') || 'none'}`
+        : ['cpu', 'ramUsage', 'gpuUsage', 'boardTemperature', 'cpuTemperature'].includes(item.type) ? 'Illustrative preview only; system metrics are not read in the editor' : undefined}
       {...attributes}
       {...listeners}
-      aria-label={`${definition.label}${item.title ? `: ${item.title}` : ''} — editor preview`}
+      aria-label={`${definition.label}${item.title ? `: ${item.title}` : item.type === 'systemMonitor' ? `: ${selectedSystemMonitorMetrics(item).join(', ') || 'icon only'}` : ''} — editor preview`}
     >
       {renderContent()}
       {isSelected && <div className="selection-indicator" />}

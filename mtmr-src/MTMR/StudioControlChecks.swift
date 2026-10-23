@@ -115,6 +115,12 @@ enum StudioFocusRefreshPolicy {
 /// Read-only runtime checks: decode defaults and render local status controls without sending actions.
 enum StudioControlChecks {
     static func runWidgetLifecycleChecks() {
+        let baselineSubscribers = Dictionary(uniqueKeysWithValues: [SystemMetrics.Monitor.cpu,.ram,.gpu,.cpuTemperature].map { ($0,SystemMetrics.monitorSubscriberCount(for:$0)) })
+        let baselineSampling = SystemMetrics.isSampling
+        precondition(SystemMetrics.cpuPercent(previous:[2,5,8,1],current:[4,7,12,1]) == 50)
+        precondition(SystemMetrics.cpuPercent(previous:[UInt32.max,0,0,0],current:[0,0,0,0]) == 100)
+        precondition(SystemMetrics.cpuPercent(previous:[1,2,3,4],current:[1,2,3,4]) == nil)
+        precondition(SystemMetrics.cpuPercent(previous:[1,2,3],current:[2,3,4]) == nil)
         for iteration in 0..<20 {
             precondition(objectReleasesAfterScope { TimeTouchBarItem(identifier:.init("lifecycle.time.\(iteration)"),formatTemplate:"HH:mm") })
             precondition(objectReleasesAfterScope { DarkModeBarItem(identifier:.init("lifecycle.darkmode.\(iteration)")) })
@@ -128,7 +134,21 @@ enum StudioControlChecks {
             })
             precondition(batteryContextReleasesAfterStop())
             precondition(objectReleasesAfterScope { NetworkBarItem(identifier:.init("lifecycle.network.\(iteration)"),units:"B/s") })
+            precondition(objectReleasesAfterScope { SystemMonitorBarItem(identifier:.init("lifecycle.systemMonitor.\(iteration)"),metrics:[]) })
         }
+        do {
+            let gpuOnly = SystemMonitorBarItem(identifier:.init("lifecycle.systemMonitor.gpuOnly"),metrics:["gpu"])
+            precondition(SystemMetrics.monitorSubscriberCount == baselineSubscribers.values.reduce(0,+)+1 && SystemMetrics.monitorSubscriberCount(for:.gpu) == (baselineSubscribers[.gpu] ?? 0)+1)
+            precondition(SystemMetrics.monitorSubscriberCount(for:.cpu) == baselineSubscribers[.cpu] && SystemMetrics.monitorSubscriberCount(for:.ram) == baselineSubscribers[.ram] && SystemMetrics.monitorSubscriberCount(for:.cpuTemperature) == baselineSubscribers[.cpuTemperature],
+                         "A GPU-only selection must not subscribe other readers")
+            _ = gpuOnly
+        }
+        precondition(SystemMetrics.monitorSubscriberCount == baselineSubscribers.values.reduce(0,+) && SystemMetrics.isSampling == baselineSampling,
+                     "Stopping the selected reading restores the sampler to its prior subscribers")
+        let iconOnly = SystemMonitorBarItem(identifier:.init("lifecycle.systemMonitor.iconOnly"),metrics:[])
+        precondition(iconOnly.image != nil && iconOnly.title.isEmpty)
+        precondition(SystemMetrics.monitorSubscriberCount == baselineSubscribers.values.reduce(0,+) && SystemMetrics.isSampling == baselineSampling,
+                     "An empty selection remains an icon without changing shared sampling")
         print("PASS: 20 read-only widget lifecycle cycles release timers, audio listeners, battery callback contexts, and owned network monitors.")
     }
 
@@ -494,12 +514,17 @@ enum StudioControlChecks {
             let definitions = encoded.barItemDefinitions()
             precondition(definitions?.count == 1,"Could not decode \(key)")
             if case let .staticButton(title) = definitions![0].type { precondition(title != "unknown","Unknown control: \(key)") }
+            if key == "systemMonitor" {
+                guard case let .systemMonitor(metrics) = definitions![0].type else { preconditionFailure("System Monitor should decode to its native type") }
+                precondition(metrics == ["cpu","gpu","memory","temperature"], "System Monitor defaults should retain fixed metric order")
+            }
             activeCount += 1
         }
         precondition(Data("[invalid".utf8).barItemDefinitions() == nil)
         precondition(Data([0xff,0xfe]).barItemDefinitions() == nil)
         let custom = Data("[{\"type\":\"volumeUp\",\"title\":\"Louder\",\"align\":\"right\"}]".utf8).barItemDefinitions()![0]
         precondition(custom.align == .right)
+        runSystemMetricsChecks()
         print("PASS: \(fixtures.count) palette defaults audited; \(activeCount) retained controls decode, 5 export-only controls are filtered.")
         guard CommandLine.arguments.contains("--include-widgets") else { return }
         _ = NSApplication.shared
@@ -516,18 +541,35 @@ enum StudioControlChecks {
         let board = BoardTemperatureBarItem(identifier:.init("test.board"))
         precondition(board.title == "Board —" && board.image != nil)
         precondition(SystemMetrics.monitorSubscriberCount == 0, "Unavailable board-only item must not start hardware sampling")
+        let emptyMonitor = SystemMonitorBarItem(identifier:.init("test.empty-system-monitor"),metrics:[])
+        precondition(emptyMonitor.title.isEmpty && emptyMonitor.image != nil)
+        precondition(SystemMetrics.monitorSubscriberCount == 0 && !SystemMetrics.isSampling,
+                     "An icon-only System Monitor does not start the shared sampler")
         let ram = RAMUsageBarItem(identifier:.init("test.ram"))
         let gpu = GPUUsageBarItem(identifier:.init("test.gpu"))
         let temperature = CPUTemperatureBarItem(identifier:.init("test.cpu-temperature"))
         precondition(SystemMetrics.monitorSubscriberCount == 3, "RAM, GPU, and CPU temperature items should share one active sampler")
         precondition(SystemMetrics.monitorSubscriberCount(for: .ram) == 1 && SystemMetrics.monitorSubscriberCount(for: .gpu) == 1 && SystemMetrics.monitorSubscriberCount(for: .cpuTemperature) == 1)
+        let combined = SystemMonitorBarItem(identifier:.init("test.system-monitor"),metrics:["temperature","memory","gpu","cpu"])
+        let iconOnly = SystemMonitorBarItem(identifier:.init("test.system-monitor-empty"),metrics:[])
+        let gpuOnly = SystemMonitorBarItem(identifier:.init("test.system-monitor-gpu-only"),metrics:["gpu"])
+        precondition(SystemMetrics.monitorSubscriberCount == 8, "The combined and GPU-only controls subscribe only for their selected readings")
+        precondition(SystemMetrics.monitorSubscriberCount(for:.cpu) == 1)
+        precondition(SystemMetrics.monitorSubscriberCount(for:.gpu) == 3)
+        precondition(SystemMetrics.monitorSubscriberCount(for:.ram) == 2 && SystemMetrics.monitorSubscriberCount(for:.cpuTemperature) == 2)
         RunLoop.current.run(until:Date().addingTimeInterval(2.2))
         precondition(ram.title == "—" || ram.title.range(of: #"^(100|[0-9]{1,2})%$"#, options: .regularExpression) != nil, "RAM widget should show a percentage without a text prefix")
         precondition(gpu.title == "—" || gpu.title.range(of: #"^(100|[0-9]{1,2})%$"#, options: .regularExpression) != nil, "GPU widget must show a bounded percentage or unavailable without a prefix")
         precondition(temperature.title == "—" || temperature.title.range(of: #"^(130|[0-9]{1,2})°C$"#, options: .regularExpression) != nil, "CPU temperature must show a bounded Tp/Te reading or unavailable without a prefix")
+        precondition(combined.title.range(of:#"^((100|[0-9]{1,2})%|—)( · ((100|[0-9]{1,2})%|—)){2} · ((130|[0-9]{1,2})°C|—)$"#,options:.regularExpression) != nil,
+                     "System Monitor shows one icon and selected readings in CPU, GPU, memory, temperature order")
+        precondition(combined.view.toolTip?.contains("CPU usage") == true && combined.view.toolTip?.contains("Memory usage") == true)
+        precondition(iconOnly.title.isEmpty && iconOnly.image != nil)
+        precondition(combined.studioNaturalContentWidth > max(ram.studioNaturalContentWidth,gpu.studioNaturalContentWidth),
+                     "The combined view should grow to fit all selected values")
         precondition(board.title == "Board —", "No unidentified temperature sensor may be presented as motherboard temperature")
         precondition(ram.studioNaturalContentWidth > 0 && gpu.studioNaturalContentWidth > 0 && temperature.studioNaturalContentWidth > 0 && board.studioNaturalContentWidth > 0)
-        print("SYSTEM METRIC SELF-TEST: RAM \(ram.title), GPU \(gpu.title), CPU temperature \(temperature.title), \(board.title)")
+        print("SYSTEM METRIC SELF-TEST: RAM \(ram.title), GPU \(gpu.title), CPU temperature \(temperature.title), \(board.title); combined \(combined.title)")
         let slider = VolumeViewController(identifier:.init("test.volume"))
         precondition((0...100).contains(slider.sliderItem.doubleValue))
         print("PASS: RAM, GPU, and CPU temperature widgets read local metrics through the shared sampler; board sensor absence stays explicit; metric format and live widths pass.")
@@ -536,6 +578,23 @@ enum StudioControlChecks {
     }
 
     private static func runSystemMetricsChecks() {
+        let legacy = Data("[{\"type\":\"cpu\"},{\"type\":\"ramUsage\"},{\"type\":\"gpuUsage\"},{\"type\":\"cpuTemperature\"}]".utf8).barItemDefinitions()
+        precondition(legacy?.count == 4)
+        if let legacy {
+            precondition(legacy.map { $0.type.identifierBase } == [
+                "com.toxblh.mtmr.cpu.","com.toxblh.mtmr.ramUsage.","com.toxblh.mtmr.gpuUsage.","com.toxblh.mtmr.cpuTemperature.",
+            ], "Existing separate metric definitions must continue to decode")
+        }
+        let monitor = Data("[{\"type\":\"systemMonitor\",\"metrics\":[\"temperature\",\"gpu\"]}]".utf8).barItemDefinitions()
+        if let decoded = monitor?.first?.type {
+            if case let .systemMonitor(metrics) = decoded {
+                precondition(metrics == ["gpu","temperature"], "System Monitor selections decode in fixed display order")
+            } else { preconditionFailure("System Monitor definition should decode") }
+        } else { preconditionFailure("System Monitor definition should decode") }
+        precondition(SystemMetrics.cpuPercent(previous:[2,5,8,1],current:[4,7,12,1]) == 50)
+        precondition(SystemMetrics.cpuPercent(previous:[UInt32.max,0,0,0],current:[0,0,0,0]) == 100)
+        precondition(SystemMetrics.cpuPercent(previous:[1,2,3,4],current:[1,2,3,4]) == nil)
+        precondition(SystemMetrics.cpuPercent(previous:[1,2,3],current:[2,3,4]) == nil)
         precondition(SystemMetrics.cpuUsageLabel(57.3) == "57%")
         precondition(SystemMetrics.cpuUsageLabel(57.5) == "58%")
         precondition(SystemMetrics.cpuUsageLabel(99.6) == "100%")

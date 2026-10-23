@@ -39,6 +39,8 @@ extension ItemType {
             return "com.toxblh.mtmr.boardTemperature."
         case .cpuTemperature:
             return "com.toxblh.mtmr.cpuTemperature."
+        case .systemMonitor(metrics: _):
+            return "com.toxblh.mtmr.systemMonitor."
         case .dock(autoResize: _, filter: _):
             return "com.toxblh.mtmr.dock"
         case .volume:
@@ -600,6 +602,8 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             barItem = BoardTemperatureBarItem(identifier: identifier)
         case .cpuTemperature:
             barItem = CPUTemperatureBarItem(identifier: identifier)
+        case let .systemMonitor(metrics: metrics):
+            barItem = SystemMonitorBarItem(identifier: identifier, metrics: metrics)
         case let .dock(autoResize: autoResize, filter: regexString):
             if let regexString = regexString {
                 guard let regex = try? NSRegularExpression(pattern: regexString, options: []) else {

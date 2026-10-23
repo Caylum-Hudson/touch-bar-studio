@@ -240,6 +240,15 @@ export const elementTypes = {
     defaultTitle: 'CPU —',
     defaultProps: {},
   },
+  systemMonitor: {
+    type: 'systemMonitor',
+    category: 'plugins',
+    label: 'System Monitor',
+    icon: 'speedometer',
+    defaultTitle: '',
+    defaultProps: { metrics: ['cpu', 'gpu', 'memory', 'temperature'] },
+    properties: ['metrics'],
+  },
   currency: {
     type: 'currency',
     category: 'plugins',

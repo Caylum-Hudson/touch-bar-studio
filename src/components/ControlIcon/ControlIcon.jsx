@@ -7,7 +7,7 @@ const glyphs = {
   illuminationUp: '⌨', illuminationDown: '⌨', timeButton: '◷', dateButton: '▦', battery: '▰',
   inputsource: '⌘', music: '♫', darkMode: '◐', nightShift: '◔', dnd: '◉', pomodoro: '◴', cpu: '▣',
   dock: '▤', exitTouchbar: '↙', network: '⌁', weather: '☼', yandexWeather: '☼', currency: '↔',
-  upnext: '▦', ramUsage: '▤', gpuUsage: '▭', boardTemperature: '°C', cpuTemperature: '°C', staticButton: '●', appleScriptTitledButton: '⌘', shellScriptTitledButton: '$',
+  upnext: '▦', ramUsage: '▤', gpuUsage: '▭', boardTemperature: '°C', cpuTemperature: '°C', systemMonitor: '◉', staticButton: '●', appleScriptTitledButton: '⌘', shellScriptTitledButton: '$',
   group: '▣', close: '×', swipe: '↔', sleep: '◌', displaySleep: '◉',
 };
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0 — Combined System Monitor
+
+- Replace the separate CPU, RAM, GPU, and CPU-temperature palette entries with one **System Monitor**. Properties checkboxes select any combination; the display keeps CPU, GPU, memory, and temperature in a fixed order beside one shared icon, with full reading names in tooltips and accessibility labels. Its width grows or shrinks with the selection, including an icon-only state.
+- Add an undoable **Combine into System Monitor** action for legacy metric controls in the current bar. It unions the selected legacy readings (and an existing monitor when present), keeps one shared widget at the leftmost metric position, preserves unrelated controls, and leaves other profiles untouched. Old widget types remain decodable for existing layouts/imports.
+- Reuse the shared metrics sampler for selected readings. CPU usage uses a serialized tick baseline with cached host port, wrapping-safe deltas, zero-delta handling, and no subscription when CPU is unchecked.
+- Source checks, 24 frontend tests, native full self-tests, native control/widget metric checks, isolated browser fixture QA, and installed 0.9.0 UI review pass. The saved Default now has one all-readings System Monitor with Dock and Time preserved; the previous workspace backup matches its pre-migration SHA-256 exactly. Screenshots show the editor, not physical Touch Bar pixels. See [release notes](docs/releases/0.9.0.md) and [verification](VERIFICATION.md) for exact evidence and remaining limits.
+
 ## 0.8.2 — Import validation and bounded photo work
 
 - Validate every imported profile and Resolve layout before restoring editor state; reject malformed controls instead of silently replacing them with empty layouts. Enabled app profiles require bundle identifiers, and nil frontmost app identifiers use Default.

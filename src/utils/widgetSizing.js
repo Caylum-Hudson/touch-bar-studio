@@ -1,3 +1,5 @@
+import {systemMonitorPreview} from './systemMonitor.js';
+
 const DATE_TOKENS = {
   EEEE: 'Wednesday', EEE: 'Wednesday', MMMM: 'September', MMM: 'September',
   yyyy: '8888', yy: '88', MM: '12', M: '12', dd: '31', d: '31',
@@ -71,6 +73,10 @@ export function widgetContentWidth(item) {
     case 'gpuUsage': return textWidth('100%', true, 30);
     case 'boardTemperature': return textWidth('Board —', false, 52);
     case 'cpuTemperature': return textWidth('130°C', true, 30);
+    case 'systemMonitor': {
+      const readings = systemMonitorPreview(item).join(' · ');
+      return readings ? textWidth(readings, true, 30) : 42;
+    }
     case 'battery': return textWidth('100% 999:59', true, 16);
     case 'weather': return textWidth('☀ 999°F', true, 16);
     case 'yandexWeather': return textWidth('☀ 999°', true, 16);
@@ -86,4 +92,10 @@ export function widgetContentWidth(item) {
     case 'shellScriptTitledButton': return textWidth(item.title || (item.type === 'appleScriptTitledButton' ? 'Script' : 'Shell'));
     default: return null;
   }
+}
+
+export function systemMonitorWidthForSelection(metrics, contentScale = 1) {
+  const scale = Number.isFinite(contentScale) && contentScale > 0 ? contentScale : 1;
+  const contentWidth = widgetContentWidth({type:'systemMonitor',metrics}) || 42;
+  return Math.min(1085, Math.max(24, Math.ceil(contentWidth / scale)));
 }

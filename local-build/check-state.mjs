@@ -68,7 +68,7 @@ const modifierRoundtrip=JSON.parse(generateJSON(parseJSON(JSON.stringify(modifie
 assert.deepEqual(modifierRoundtrip[0].actions[0].modifiers,['option']);
 console.log('PASS: simultaneous shortcut modifiers survive editor JSON serialization.');
 
-const {layoutFrames,clampPosition,overlappingItems,contentMinimumWidth}=await import('../src/utils/positionLayout.js');
+const {layoutFrames,clampPosition,overlappingItems,contentMinimumWidth,combineLegacySystemMetrics}=await import('../src/utils/positionLayout.js');
 const positioned=[{id:'left',type:'staticButton',align:'left',width:50,studioPosition:120},{id:'right',type:'staticButton',align:'right',width:100,studioPosition:985}];
 const fittedLeft=layoutFrames(positioned).get('left');
 assert.equal(fittedLeft.x,120);assert.equal(fittedLeft.width,Math.max(50,contentMinimumWidth(positioned[0])));assert.equal(positioned[0].width,50);
@@ -90,3 +90,23 @@ assert.equal(nextSpacedPosition(spaced,40),176);
 assert.throws(()=>setConsistentSpacing([{id:'a',width:600,studioPosition:0},{id:'b',width:600,studioPosition:200}],20),/Not enough room/);
 assert.equal(JSON.parse(generateJSON(spaced.map(item=>({...item,type:"staticButton"}))))[0].studioGap,12);
 console.log('PASS: equal edge gaps, local cluster snapping, free placement, detached anchors, insertion, overflow and spacing persistence.');
+
+const originalMetricBar=[
+  {id:'cpu-old',type:'cpu',studioPosition:180,width:64},
+  {id:'ram-old',type:'ramUsage',studioPosition:120,width:64},
+  {id:'gpu-old',type:'gpuUsage',studioPosition:150,width:64},
+  {id:'temp-old',type:'cpuTemperature',studioPosition:210,width:64},
+  {id:'stay',type:'staticButton',title:'Keep',studioPosition:400,width:64},
+];
+reducer({type:'LOAD_ITEMS',payload:[{id:'submenu',type:'group',items:originalMetricBar}]});
+const mergedBar=combineLegacySystemMetrics(originalMetricBar,'gpu-old');
+reducer({type:'COMBINE_SYSTEM_MONITOR',payload:{...mergedBar,parentId:'submenu'}});
+assert.equal(s.selectedItemId,'gpu-old');
+assert.equal(s.items[0].items.length,2);
+assert.deepEqual(s.items[0].items[0].metrics,['cpu','gpu','memory','temperature']);
+assert.equal(s.items[0].items[1].id,'stay');
+const exportedMonitor=JSON.parse(generateJSON(s.items[0].items))[0];
+assert.deepEqual(exportedMonitor.metrics,['cpu','gpu','memory','temperature']);
+reducer({type:'UNDO'});
+assert.deepEqual(s.items[0].items,originalMetricBar,'One undo should restore every legacy metric and preserve the surrounding layout');
+console.log('PASS: current-submenu combine/export stores one fixed-order monitor; one undo restores the complete legacy layout.');

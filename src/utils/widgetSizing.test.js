@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {contentFitWidth,layoutFrames,overlappingItems} from './positionLayout.js';
-import {estimateTouchBarTextWidth,formatTimePreview,widgetContentWidth} from './widgetSizing.js';
+import {estimateTouchBarTextWidth,formatTimePreview,widgetContentWidth,systemMonitorWidthForSelection} from './widgetSizing.js';
 import {createElement} from '../data/elementDefinitions.js';
+import {systemMonitorPreview, selectedSystemMonitorMetrics} from './systemMonitor.js';
 
 test('Date and CPU previews grow past their generic saved width without changing saved geometry', () => {
   const items = [
@@ -32,6 +33,26 @@ test('system metric preview widths fit worst-case percentages and unavailable la
     assert.ok(width >= actualLabelWidth, `${title} must fit with an 18px icon, 4px gap, 20px padding, and font allowance`);
     assert.ok(contentFitWidth({...item,studioPosition:0,width:24}) >= width);
   }
+});
+
+test('System Monitor previews selected readings in a fixed order and fits every value', () => {
+  const monitor=createElement('systemMonitor');
+  assert.deepEqual(selectedSystemMonitorMetrics(monitor),['cpu','gpu','memory','temperature']);
+  assert.deepEqual(systemMonitorPreview(monitor),['100%','100%','100%','130°C']);
+  assert.ok(widgetContentWidth(monitor) > widgetContentWidth({...monitor,metrics:['cpu']}));
+  assert.deepEqual(systemMonitorPreview({...monitor,metrics:['temperature','memory']}),['100%','130°C']);
+  assert.equal(widgetContentWidth({...monitor,metrics:[]}),42);
+  assert.ok(widgetContentWidth(monitor) >= Math.ceil(estimateTouchBarTextWidth('100% · 100% · 100% · 130°C')+52));
+});
+
+test('System Monitor selection width shrinks to icon-only and grows for selected values at native scale', () => {
+  const icon=systemMonitorWidthForSelection([]);
+  const gpu=systemMonitorWidthForSelection(['gpu']);
+  const all=systemMonitorWidthForSelection(['cpu','gpu','memory','temperature']);
+  assert.equal(icon,42);
+  assert.ok(gpu>icon);
+  assert.ok(all>gpu);
+  assert.equal(systemMonitorWidthForSelection([],0.7),Math.ceil(widgetContentWidth({type:'systemMonitor',metrics:[]})/0.7));
 });
 
 test('Date width accounts for the actual formatted preview and long common date formats', () => {

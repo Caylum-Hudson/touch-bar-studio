@@ -81,7 +81,6 @@ class CPUBarItem: CustomButtonTouchBarItem {
     }
     
     deinit {
-        refreshQueue?.suspend()
         refreshQueue = nil
     }
 }
@@ -90,6 +89,7 @@ class CPUBarItem: CustomButtonTouchBarItem {
 /// serialized and coalesced so multiple widgets never enumerate sensors every
 /// refresh tick.
 struct SystemMetricsSnapshot {
+    let cpuUtilization: Double?
     let ramUsedBytes: UInt64?
     let ramTotalBytes: UInt64
     let gpuUtilization: Double?
@@ -97,7 +97,7 @@ struct SystemMetricsSnapshot {
 }
 
 enum SystemMetrics {
-    enum Monitor: Hashable { case ram, gpu, cpuTemperature }
+    enum Monitor: Hashable { case cpu, ram, gpu, cpuTemperature }
     static let didUpdate = Notification.Name("TouchBarStudio.SystemMetricsDidUpdate")
     private static let queue = DispatchQueue(label: "mtmr.system-metrics", qos: .utility)
     // mach_host_self() returns a send right; keep one for this sampler's
@@ -106,11 +106,13 @@ enum SystemMetrics {
     private static var timer: DispatchSourceTimer?
     private static var monitorCounts: [Monitor: Int] = [:]
     private static var cpuTemperatureReader: AppleSMCTemperatureReader?
-    private static var cached = SystemMetricsSnapshot(ramUsedBytes: nil, ramTotalBytes: ProcessInfo.processInfo.physicalMemory, gpuUtilization: nil, cpuTemperatureCelsius: nil)
+    private static var previousCPUTicks: [UInt32]?
+    private static var cached = SystemMetricsSnapshot(cpuUtilization: nil, ramUsedBytes: nil, ramTotalBytes: ProcessInfo.processInfo.physicalMemory, gpuUtilization: nil, cpuTemperatureCelsius: nil)
 
     static func startMonitoring(_ monitor: Monitor) {
         queue.async {
             monitorCounts[monitor, default: 0] += 1
+            if monitor == .cpu, monitorCounts[monitor] == 1 { previousCPUTicks = nil }
             if monitor == .cpuTemperature, cpuTemperatureReader == nil {
                 cpuTemperatureReader = AppleSMCTemperatureReader()
             }
@@ -118,7 +120,7 @@ enum SystemMetrics {
                 let source = DispatchSource.makeTimerSource(queue: queue)
                 source.schedule(deadline: .now(), repeating: 2)
                 source.setEventHandler {
-                    cached = readSnapshot(includeRAM: (monitorCounts[.ram] ?? 0) > 0, includeGPU: (monitorCounts[.gpu] ?? 0) > 0, includeCPUTemperature: (monitorCounts[.cpuTemperature] ?? 0) > 0)
+                    cached = readSnapshot(includeCPU: (monitorCounts[.cpu] ?? 0) > 0, includeRAM: (monitorCounts[.ram] ?? 0) > 0, includeGPU: (monitorCounts[.gpu] ?? 0) > 0, includeCPUTemperature: (monitorCounts[.cpuTemperature] ?? 0) > 0)
                     let sample = cached
                     DispatchQueue.main.async {
                         NotificationCenter.default.post(name: didUpdate, object: sample)
@@ -153,6 +155,7 @@ enum SystemMetrics {
         }
     }
     static var monitorSubscriberCount: Int { queue.sync { monitorCounts.values.reduce(0, +) } }
+    static var isSampling: Bool { queue.sync { timer != nil } }
     static func monitorSubscriberCount(for monitor: Monitor) -> Int { queue.sync { monitorCounts[monitor] ?? 0 } }
 
     static func ramPercent(used: UInt64?, total: UInt64) -> Int? {
@@ -192,7 +195,7 @@ enum SystemMetrics {
         return "CPU \(Int(value.rounded()))°C"
     }
 
-    private static func readSnapshot(includeRAM: Bool, includeGPU: Bool, includeCPUTemperature: Bool) -> SystemMetricsSnapshot {
+    private static func readSnapshot(includeCPU: Bool, includeRAM: Bool, includeGPU: Bool, includeCPUTemperature: Bool) -> SystemMetricsSnapshot {
         let total = ProcessInfo.processInfo.physicalMemory
         let used: UInt64?
         if includeRAM {
@@ -211,7 +214,32 @@ enum SystemMetrics {
         } else {
             used = nil
         }
-        return SystemMetricsSnapshot(ramUsedBytes: used, ramTotalBytes: total, gpuUtilization: includeGPU ? readGPUUtilization() : nil, cpuTemperatureCelsius: includeCPUTemperature ? cpuTemperatureReader?.hottestReadingCelsius() : nil)
+        return SystemMetricsSnapshot(cpuUtilization: includeCPU ? readCPUUtilization() : nil, ramUsedBytes: used, ramTotalBytes: total, gpuUtilization: includeGPU ? readGPUUtilization() : nil, cpuTemperatureCelsius: includeCPUTemperature ? cpuTemperatureReader?.hottestReadingCelsius() : nil)
+    }
+
+    private static func readCPUUtilization() -> Double? {
+        var info = host_cpu_load_info()
+        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(hostPort, HOST_CPU_LOAD_INFO, $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { previousCPUTicks = nil; return nil }
+        let ticks: [UInt32] = [info.cpu_ticks.0, info.cpu_ticks.1, info.cpu_ticks.2, info.cpu_ticks.3]
+        defer { previousCPUTicks = ticks }
+        guard let previousCPUTicks,
+              let value = cpuPercent(previous: previousCPUTicks, current: ticks) else { return nil }
+        return value
+    }
+
+    static func cpuPercent(previous: [UInt32], current: [UInt32]) -> Double? {
+        guard previous.count == 4, current.count == 4 else { return nil }
+        let deltas = zip(previous, current).map { $1 &- $0 }
+        let total = deltas.reduce(UInt64(0)) { $0 + UInt64($1) }
+        guard total > 0 else { return nil }
+        let idle = UInt64(deltas[2])
+        return Double(total - idle) / Double(total) * 100
     }
 
     /// IOAccelerator exposes a system-wide device utilization counter on this
@@ -431,6 +459,73 @@ final class CPUTemperatureBarItem: SystemMetricBarItem {
     override func refresh() {
         let value = SystemMetrics.snapshot().cpuTemperatureCelsius
         display(value.map { "\(Int($0.rounded()))°C" } ?? "—", detail: value.map { "Hottest available AppleSMC CPU sensor reading: \(Int($0.rounded()))°C (Tp/Te temperature keys)." } ?? "CPU temperature unavailable: no readable AppleSMC Tp/Te float sensors were exposed.")
+    }
+}
+
+final class SystemMonitorBarItem: CustomButtonTouchBarItem {
+    private let metrics: [String]
+    private let monitors: [SystemMetrics.Monitor]
+    private var observer: NSObjectProtocol?
+
+    init(identifier: NSTouchBarItem.Identifier, metrics requested: [String]) {
+        let order = ["cpu", "gpu", "memory", "temperature"]
+        metrics = order.filter { requested.contains($0) }
+        monitors = metrics.compactMap { metric in
+            switch metric {
+            case "cpu": return .cpu
+            case "gpu": return .gpu
+            case "memory": return .ram
+            case "temperature": return .cpuTemperature
+            default: return nil
+            }
+        }
+        super.init(identifier: identifier, title: "")
+        image = StudioControlStyle.image("systemMonitor", fallback:NSImage(systemSymbolName:"speedometer", accessibilityDescription:nil))
+        view.setAccessibilityLabel("System monitor")
+        if !monitors.isEmpty {
+            observer = NotificationCenter.default.addObserver(forName:SystemMetrics.didUpdate, object:nil, queue:.main) { [weak self] _ in self?.refresh() }
+            monitors.forEach(SystemMetrics.startMonitoring)
+            refresh()
+        } else {
+            view.toolTip = "System monitor. No readings selected."
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func refresh() {
+        let sample = SystemMetrics.snapshot()
+        var values: [String] = []
+        var details: [String] = []
+        for metric in metrics {
+            switch metric {
+            case "cpu":
+                let value = SystemMetrics.cpuUsageLabel(sample.cpuUtilization)
+                values.append(value)
+                details.append("CPU usage: \(value)")
+            case "gpu":
+                let value = SystemMetrics.gpuPercent(sample.gpuUtilization).map { "\($0)%" } ?? "—"
+                values.append(value)
+                details.append(value == "—" ? "GPU usage unavailable: no IOAccelerator utilization counter was exposed." : "GPU usage: \(value). Multiple GPUs show the busiest device.")
+            case "memory":
+                let value = SystemMetrics.ramPercent(used:sample.ramUsedBytes, total:sample.ramTotalBytes).map { "\($0)%" } ?? "—"
+                values.append(value)
+                details.append("Memory usage: \(value). " + SystemMetrics.ramDetail(used:sample.ramUsedBytes,total:sample.ramTotalBytes))
+            case "temperature":
+                let value = sample.cpuTemperatureCelsius.map { "\(Int($0.rounded()))°C" } ?? "—"
+                values.append(value)
+                details.append(value == "—" ? "CPU temperature unavailable: no readable AppleSMC Tp/Te float sensors were exposed." : "CPU temperature: \(value), hottest available AppleSMC CPU sensor.")
+            default: break
+            }
+        }
+        title = values.joined(separator:" · ")
+        view.toolTip = details.isEmpty ? "System monitor. No readings selected." : details.joined(separator:"\n")
+        view.setAccessibilityLabel(details.isEmpty ? "System monitor. No readings selected." : details.joined(separator:", "))
+    }
+
+    deinit {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        monitors.forEach(SystemMetrics.stopMonitoring)
     }
 }
 

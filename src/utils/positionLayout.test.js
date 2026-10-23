@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {autoDockDisplayWidth, fitDockIcons, layoutFrames, distributeItemsEvenly, layoutContentScale} from './positionLayout.js';
+import {widgetContentWidth} from './widgetSizing.js';
+import {autoDockDisplayWidth, fitDockIcons, layoutFrames, distributeItemsEvenly, layoutContentScale, combineLegacySystemMetrics} from './positionLayout.js';
 
 test('auto Dock preview fits its live width before the next control', () => {
   const items = [
@@ -37,6 +38,52 @@ test('Dock icons and gaps shrink together when the slot is tight', () => {
   const fit = fitDockIcons(80, 5, 32, 1);
   assert.ok(5 * fit.iconSize + 4 * fit.itemSpacing <= 66);
   assert.ok(fit.itemSpacing < 1);
+});
+
+test('legacy metric merge uses one monitor at the leftmost metric position and preserves other controls', () => {
+  const items=[
+    {id:'cpu',type:'cpu',studioPosition:220,width:64},
+    {id:'time',type:'timeButton',studioPosition:40,width:64,formatTemplate:'HH:mm'},
+    {id:'ram',type:'ramUsage',studioPosition:90,width:64},
+    {id:'gpu',type:'gpuUsage',studioPosition:140,width:64},
+    {id:'temperature',type:'cpuTemperature',studioPosition:190,width:64},
+  ];
+  const before=structuredClone(items);
+  const merged=combineLegacySystemMetrics(items,'gpu');
+  const monitor=merged.items.find(item=>item.type==='systemMonitor');
+  assert.deepEqual(monitor.metrics,['cpu','gpu','memory','temperature']);
+  assert.equal(monitor.studioPosition,90);
+  assert.equal(monitor.id,'gpu');
+  assert.ok(monitor.width>=170);
+  assert.deepEqual(merged.items.filter(item=>item.id==='time')[0],items[1]);
+  assert.deepEqual(items,before);
+});
+
+test('legacy metric merge unions a current System Monitor and keeps its id and settings', () => {
+  const items=[
+    {id:'monitor',type:'systemMonitor',metrics:['temperature'],align:'left',studioPosition:300,width:50},
+    {id:'cpu',type:'cpu',studioPosition:120,width:64},
+    {id:'gpu',type:'gpuUsage',studioPosition:220,width:64},
+  ];
+  const merged=combineLegacySystemMetrics(items,'cpu');
+  assert.equal(merged.selectedId,'monitor');
+  assert.deepEqual(merged.items[0].metrics,['cpu','gpu','temperature']);
+  assert.equal(merged.items[0].align,'left');
+  assert.equal(merged.items[0].studioPosition,120);
+  assert.equal(merged.items.filter(item=>item.type==='systemMonitor').length,1);
+});
+
+test('legacy metric merge uses native content scale and clamps a full-width monitor near the bar edge', () => {
+  const items=[
+    {id:'cpu',type:'cpu',studioPosition:1010,width:64},
+    {id:'gpu',type:'gpuUsage',studioPosition:1030,width:64},
+    {id:'stay',type:'staticButton',title:'Keep',studioPosition:600,width:64},
+  ];
+  const merged=combineLegacySystemMetrics(items,'cpu',{contentScale:0.5});
+  const monitor=merged.items.find(item=>item.type==='systemMonitor');
+  assert.ok(monitor.width > widgetContentWidth(monitor));
+  assert.ok(monitor.studioPosition + monitor.width <= 1085);
+  assert.deepEqual(merged.items.find(item=>item.id==='stay'),items[2]);
 });
 
 test('Dock icons and gaps collapse safely when no room remains', () => {

@@ -270,6 +270,7 @@ enum ItemType: Decodable {
     case gpuUsage
     case boardTemperature
     case cpuTemperature
+    case systemMonitor(metrics: [String])
     case dock(autoResize: Bool, filter: String?)
     case volume
     case brightness(refreshInterval: Double)
@@ -318,6 +319,7 @@ enum ItemType: Decodable {
         case fingers
         case minOffset
         case maxToShow
+        case metrics
     }
 
     enum ItemTypeRaw: String, Decodable {
@@ -331,6 +333,7 @@ enum ItemType: Decodable {
         case gpuUsage
         case boardTemperature
         case cpuTemperature
+        case systemMonitor
         case dock
         case volume
         case brightness
@@ -389,6 +392,10 @@ enum ItemType: Decodable {
             self = .boardTemperature
         case .cpuTemperature:
             self = .cpuTemperature
+        case .systemMonitor:
+            let requested = try container.decodeIfPresent([String].self, forKey: .metrics) ?? ["cpu", "gpu", "memory", "temperature"]
+            let order = ["cpu", "gpu", "memory", "temperature"]
+            self = .systemMonitor(metrics: order.filter { requested.contains($0) })
 
         case .dock:
             let autoResize = try container.decodeIfPresent(Bool.self, forKey: .autoResize) ?? false

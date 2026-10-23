@@ -1,4 +1,5 @@
 import {widgetContentWidth} from './widgetSizing.js';
+import {SYSTEM_MONITOR_METRICS} from './systemMonitor.js';
 
 export const BAR_WIDTH = 1085;
 export const itemWidth = item => Math.max(24, Math.min(BAR_WIDTH, Number(item.width) || 64));
@@ -139,4 +140,31 @@ export function layoutContentScale(capacity, {submenu = false, resolveProfile = 
   if (!capacity || !Number.isFinite(capacity.physicalWidth) || capacity.physicalWidth <= 0) return null;
   const reserved = submenu ? 62 : resolveProfile ? 94 : 0;
   return capacity.physicalWidth / BAR_WIDTH * (BAR_WIDTH - reserved) / BAR_WIDTH;
+}
+
+const legacyMetricForType = {cpu:'cpu', gpuUsage:'gpu', ramUsage:'memory', cpuTemperature:'temperature'};
+
+/** Combine metric controls in this bar into one undoable monitor item. */
+export function combineLegacySystemMetrics(items, selectedId, options = {}) {
+  const selected = items.find(item => item.id === selectedId);
+  if (!selected || !legacyMetricForType[selected.type]) return null;
+  const candidates = items.filter(item => legacyMetricForType[item.type] || item.type === 'systemMonitor');
+  const metrics = SYSTEM_MONITOR_METRICS.filter(metric => candidates.some(item =>
+    legacyMetricForType[item.type] === metric ||
+    (item.type === 'systemMonitor' && (!Array.isArray(item.metrics) || item.metrics.includes(metric))),
+  ));
+  const frames = layoutFrames(items, options);
+  const leftmost = Math.min(...candidates.map(item => frames.get(item.id)?.x ?? 0));
+  const monitor = candidates.find(item => item.type === 'systemMonitor') || selected;
+  const combined = {...monitor, type:'systemMonitor', metrics};
+  delete combined.title;
+  delete combined.image;
+  const scale = Number.isFinite(options.contentScale) && options.contentScale > 0 ? options.contentScale : 1;
+  const width = Math.max(24, Math.ceil((widgetContentWidth(combined) || 24) / scale));
+  combined.width = width;
+  combined.studioPosition = clampPosition(leftmost, width);
+  const firstIndex = Math.min(...candidates.map(item => items.indexOf(item)));
+  const result = items.filter(item => !candidates.includes(item));
+  result.splice(firstIndex, 0, combined);
+  return {items:result, selectedId:combined.id};
 }

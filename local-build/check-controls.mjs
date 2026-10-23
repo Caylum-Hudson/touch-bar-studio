@@ -5,13 +5,17 @@ import {getControlInfo,controlCatalog,advancedControlCatalog} from '../src/data/
 import {generateJSON,parseJSON} from '../src/utils/jsonGenerator.js';
 const symbols=JSON.parse(fs.readFileSync('public/control-icons/symbols.json','utf8'));
 assert.deepEqual(['cpu','ramUsage','gpuUsage'].map(key=>symbols[key]),['cpu','memorychip','display'],
-  'CPU, RAM and GPU use distinct compact system icons');
+  'legacy CPU, RAM and GPU icons remain available for existing layouts');
 assert.equal(symbols.cpuTemperature,'thermometer.medium','CPU temperature uses a thermometer icon');
 const catalog=[...controlCatalog,...advancedControlCatalog].flatMap(group=>group.controls);
-assert.equal(new Set(catalog.map(control=>control.key)).size,Object.keys(elementTypes).length-1,
-  'the legacy motherboard type remains decodable but is not offered as a new palette control');
+assert.equal(new Set(catalog.map(control=>control.key)).size,Object.keys(elementTypes).length-5,
+  'legacy metric controls remain decodable while the new System Monitor replaces them in the palette');
 assert.equal(catalog.some(control=>control.key==='boardTemperature'),false,
   'unavailable motherboard temperature is hidden from the addable palette');
+for (const key of ['cpu','ramUsage','gpuUsage','cpuTemperature']) {
+  assert.equal(catalog.some(control=>control.key===key),false,`${key} remains supported for existing layouts, but is not a new palette control`);
+}
+assert.ok(catalog.some(control=>control.key==='systemMonitor'),'System Monitor replaces the four separate metric controls');
 const resolveControls=catalog.filter(control=>control.key.startsWith('resolve'));
 assert.equal(resolveControls.length,12,'Resolve timeline palette coverage');
 for (const control of resolveControls) {
@@ -33,12 +37,12 @@ const fixtures=catalog.map(({key})=>{
   assert.ok(fs.statSync(`public/control-icons/${key}.png`).size>100,key);
   return {key,items:JSON.parse(generateJSON([createElement(key)]))};
 });
-for (const key of ['ramUsage','gpuUsage','cpuTemperature']) {
-  const fixture=fixtures.find(entry=>entry.key===key);
-  assert.equal(fixture.items[0].type,key,`${key} keeps its native type`);
-  assert.equal(Object.hasOwn(fixture.items[0],'title'),false,`${key} starts without a persisted placeholder title`);
-  assert.equal(parseJSON(JSON.stringify(fixture.items)).items[0].type,key,`${key} type survives editor serialization`);
-}
+const monitor=createElement('systemMonitor');
+const monitorJSON=JSON.parse(generateJSON([monitor]));
+assert.equal(monitorJSON[0].type,'systemMonitor');
+assert.deepEqual(monitorJSON[0].metrics,['cpu','gpu','memory','temperature']);
+assert.equal(Object.hasOwn(monitorJSON[0],'title'),false,'System Monitor starts without a placeholder title');
+assert.deepEqual(parseJSON(JSON.stringify(monitorJSON)).items[0].metrics,monitor.metrics,'metric selection survives editor serialization');
 assert.equal(elementTypes.boardTemperature.type,'boardTemperature', 'legacy saved motherboard entries remain recognizable');
 assert.equal(fixtures.find(f=>f.key==='dateButton').items[0].formatTemplate,'MMM d');
 assert.equal(fixtures.find(f=>f.key==='dateButton').items[0].type,'timeButton');

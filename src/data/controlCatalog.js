@@ -40,10 +40,7 @@ const commonGroups = [
     controls: [
       ['timeButton', 'Built in', 'Show the current time.'], ['dateButton', 'Built in', 'Show today’s date.'], ['battery', 'Built in', 'Show battery status.'],
       ['inputsource', 'Built in', 'Show the active input source.'], ['pomodoro', 'Built in', 'Start a focus timer.'],
-      ['cpu', 'Local display · Automation on tap', 'Show CPU load locally; tapping Activity Monitor needs Automation access.'],
-      ['ramUsage', 'Built in · Local', 'Show physical memory usage.'],
-      ['gpuUsage', 'Hardware dependent · Local', 'Show GPU load; multiple GPUs use the busiest device.'],
-      ['cpuTemperature', 'Apple Silicon · Local', 'Show the hottest available CPU temperature sensor.'],
+      ['systemMonitor', 'Local · Hardware dependent', 'Combine selected CPU, GPU, memory, and CPU temperature readings in one compact control.'],
     ],
   },
   {

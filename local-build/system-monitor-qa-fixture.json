@@ -1,0 +1,8 @@
+[
+  {"type":"cpu","width":64,"align":"left","studioPosition":96},
+  {"type":"ramUsage","width":64,"align":"left","studioPosition":168},
+  {"type":"systemMonitor","metrics":["cpu"],"width":64,"align":"left","studioPosition":240},
+  {"type":"gpuUsage","width":64,"align":"left","studioPosition":312},
+  {"type":"cpuTemperature","width":64,"align":"left","studioPosition":384},
+  {"type":"staticButton","title":"Keep position","width":96,"align":"left","studioPosition":560}
+]

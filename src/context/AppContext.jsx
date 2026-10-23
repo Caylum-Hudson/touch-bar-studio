@@ -3,7 +3,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useState
 import { createElement, getElementDefinition } from '../data/elementDefinitions';
 import { generateJSON, parseJSON } from '../utils/jsonGenerator';
 import { restoreWorkspaceProfiles } from '../utils/workspaceValidation';
-import {spacingGap,nextSpacedPosition,itemWidth} from '../utils/positionLayout';
+import {spacingGap,nextSpacedPosition,itemWidth,combineLegacySystemMetrics} from '../utils/positionLayout';
 import { loadFromMTMR as loadFromMTMRFile, saveToMTMR as saveToMTMRFile, isServerRunning } from '../utils/mtmrFileSystem';
 
 const findItem = (items, id) => {
@@ -119,7 +119,7 @@ function appReducer(state, action) {
     if (!profiles) return state;
     return {...state, profiles, profileId:'default', resolvePageId:'fallback', resolvePageReady:true, items: profiles.default.items, selectedItemId:null, history:{past:[],future:[]}};
   }
-  if (['ADD_ITEM', 'REMOVE_ITEM', 'UPDATE_ITEM', 'ADD_ITEM_TO_GROUP', 'REMOVE_ITEM_FROM_GROUP', 'REORDER_GROUP_ITEMS', 'UPDATE_GROUP_ITEM'].includes(action.type)) {
+  if (['ADD_ITEM', 'REMOVE_ITEM', 'UPDATE_ITEM', 'ADD_ITEM_TO_GROUP', 'REMOVE_ITEM_FROM_GROUP', 'REORDER_GROUP_ITEMS', 'UPDATE_GROUP_ITEM', 'COMBINE_SYSTEM_MONITOR'].includes(action.type)) {
     let items = state.items;
     const p = action.payload;
     if (action.type === 'ADD_ITEM') items = p.parentId ? mapTree(items, i => i.id === p.parentId ? {...i, items:[...(i.items || []),p.item]} : i) : [...items,p.item];
@@ -127,8 +127,11 @@ function appReducer(state, action) {
     if (action.type === 'UPDATE_ITEM') items = mapTree(items, i => i.id === p.id ? {...i,...p.updates} : i);
     if (action.type === 'ADD_ITEM_TO_GROUP') items = mapTree(items, i => i.id === p.groupId ? {...i,items:[...(i.items || []),p.item]} : i);
     if (action.type === 'REORDER_GROUP_ITEMS') items = mapTree(items, i => i.id === p.groupId ? {...i,items:p.items} : i);
+    if (action.type === 'COMBINE_SYSTEM_MONITOR') items = p.parentId
+      ? mapTree(items, i => i.id === p.parentId ? {...i, items:p.items} : i)
+      : p.items;
     if (action.type === 'MOVE_ITEM') return state;
-    return {...state, items, isDirty:true, selectedItemId:action.type === 'ADD_ITEM' ? p.item.id : state.selectedItemId, history:{past:[...state.history.past,state.items],future:[]}};
+    return {...state, items, isDirty:true, selectedItemId:action.type === 'ADD_ITEM' ? p.item.id : action.type === 'COMBINE_SYSTEM_MONITOR' ? p.selectedId : state.selectedItemId, history:{past:[...state.history.past,state.items],future:[]}};
   }
   if (action.type === 'MOVE_ITEM') {
     const item = findItem(state.items, action.payload.id);
@@ -549,6 +552,11 @@ export function AppProvider({ children }) {
     dispatch({ type: ActionTypes.UPDATE_ITEM, payload: { id, updates } });
   }, []);
 
+  const combineSystemMonitor = useCallback((id, options) => {
+    const result = combineLegacySystemMetrics(currentItems, id, options);
+    if (result) dispatch({type:'COMBINE_SYSTEM_MONITOR',payload:{...result,parentId}});
+  }, [currentItems, parentId]);
+
   const reorderItems = useCallback((items) => {
     dispatch(parentId ? {type: ActionTypes.REORDER_GROUP_ITEMS, payload:{groupId:parentId,items}} : { type: ActionTypes.REORDER_ITEMS, payload: items });
   }, [parentId]);
@@ -762,6 +770,7 @@ export function AppProvider({ children }) {
     addItem,
     removeItem,
     updateItem,
+    combineSystemMonitor,
     reorderItems,
     selectItem,
     deselectItem,

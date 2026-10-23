@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getElementDefinition, commonProperties, actionTypes, actionTriggers } from '../../data/elementDefinitions';
 import './Properties.css';
-import {BAR_WIDTH,contentFitWidth,contentMinimumWidth,clampPosition} from '../../utils/positionLayout';
+import {BAR_WIDTH,contentFitWidth,contentMinimumWidth,clampPosition,layoutContentScale} from '../../utils/positionLayout';
+import {SYSTEM_MONITOR_METRICS, selectedSystemMonitorMetrics} from '../../utils/systemMonitor';
+import {systemMonitorWidthForSelection} from '../../utils/widgetSizing';
 import {getControlInfo} from '../../data/controlCatalog';
 import { getControlStatus } from '../../data/controlAvailability';
 import { useRuntimePermissions } from '../../context/useRuntimePermissions';
@@ -16,12 +18,16 @@ const shortcutKeys = [
 ].map(([label, keycode]) => ({ label, value: String(keycode) }));
 
 export default function PropertiesPanel() {
-  const { getSelectedItem, updateItem, removeItem, selectedItemId, enterGroup } = useApp();
-  const { accessibilityAccess } = useRuntimePermissions();
+  const { getSelectedItem, updateItem, removeItem, selectedItemId, enterGroup, combineSystemMonitor, profiles, profileId, groupPath } = useApp();
+  const { accessibilityAccess, layoutCapacity } = useRuntimePermissions();
   const item = getSelectedItem();
   const definition = item ? getElementDefinition(item.type) : null;
   const control = item ? getControlInfo(item.type, item) : null;
   const fittedWidth = item ? contentFitWidth(item) : 0;
+  const contentScale = layoutContentScale(layoutCapacity, {
+    submenu: groupPath.length > 0,
+    resolveProfile: profiles[profileId]?.bundleId === 'com.blackmagic-design.DaVinciResolve',
+  }) || 1;
 
   if (!item || !definition) {
     return (
@@ -111,8 +117,18 @@ export default function PropertiesPanel() {
         {/* Type-Specific Properties */}
         {definition.properties && definition.properties.length > 0 && (
           <PropertySection title="Type Settings">
-            <TypeSpecificProperties item={item} definition={definition} updateItem={updateItem} enterGroup={enterGroup} />
+            <TypeSpecificProperties item={item} definition={definition} updateItem={updateItem} enterGroup={enterGroup} contentScale={contentScale} />
           </PropertySection>
+        )}
+
+        {['cpu','ramUsage','gpuUsage','cpuTemperature'].includes(item.type) && (
+          <section className="property-section">
+            <h3 className="property-section-title">System monitor</h3>
+            <div className="property-section-content">
+              <p className="placement-help">Combine metric widgets in this layout into one compact control. You can undo this change.</p>
+              <button className="combine-monitor-button" onClick={() => combineSystemMonitor(item.id,{contentScale})}>Combine into System Monitor</button>
+            </div>
+          </section>
         )}
 
         {/* Actions */}
@@ -266,10 +282,32 @@ function PropertyImage({ value, onChange }) {
   );
 }
 
-function TypeSpecificProperties({ item, definition, updateItem, enterGroup }) {
+function TypeSpecificProperties({ item, definition, updateItem, enterGroup, contentScale = 1 }) {
   const type = item.type;
 
   switch (type) {
+    case 'systemMonitor': {
+      const selected = selectedSystemMonitorMetrics(item);
+      const labels = {cpu:'CPU usage',gpu:'GPU usage',memory:'Memory usage',temperature:'CPU temperature'};
+      return (
+        <fieldset className="system-monitor-options">
+          <legend>Show readings</legend>
+          {SYSTEM_MONITOR_METRICS.map(metric => (
+            <label key={metric}>
+              <input type="checkbox" checked={selected.includes(metric)} onChange={event => {
+                const next = event.target.checked ? [...selected, metric] : selected.filter(value => value !== metric);
+                const metrics = SYSTEM_MONITOR_METRICS.filter(value => next.includes(value));
+                const width = systemMonitorWidthForSelection(metrics,contentScale);
+                updateItem(item.id, {metrics,width,...(Number.isFinite(item.studioPosition) ? {studioPosition:clampPosition(item.studioPosition,width)} : {})});
+              }} />
+              <span>{labels[metric]}</span>
+            </label>
+          ))}
+          <p className="placement-help">Readings stay in CPU, GPU, Memory, Temperature order. Clear every box to show the icon alone.</p>
+        </fieldset>
+      );
+    }
+
     case 'timeButton':
       return (
         <>
