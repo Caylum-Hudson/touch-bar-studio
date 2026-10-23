@@ -111,7 +111,7 @@ function getItemDisplay(item, definition) {
   }
 }
 
-export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu }) {
+export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu, dragScale = 1 }) {
   const definition = getElementDefinition(item.type);
   
   // Debug: Log when definition is not found
@@ -129,7 +129,7 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
   } = useSortable({ id: item.id });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(transform ? {...transform, x:transform.x / dragScale, y:transform.y / dragScale} : transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };

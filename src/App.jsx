@@ -23,12 +23,13 @@ import PropertiesPanel from './components/Properties/PropertiesPanel';
 import { getElementDefinition, createElement } from './data/elementDefinitions';
 import { getPreset, getPresetList, communityPresets, fetchCommunityPreset } from './data/presets';
 import './App.css';
-import {isPrecise, layoutFrames, snapPosition, spacingGap, contentFitWidth} from './utils/positionLayout';
+import {BAR_WIDTH, isPrecise, layoutFrames, snapPosition, spacingGap, contentMinimumWidth, itemWidth} from './utils/positionLayout';
 import { isPointerWithinViewport } from './utils/dragViewport';
 import { useRuntimePermissions } from './context/useRuntimePermissions';
 import { useDockPreview } from './hooks/useDockPreview';
+import {screenDeltaToLogical, screenXToLogical} from './utils/previewProjection.js';
 
-export function AppContent() {
+export function AppContent({dockPreviewOverride = null} = {}) {
   const { updateKeepControlStrip } = useRuntimePermissions();
   const {
     addItem, selectItem, items, reorderItems, moveItem, updateItem, selectedItemId, removeItem, loadItems, clearAll,
@@ -36,7 +37,8 @@ export function AppContent() {
     loadFromMTMR, saveToMTMR, isDirty, shouldEnableSave, autoLoad, toggleAutoLoad
   } = useApp();
   const dockForPreview = items.find(item => item.type === 'dock');
-  const dockPreview = useDockPreview(dockForPreview ? (dockForPreview.filter ?? '') : undefined);
+  const liveDockPreview = useDockPreview(dockForPreview ? (dockForPreview.filter ?? '') : undefined, !dockPreviewOverride);
+  const dockPreview = dockPreviewOverride || liveDockPreview;
   const [activeId, setActiveId] = useState(null);
   const [activeType, setActiveType] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
@@ -251,8 +253,15 @@ export function AppContent() {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     const positioned = isPrecise(items);
-    const scroll=document.querySelector('.precise-scroll');
-    const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge:scroll?scroll.scrollLeft+scroll.clientWidth:1085};
+    const previewCanvas=document.getElementById('precise-touchbar-canvas');
+    const projection=previewCanvas?{
+      baseScale:Number(previewCanvas.dataset.baseScale)||1,
+      childScale:Number(previewCanvas.dataset.childScale)||1,
+      fitScale:Number(previewCanvas.dataset.fitScale)||1,
+      reserved:Number(previewCanvas.dataset.reserved)||0,
+    }:null;
+    const contentScale=projection?projection.baseScale*projection.childScale:1;
+    const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge:BAR_WIDTH,contentScale};
     const dragged = items.find(item=>item.id===active.id);
     if (active.data.current?.type === 'native-control-strip') {
       if (over?.id === 'control-strip-slot') updateKeepControlStrip?.(true);
@@ -261,7 +270,8 @@ export function AppContent() {
     if(positioned && dragged) {
       if (!over) { setActiveId(null); setActiveType(null); return; }
       const frame=layoutFrames(items,layoutOptions).get(dragged.id);
-      const placement=snapPosition(items,dragged.id,frame.x+event.delta.x,frame.width,undefined,layoutOptions);
+      const delta=projection?screenDeltaToLogical(event.delta.x,projection):event.delta.x;
+      const placement=snapPosition(items,dragged.id,frame.x+delta,frame.width,undefined,layoutOptions);
       updateItem(dragged.id,{studioPosition:placement.x});
       setActiveId(null);setActiveType(null);return;
     }
@@ -269,10 +279,11 @@ export function AppContent() {
       if (over) {
         const elementType = active.data.current.elementType;
         const target = items.find(i=>i.id===over.id && i.type==='group');
-        const canvas=document.getElementById('precise-touchbar-canvas');
         const translated=active.rect.current.translated;
-        const x=canvas&&translated?translated.left-canvas.getBoundingClientRect().left:0;
-        const width=contentFitWidth(createElement(elementType));
+        const screenX=previewCanvas&&translated?translated.left-previewCanvas.getBoundingClientRect().left:0;
+        const x=projection?screenXToLogical(screenX,projection):screenX;
+        const createdElement=createElement(elementType);
+        const width=Math.max(itemWidth(createdElement),Math.ceil(contentMinimumWidth(createdElement)/contentScale));
         const placement=snapPosition(items,null,x,width,undefined,layoutOptions);
         const overrides=positioned?{studioPosition:placement.x,...(spacingGap(items)!==null?{studioGap:spacingGap(items)}:{})}:{};
         const newItem = addItem(elementType, overrides, positioned?undefined:target?.id);

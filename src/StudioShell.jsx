@@ -6,7 +6,9 @@ import { getPermissionLabel } from './data/controlAvailability';
 import { AppContent } from './App';
 import { generateJSON } from './utils/jsonGenerator';
 import { workspaceImportError } from './utils/workspaceValidation';
+import { themeTokens } from './utils/themeTokens.js';
 import './StudioShell.css';
+import './StudioTheme.css';
 import appMetadata from '../package.json';
 const native = location.protocol === 'mtmr-app:';
 async function api(route, data) {
@@ -200,7 +202,7 @@ export default function StudioShell() {
     setSettings({...settings,tiles:[...settings.tiles,{id:crypto.randomUUID(),name:r.name,path:r.path,color:settings.accent,hidden:false,kind}]});
   });
   const updateTile=(id,patch)=>setSettings({...settings,tiles:settings.tiles.map(t=>t.id===id?{...t,...patch}:t)});
-  return <div className="studio-shell" style={{'--studio-accent':settings.accent,'--studio-bg':settings.background,backgroundImage:settings.image?`linear-gradient(#101018cc,#101018ee),url(${settings.image})`:undefined}} data-motion={settings.motion}>
+  return <div className="studio-shell" style={{...themeTokens(settings.background,settings.accent),backgroundImage:settings.image?`linear-gradient(#0005,#0007),url(${settings.image})`:undefined}} data-motion={settings.motion}>
     <header className="studio-header"><div><strong>Touch Bar Studio</strong><small>v{appMetadata.version} · Your Mac, within reach.</small></div><nav>{['Launcher','Studio','Photos','Appearance'].map(t=><button key={t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><button className="runtime-toggle" aria-pressed={enabled===true} disabled={!native||enabled===null||toggling} onClick={toggleTouchBar}>{enabled===null?'Checking Touch Bar…':enabled?'Touch Bar: On':'Touch Bar: Off'}</button><button className="primary" onClick={save}>Apply & Save</button></header>
     {(tab!=='Studio'||status!=='Ready — changes are saved locally')&&<div className={`studio-status ${tab==='Studio'?'studio-feedback':''}`} role="status">{status}<span>Touch Bar: {enabled===false?'Off (macOS controls)':app.profiles[active]?.name || 'Default'}</span></div>}
     {native && keyboardAccess===false && <div className="permission-notice" role="status"><span>macOS has not authorized keyboard control for this running app. Accessibility controls keyboard and media access; Full Disk Access is separate.</span><div><button onClick={()=>run(async()=>{await api('keyboard-permission',{});})}>Review Accessibility settings</button> <button onClick={recheckAccessibility}>Recheck status</button></div></div>}

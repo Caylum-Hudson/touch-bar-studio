@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1 — Consistent themes and native-sized preview
+
+- Apply the selected background and accent across the Studio editor, controls, menus, settings, launcher, and Photos surfaces, with readable foregrounds for light and dark themes. The simulated Touch Bar retains its hardware-style appearance.
+- Project saved logical layout coordinates into native-reported custom-area points, including reserved navigation space. Fit the preview to its available editor width and map drag/drop movement back into logical coordinates without changing saved positions. Automatic alignment keeps its left/center/right behavior.
+- Match the preview control row to the native 30 pt height; the current native capacity API exposes width but not height. The visual Control Strip remains a separate 176 pt preview estimate. Editor screenshots do not establish physical Touch Bar rendering.
+- Source checks: 42 frontend tests pass; changed-file ESLint reports no errors and two existing hook dependency warnings. Full build and installed review are pending.
+
 ## 0.9.0 — Combined System Monitor
 
 - Replace the separate CPU, RAM, GPU, and CPU-temperature palette entries with one **System Monitor**. Properties checkboxes select any combination; the display keeps CPU, GPU, memory, and temperature in a fixed order beside one shared icon, with full reading names in tooltips and accessibility labels. Its width grows or shrinks with the selection, including an icon-only state.

@@ -11,6 +11,10 @@ import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsiste
 import ControlIcon from '../ControlIcon/ControlIcon';
 import ControlStripPreview from './ControlStripPreview';
 import { useRuntimePermissions } from '../../context/useRuntimePermissions';
+import {previewProjection, projectFrame} from '../../utils/previewProjection.js';
+
+// The native capacity API reports horizontal bounds only; Touch Bar controls use a 30 pt content row.
+const NATIVE_PREVIEW_HEIGHT = 30;
 
 export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}}) {
   const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems, profiles, profileId, groupPath } = useApp();
@@ -18,8 +22,8 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   const { active: draggedThing } = useDndContext();
   const draggingControlStrip = draggedThing?.data.current?.type === 'native-control-strip';
   const precise=isPrecise(items);
-  const [viewportNode, setViewportNode] = useState(null);
-  const [visibleRightEdge, setVisibleRightEdge] = useState(BAR_WIDTH);
+  const visibleRightEdge = BAR_WIDTH;
+  const [containerWidth, setContainerWidth] = useState(BAR_WIDTH);
   const [contextMenu, setContextMenu] = useState(null);
   const [spacingError, setSpacingError] = useState('');
   const [placementError, setPlacementError] = useState('');
@@ -83,19 +87,32 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   });
   const attachViewport = useCallback(node => {
     setNodeRef(node);
-    setViewportNode(node);
   }, [setNodeRef]);
   useEffect(() => {
-    if (!viewportNode) { setVisibleRightEdge(BAR_WIDTH); return undefined; }
-    const measure = () => setVisibleRightEdge(viewportNode.scrollLeft + viewportNode.clientWidth);
+    const node = containerRef.current;
+    if (!node) return undefined;
+    const measure = () => {
+      const style = getComputedStyle(node);
+      const horizontalPadding = parseFloat(style.paddingLeft || '0') + parseFloat(style.paddingRight || '0');
+      const horizontalBorder = parseFloat(style.borderLeftWidth || '0') + parseFloat(style.borderRightWidth || '0');
+      setContainerWidth(Math.max(1, node.clientWidth - horizontalPadding - horizontalBorder) || BAR_WIDTH);
+    };
     measure();
-    viewportNode.addEventListener('scroll', measure, {passive: true});
     const observer = new ResizeObserver(measure);
-    observer.observe(viewportNode);
-    return () => { viewportNode.removeEventListener('scroll', measure); observer.disconnect(); };
-  }, [viewportNode]);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge,contentScale:contentScale || 1};
   const frames=layoutFrames(items,layoutOptions);
+  const reservedWidth = groupPath.length ? 62 : profiles[profileId]?.bundleId === 'com.blackmagic-design.DaVinciResolve' ? 94 : 0;
+  const physicalWidth = layoutCapacity?.physicalWidth > 0 ? layoutCapacity.physicalWidth : BAR_WIDTH;
+  const projection = previewProjection(physicalWidth, {reserved:reservedWidth, availableWidth:containerWidth, extraWidth:(showControlStrip?176:0)+18});
+  const projectedFrames = new Map([...frames].map(([id, frame]) => [id, projectFrame(frame, projection)]));
+  const previewWidth = physicalWidth + (showControlStrip ? 176 : 0);
+  const previewContentHeight = precise ? NATIVE_PREVIEW_HEIGHT + 31 : NATIVE_PREVIEW_HEIGHT;
+  const previewOuterWidth = previewWidth + 18;
+  const previewOuterHeight = previewContentHeight + 18;
+  const previewScaleStyle = {width:previewWidth,transform:`scale(${projection.fitScale})`,transformOrigin:'top left',marginRight:(projection.fitScale-1)*previewOuterWidth,marginBottom:(projection.fitScale-1)*previewOuterHeight};
   const dockItem = items.find(item=>item.type==='dock');
   const automaticOtherWidth = items.filter(item=>item.type!=='dock').reduce((total,item)=>total+contentFitWidth(item),0);
   const automaticGaps = ['left','center','right'].reduce((total,alignment)=>{
@@ -104,9 +121,14 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   },0);
   const automaticAvailableWidth = Math.max(0,visibleRightEdge-12-automaticOtherWidth-automaticGaps);
   const automaticDockWidth = autoDockDisplayWidth(items, dockItem?.id, dockPreview.preferredWidth, automaticAvailableWidth);
-  const previewItem = item => item.type==='dock'
-    ? {...item,width:precise?frames.get(item.id).width:(automaticDockWidth ?? item.width),dockApps:dockPreview.apps,dockIconSize:dockPreview.iconSize,dockItemSpacing:dockPreview.itemSpacing}
-    : {...item,width:precise?frames.get(item.id).width:contentFitWidth(item)};
+  const previewItem = item => {
+    const logicalWidth=item.type==='dock'?(precise?frames.get(item.id).width:(automaticDockWidth ?? item.width)):(precise?frames.get(item.id).width:contentFitWidth(item));
+    return {...item,width:projectedFrames.get(item.id)?.width ?? logicalWidth,...(item.type==='dock'?{dockApps:dockPreview.apps,dockIconSize:dockPreview.iconSize,dockItemSpacing:dockPreview.itemSpacing}:{})};
+  };
+  const projectedItems = items.map(item => {
+    const frame=projectedFrames.get(item.id);
+    return <div className="positioned-control" key={item.id} style={{left:frame.x,width:frame.width}}><TouchBarItem item={previewItem(item)} dragScale={projection.fitScale} isSelected={selectedItemId===item.id} onSelect={()=>chooseControl(item)} onContextMenu={e=>handleContextMenu(e,item.id)}/></div>;
+  });
   const { setNodeRef: setControlStripSlotRef, isOver: isOverControlStripSlot } = useDroppable({
     id: 'control-strip-slot',
     disabled: keepControlStrip,
@@ -154,11 +176,6 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedItemId, removeItem, selectItem]);
 
-  // Group items by alignment to match MTMR's actual layout
-  const leftItems = items.filter(item => item.align === 'left');
-  const centerItems = items.filter(item => !item.align || item.align === 'center');
-  const rightItems = items.filter(item => item.align === 'right');
-
   return (
     <div className="touchbar-container" ref={containerRef}>
       <div className="layout-heading"><strong>Touch Bar layout</strong><button type="button" className="auto-place-button" disabled={!items.length} onClick={autoPlaceItems} title="Distribute current items with equal space around them. Keeps their sizes and can be undone.">Auto-place evenly</button><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
@@ -185,68 +202,21 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
         </div>
       ) : precise ? (
         <>
-          <div className={`touchbar-frame ${showControlStrip?'with-control-strip':''} ${isOver?'drag-over':''}`}>
-            <div className={`touchbar-screen ${showControlStrip?'with-control-strip':''}`}>
-              <div className="precise-scroll" ref={attachViewport}><div className="position-ruler" style={{width:BAR_WIDTH}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div><div id="precise-touchbar-canvas" className="precise-canvas" style={{width:BAR_WIDTH}}><SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{items.map(item=><div className="positioned-control" key={item.id} style={{left:frames.get(item.id).x,width:frames.get(item.id).width}}><TouchBarItem item={previewItem({...item,width:frames.get(item.id).width})} isSelected={selectedItemId===item.id} onSelect={()=>chooseControl(item)} onContextMenu={e=>handleContextMenu(e,item.id)}/></div>)}</SortableContext></div></div>
+          <div className={`touchbar-frame preview-projected ${showControlStrip?'with-control-strip':''} ${isOver?'drag-over':''}`} style={previewScaleStyle}>
+            <div className={`touchbar-screen preview-projected precise-preview ${showControlStrip?'with-control-strip':''}`} style={{width:previewWidth,height:previewContentHeight}}>
+              <div className="precise-scroll" ref={attachViewport} style={{width:physicalWidth,flex:`0 0 ${physicalWidth}px`}}><div className="position-ruler" style={{width:physicalWidth}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x*physicalWidth/BAR_WIDTH,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div><div id="precise-touchbar-canvas" className="precise-canvas" data-base-scale={projection.baseScale} data-child-scale={projection.childScale} data-fit-scale={projection.fitScale} data-reserved={reservedWidth} style={{width:physicalWidth,height:NATIVE_PREVIEW_HEIGHT}}>{reservedWidth>0&&<div className="preview-native-navigation" style={{width:reservedWidth*projection.baseScale}} aria-label={groupPath.length?'Back to parent group':'Resolve page picker'}><span style={{width:(groupPath.length?54:94)*projection.baseScale}}>{groupPath.length?'‹ Back':'‹ Page'}</span></div>}<SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{projectedItems}</SortableContext></div></div>
               {showControlStrip&&<div className="control-strip-widget-slot" ref={setControlStripSlotRef}><button type="button" className="control-strip-remove" onClick={()=>updateKeepControlStrip?.(false)} aria-label="Remove macOS Control Strip" title="Remove Control Strip">×</button><ControlStripPreview expanded={false} onExpand={()=>setControlStripExpanded(true)}/></div>}
               {controlStripDropTarget}
             </div>
           </div>
           {overlappingItems(items,layoutOptions)&&<p className="layout-warning" role="status">Some controls overlap or need more room. Move them apart or adjust their widths so all content stays visible.</p>}
         </>
-      ) : <div className={`touchbar-frame ${showControlStrip?'with-control-strip':''} ${isOver ? 'drag-over' : ''}`}>
-        <div className={`touchbar-screen ${showControlStrip?'with-control-strip':''}`}>
-          <div className="touchbar-custom-region" ref={attachViewport}>
-          <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
-            <div className="touchbar-items">
-              {items.length === 0 ? (
-                <div className="touchbar-empty">
-                  <span>Drag elements here or click from the palette</span>
-                </div>
-              ) : (
-                <>
-                  {/* Left-aligned items */}
-                  <div className="touchbar-section touchbar-section-left">
-                    {leftItems.map((item) => (
-                      <TouchBarItem
-                        key={item.id}
-                        item={previewItem(item)}
-                        isSelected={selectedItemId === item.id}
-                        onSelect={() => chooseControl(item)}
-                        onContextMenu={(e) => handleContextMenu(e, item.id)}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Center-aligned items */}
-                  <div className="touchbar-section touchbar-section-center">
-                    {centerItems.map((item) => (
-                      <TouchBarItem
-                        key={item.id}
-                        item={previewItem(item)}
-                        isSelected={selectedItemId === item.id}
-                        onSelect={() => chooseControl(item)}
-                        onContextMenu={(e) => handleContextMenu(e, item.id)}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Right-aligned items */}
-                  <div className="touchbar-section touchbar-section-right">
-                    {rightItems.map((item) => (
-                      <TouchBarItem
-                        key={item.id}
-                        item={previewItem(item)}
-                        isSelected={selectedItemId === item.id}
-                        onSelect={() => chooseControl(item)}
-                        onContextMenu={(e) => handleContextMenu(e, item.id)}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </SortableContext>
+      ) : <div className={`touchbar-frame preview-projected ${showControlStrip?'with-control-strip':''} ${isOver ? 'drag-over' : ''}`} style={previewScaleStyle}>
+        <div className={`touchbar-screen preview-projected ${showControlStrip?'with-control-strip':''}`} style={{width:previewWidth,height:previewContentHeight}}>
+          <div className="touchbar-custom-region" ref={attachViewport} id="precise-touchbar-canvas" data-base-scale={projection.baseScale} data-child-scale={projection.childScale} data-fit-scale={projection.fitScale} data-reserved={reservedWidth} style={{width:physicalWidth,flex:`0 0 ${physicalWidth}px`,height:NATIVE_PREVIEW_HEIGHT,position:'relative',overflow:'hidden'}}>
+          {reservedWidth>0&&<div className="preview-native-navigation" style={{width:reservedWidth*projection.baseScale}} aria-label={groupPath.length?'Back to parent group':'Resolve page picker'}><span style={{width:(groupPath.length?54:94)*projection.baseScale}}>{groupPath.length?'‹ Back':'‹ Page'}</span></div>}
+          <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>{projectedItems}</SortableContext>
+          {items.length===0&&<div className="touchbar-empty" style={{width:physicalWidth}}>Drag elements here or click from the palette</div>}
           </div>
           {showControlStrip&&<div className="control-strip-widget-slot" ref={setControlStripSlotRef}><button type="button" className="control-strip-remove" onClick={()=>updateKeepControlStrip?.(false)} aria-label="Remove macOS Control Strip" title="Remove Control Strip">×</button><ControlStripPreview expanded={false} onExpand={()=>setControlStripExpanded(true)}/></div>}
           {controlStripDropTarget}

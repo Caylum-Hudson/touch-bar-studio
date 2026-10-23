@@ -1,8 +1,9 @@
 import {useEffect, useState} from 'react';
 
-export function useDockPreview(filter) {
+export function useDockPreview(filter, enabled = true) {
   const [snapshot, setSnapshot] = useState({revision: null, filter: undefined, apps: [], preferredWidth: null, iconSize: 32, itemSpacing: 1});
   useEffect(() => {
+    if (!enabled) return undefined;
     let stopped = false;
     let timer;
     const refresh = async () => {
@@ -30,6 +31,6 @@ export function useDockPreview(filter) {
     };
     refresh();
     return () => { stopped = true; clearTimeout(timer); };
-  }, [filter, snapshot.revision, snapshot.filter]);
+  }, [enabled, filter, snapshot.revision, snapshot.filter]);
   return snapshot;
 }

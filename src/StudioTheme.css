@@ -1,0 +1,58 @@
+/* The selected appearance belongs to the Studio window, including every editor route. */
+.studio-shell{color:var(--studio-text);background-color:var(--studio-bg)}
+.studio-shell :is(.studio-status,.script-note,.page-heading p,.appearance p,.launch-tile small,.empty-card p,.photo-inspector,.photo-inspector p,.studio-header small,.profile-runtime small,.profile-add-form p,.layout-settings-content,.spacing-toolbar,.position-help,.json-output,.property-section-title){color:var(--studio-muted)}
+.studio-shell :is(.studio-header,.studio-status,.profile-strip,.submenu-strip,.app-menubar,.permission-notice,.profile-toolbar,.profile-add-form,.resolve-page-empty,.control-runtime-note,.studio-options,.layout-settings-content,.studio-feedback,.tile-manager,.photo-inspector,.photo-filters,.photo-grid,.appearance,.empty-card,.palette-search,.property-toggle){border-color:var(--studio-border)}
+.studio-shell :is(.editor-host,.editor-host .app,.app-menubar,.palette,.properties-panel,.palette-item,.profile-toolbar,.profile-add-form,.resolve-page-empty,.studio-options,.layout-settings-content,.studio-feedback,.launch-tile,.empty-card,.tile-manager,.photo-inspector,.photo-grid,.photo-filters,.appearance,.permission-status-panel,.control-runtime-note,.json-output,.json-header,.json-preview,.json-editor,.json-code,.json-highlight,.json-code-wrapper,.json-edit-container,.json-editor-textarea){background-color:var(--studio-surface)!important;color:var(--studio-text)}
+.studio-shell :is(.palette-header,.properties-header,.palette-category-header,.property-section,.property-section-title,.app-footer,.profile-strip,.submenu-strip,.studio-menu-options,.photo-inspector,.tile-manager){border-color:var(--studio-border)!important}
+.studio-shell :is(.studio-header nav button,.menu-trigger,.studio-options>summary,.studio-menu-options>summary,.layout-settings>summary,.profile-editor-select,.palette-item-label,.properties-header h2,.property-section-title,.profile-runtime strong,.json-button,.app-footer,.menu-dropdown-item,.photo span){color:var(--studio-text)}
+.studio-shell :is(.palette-item:hover,.launch-tile:hover,.photo:hover,.studio-header nav button:hover,.menu-trigger:hover,.menu-trigger.open){background-color:var(--studio-surface-raised)!important;border-color:var(--studio-accent-border)!important}
+.studio-shell :is(.chosen,.runtime-toggle[aria-pressed=true],.properties-type,.eyebrow,.studio-options>summary::before,.studio-menu-options>summary::before,.layout-settings>summary::before,.category-count,.menu-check){color:var(--studio-accent)}
+.studio-shell .properties-type{background:var(--studio-accent-soft)}
+.studio-shell button:not(.touchbar-item):not(.control-strip-remove){border-color:var(--studio-border);color:var(--studio-text)}
+.studio-shell button:not(.touchbar-item):not(.control-strip-remove):hover{border-color:var(--studio-accent-border)}
+.studio-shell button.primary{background:var(--studio-accent)!important;color:var(--studio-primary-text)!important;border-color:transparent!important}
+.studio-shell :is(input:not([type=checkbox]):not([type=color]):not([type=range]),select,textarea,.palette-search-input,.property-input,.property-select,.property-textarea){background:var(--studio-input)!important;color:var(--studio-text)!important;border-color:var(--studio-border)!important}
+.studio-shell :is(input,select,textarea,button,summary,[tabindex]):focus-visible{outline:2px solid var(--studio-accent);outline-offset:2px}
+.studio-shell :is(input[type=checkbox],input[type=range],progress){accent-color:var(--studio-accent)}
+.studio-shell .menu-dropdown,.studio-shell .menu-submenu{background:var(--studio-surface-raised);border-color:var(--studio-border)}
+.studio-shell .menu-dropdown-item:hover:not(:disabled){background:var(--studio-accent);color:var(--studio-primary-text)}
+.studio-shell .menu-separator,.studio-shell .photo-inspector hr,.studio-shell .appearance hr{background:var(--studio-border);border-color:var(--studio-border)}
+.studio-shell .permission-notice{background:var(--studio-accent-soft);color:var(--studio-text)}
+.studio-shell .launch-tile{border-top-color:var(--studio-accent)}
+.studio-shell .studio-feedback{background:var(--studio-surface-raised);color:var(--studio-text)}
+.studio-shell :is(.property-section-title,.property-section h3){background:var(--studio-surface-raised)!important;color:var(--studio-muted)!important;border-color:var(--studio-border)!important}
+.studio-shell .property-section-content{background:var(--studio-surface)!important;color:var(--studio-text)}
+.studio-shell .property-toggle{background:var(--studio-surface-raised)!important;color:var(--studio-text)}
+.studio-shell .palette-search{background:var(--studio-input)!important;border-color:var(--studio-border)!important}
+.studio-shell .palette-search-icon,.studio-shell .palette-search-input::placeholder{color:var(--studio-muted)!important;opacity:1}
+.studio-shell .palette-item-status{background:var(--studio-accent-soft)!important;color:var(--studio-accent)!important}
+.studio-shell .palette-item-icon.control-icon{box-sizing:border-box;padding:5px;border-radius:7px;background:#252a38;filter:hue-rotate(var(--studio-accent-icon-rotation)) saturate(1.15)}
+.studio-shell .properties-type{color:var(--studio-accent-text-color)!important;background:var(--studio-accent-soft)!important}
+.studio-shell .toggle-button.active,.studio-shell .palette-add{background:var(--studio-accent)!important;border-color:var(--studio-accent)!important;color:var(--studio-primary-text)!important}
+.studio-shell .toggle-button:not(.active){background:var(--studio-surface)!important;border-color:var(--studio-border)!important;color:var(--studio-muted)!important}
+.studio-shell .app-footer{background:var(--studio-surface)!important;color:var(--studio-muted)!important;border-color:var(--studio-border)!important}
+.studio-shell .app-footer :is(a,.app-footer-hint,.app-footer-credits){color:var(--studio-muted)}
+.studio-shell .touchbar-wrapper{background:var(--studio-bg)}
+.studio-shell .touchbar-container{box-sizing:border-box}
+.studio-shell .touchbar-frame.preview-projected{box-sizing:content-box;max-width:none;flex:none;align-self:flex-start}
+.studio-shell .touchbar-screen.preview-projected{box-sizing:border-box;max-width:none;min-width:0;overflow:hidden;flex:none}
+.studio-shell .preview-projected .precise-scroll{box-sizing:border-box;max-width:none;min-width:0;overflow:hidden;padding:0}
+.studio-shell .preview-projected .precise-canvas{box-sizing:border-box;margin-top:6px;border:1px solid #ffffff12;background:#070a11}
+.studio-shell .touchbar-screen.preview-projected.precise-preview .control-strip-widget-slot{padding-top:31px}
+.studio-shell .preview-projected .touchbar-custom-region{box-sizing:border-box;overflow:hidden}
+.studio-shell .preview-projected .positioned-control{top:0;height:30px}
+.studio-shell .preview-projected .positioned-control .touchbar-item{height:30px;min-height:0;padding:2px 4px}
+.studio-shell .preview-native-navigation{position:absolute;inset:0 auto 0 0;display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;padding-right:8px;z-index:1;background:#080b12}
+.studio-shell .preview-native-navigation span{display:flex;align-items:center;justify-content:center;height:28px;box-sizing:border-box;border-radius:5px;background:#252a38;color:#f0f3fc;font-size:11px;white-space:nowrap;overflow:hidden}
+.studio-shell .touchbar-item.selected{box-shadow:0 0 0 2px var(--studio-accent),0 0 0 4px var(--studio-accent-soft)}
+.studio-shell :not(:where(.touchbar-frame,.touchbar-frame *)){color:var(--studio-text)!important}
+.studio-shell :is(.studio-status,.script-note,.page-heading p,.appearance p,.launch-tile small,.empty-card p,.studio-header small,.profile-runtime small,.profile-add-form p,.layout-settings-content,.spacing-toolbar,.position-help,.placement-help,.palette-heading p,.palette-item-benefit,.palette-section-title,.palette-no-results,.category-heading small,.menu-backdrop,.menubar-status,.app-footer-hint,.app-footer-credits){color:var(--studio-muted)!important}
+.studio-shell :is(.chosen,.runtime-toggle[aria-pressed=true],.properties-type,.eyebrow,.studio-options>summary::before,.studio-menu-options>summary::before,.layout-settings>summary::before,.menu-check,.advanced-chevron){color:var(--studio-accent-text-color)!important}
+.studio-shell .palette .palette-item-label{color:var(--studio-text)!important}
+.studio-shell .layout-heading>strong,.studio-shell .layout-toolbar strong,.studio-shell .menu-trigger,.studio-shell .properties-header h2{color:var(--studio-text)!important}
+.studio-shell .studio-menu-options>summary{color:var(--studio-muted)!important}
+.studio-shell .studio-menu-options{background:var(--studio-surface)!important}
+.studio-shell .button.primary,.studio-shell button.primary{color:var(--studio-primary-text)!important}
+/* Simulated hardware keeps its Touch Bar colors; only the surrounding Studio canvas follows the theme. */
+.studio-shell .touchbar-frame,.studio-shell .touchbar-screen,.studio-shell .touchbar-item,.studio-shell .control-strip-widget-slot,.studio-shell .control-strip-full-screen{color:#f0f3fc}
+.studio-shell .touchbar-frame button{color:#f0f3fc!important}
