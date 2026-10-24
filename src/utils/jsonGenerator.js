@@ -1,5 +1,6 @@
 // JSON Generator for MTMR Configuration
 // Converts internal state to MTMR-compatible JSON format
+import { systemMonitorConfigurationSignature } from './systemMonitorRuntimePreview.js';
 
 /**
  * Generate MTMR-compatible JSON from items array
@@ -20,7 +21,14 @@ const generateItemJSON = (item) => {
   if (!item || !item.type) return null;
 
   const { id: _editorId, ...preserved } = item;
+  delete preserved.studioId;
+  delete preserved.studioPreviewSignature;
   const result = { ...preserved, type: item.type };
+
+  const containsMonitor = item.type === 'systemMonitor'
+    || (item.type === 'group' && (item.items || []).some(containsSystemMonitor));
+  if (containsMonitor && (item.id != null || item.studioId)) result.studioId = String(item.id ?? item.studioId);
+  if (item.type === 'systemMonitor') result.studioPreviewSignature = systemMonitorConfigurationSignature(item);
 
   // Add common properties if they have values
   if (item.width !== undefined && item.width !== null) {
@@ -66,6 +74,9 @@ const generateItemJSON = (item) => {
 
   return result;
 };
+
+const containsSystemMonitor = item => item?.type === 'systemMonitor'
+  || (item?.type === 'group' && (item.items || []).some(containsSystemMonitor));
 
 /**
  * Add type-specific properties to the result

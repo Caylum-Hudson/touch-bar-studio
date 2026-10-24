@@ -28,14 +28,18 @@ import { isPointerWithinViewport } from './utils/dragViewport';
 import { useRuntimePermissions } from './context/useRuntimePermissions';
 import { useDockPreview } from './hooks/useDockPreview';
 import {screenDeltaToLogical, screenXToLogical} from './utils/previewProjection.js';
+import {matchSystemMonitorRuntimePreviews} from './utils/systemMonitorRuntimePreview.js';
 
 export function AppContent({dockPreviewOverride = null} = {}) {
-  const { updateKeepControlStrip } = useRuntimePermissions();
+  const { updateKeepControlStrip, systemMonitorPreviews, activeStudioGroupPath, activeRuntimeProfile, activeRuntimeResolvePage, activeRuntimeEnabled } = useRuntimePermissions();
   const {
     addItem, selectItem, items, reorderItems, moveItem, updateItem, selectedItemId, removeItem, loadItems, clearAll,
     activePreset, setActivePreset, myPresets, saveMyPreset, overwriteMyPreset, deleteMyPreset,
-    loadFromMTMR, saveToMTMR, isDirty, shouldEnableSave, autoLoad, toggleAutoLoad
+    loadFromMTMR, saveToMTMR, isDirty, shouldEnableSave, autoLoad, toggleAutoLoad, profiles, profileId, resolvePageId, groupPath
   } = useApp();
+  const matchedMonitorPreviews = matchSystemMonitorRuntimePreviews({rows:systemMonitorPreviews,profiles,profileId,resolvePageId,groupPath,activeProfile:activeRuntimeProfile,activeResolvePage:activeRuntimeResolvePage,activeGroupPath:activeStudioGroupPath,runtimeEnabled:activeRuntimeEnabled});
+  const layoutItems = items.map(item => item.type === 'systemMonitor' && item.autoFitContent && matchedMonitorPreviews.has(item.id)
+    ? {...item,runtimePreview:matchedMonitorPreviews.get(item.id)} : item);
   const dockForPreview = items.find(item => item.type === 'dock');
   const liveDockPreview = useDockPreview(dockForPreview ? (dockForPreview.filter ?? '') : undefined, !dockPreviewOverride);
   const dockPreview = dockPreviewOverride || liveDockPreview;
@@ -269,9 +273,9 @@ export function AppContent({dockPreviewOverride = null} = {}) {
     }
     if(positioned && dragged) {
       if (!over) { setActiveId(null); setActiveType(null); return; }
-      const frame=layoutFrames(items,layoutOptions).get(dragged.id);
+      const frame=layoutFrames(layoutItems,layoutOptions).get(dragged.id);
       const delta=projection?screenDeltaToLogical(event.delta.x,projection):event.delta.x;
-      const placement=snapPosition(items,dragged.id,frame.x+delta,frame.width,undefined,layoutOptions);
+      const placement=snapPosition(layoutItems,dragged.id,frame.x+delta,frame.width,undefined,layoutOptions);
       updateItem(dragged.id,{studioPosition:placement.x});
       setActiveId(null);setActiveType(null);return;
     }
@@ -284,7 +288,7 @@ export function AppContent({dockPreviewOverride = null} = {}) {
         const x=projection?screenXToLogical(screenX,projection):screenX;
         const createdElement=createElement(elementType);
         const width=Math.max(itemWidth(createdElement),Math.ceil(contentMinimumWidth(createdElement)/contentScale));
-        const placement=snapPosition(items,null,x,width,undefined,layoutOptions);
+        const placement=snapPosition(layoutItems,null,x,width,undefined,layoutOptions);
         const overrides=positioned?{studioPosition:placement.x,...(spacingGap(items)!==null?{studioGap:spacingGap(items)}:{})}:{};
         const newItem = addItem(elementType, overrides, positioned?undefined:target?.id);
         if (newItem) {

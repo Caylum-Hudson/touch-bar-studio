@@ -59,7 +59,11 @@ const textWidth = (text, icon = false, padding = 24) =>
 
 /** Conservative preview width for native text/status controls whose view width is intrinsic. */
 export function widgetContentWidth(item) {
-  if (!item || item.image?.base64) return null;
+  if (!item) return null;
+  if (item.type === 'systemMonitor' && item.autoFitContent && Number.isFinite(item.runtimePreview?.contentWidth)) {
+    return Math.max(24, Math.ceil(item.runtimePreview.contentWidth));
+  }
+  if (item.image?.base64) return null;
   if (item.title?.trim()) return textWidth(item.title);
   switch (item.type) {
     case 'timeButton': {

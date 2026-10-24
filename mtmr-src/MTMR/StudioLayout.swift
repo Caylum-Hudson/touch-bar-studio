@@ -12,11 +12,19 @@ enum StudioLayout {
             if case let .dock(autoResize: enabled, filter: _) = definitions[index].type { return enabled }
             return false
         }
+        func isAutoFitSystemMonitor(_ index: Int) -> Bool {
+            guard case .systemMonitor(metrics: _) = definitions[index].type,
+                  case let .autoFitContent(enabled)? = definitions[index].additionalParameters[.autoFitContent] else { return false }
+            return enabled
+        }
         for alignment: Align in [.left,.center,.right] {
             let indices = definitions.indices.filter { definitions[$0].align == alignment }
             func itemWidth(_ index: Int) -> CGFloat {
                 if isAutoResizingDock(index), let preferred = preferredContentWidths[index] {
                     return min(width, max(0, preferred))
+                }
+                if isAutoFitSystemMonitor(index), let preferred = preferredContentWidths[index] {
+                    return min(width, max(24, preferred))
                 }
                 let configured: CGFloat
                 if case let .width(value)? = definitions[index].additionalParameters[.width] {

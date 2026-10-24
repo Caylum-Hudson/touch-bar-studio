@@ -7,18 +7,19 @@ import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
 import TouchBarItem from './TouchBarItem';
 import './TouchBar.css';
-import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsistentSpacing,autoDockDisplayWidth,contentFitWidth,distributeItemsEvenly,layoutContentScale} from '../../utils/positionLayout';
+import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsistentSpacing,autoDockDisplayWidth,contentFitWidth,distributeItemsEvenly,layoutContentScale,saveLayoutPositions} from '../../utils/positionLayout';
 import ControlIcon from '../ControlIcon/ControlIcon';
 import ControlStripPreview from './ControlStripPreview';
 import { useRuntimePermissions } from '../../context/useRuntimePermissions';
 import {previewProjection, projectFrame} from '../../utils/previewProjection.js';
+import {matchSystemMonitorRuntimePreviews} from '../../utils/systemMonitorRuntimePreview.js';
 
 // The native capacity API reports horizontal bounds only; Touch Bar controls use a 30 pt content row.
 const NATIVE_PREVIEW_HEIGHT = 30;
 
 export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}}) {
-  const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems, profiles, profileId, groupPath } = useApp();
-  const { keepControlStrip, updateKeepControlStrip, native, layoutCapacity } = useRuntimePermissions();
+  const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems, profiles, profileId, resolvePageId, groupPath } = useApp();
+  const { keepControlStrip, updateKeepControlStrip, native, layoutCapacity, systemMonitorPreviews, activeStudioGroupPath, activeRuntimeProfile, activeRuntimeResolvePage, activeRuntimeEnabled } = useRuntimePermissions();
   const { active: draggedThing } = useDndContext();
   const draggingControlStrip = draggedThing?.data.current?.type === 'native-control-strip';
   const precise=isPrecise(items);
@@ -53,8 +54,9 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   };
   const applySpacing = (value, repack = false) => {
     try {
-      const source = repack ? items.map(item => { const next={...item}; delete next.studioGap; return next; }) : items;
-      reorderItems(setConsistentSpacing(source,value));
+      const source = repack ? renderItems.map(item => { const next={...item}; delete next.studioGap; return next; }) : renderItems;
+      const arranged = setConsistentSpacing(source,value);
+      reorderItems(saveLayoutPositions(items,arranged,{clearGaps:repack}));
       setSpacingError('');
     } catch (error) { setSpacingError(error.message); }
   };
@@ -67,9 +69,10 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
     try {
       if (placementUnavailable) throw new Error('Turn on the Touch Bar and wait for its size to be available, then try again.');
       if (native && items.some(item => item.type === 'dock' && item.autoResize !== false) && !Number.isFinite(dockPreview.preferredWidth)) throw new Error('Wait for the Dock preview to load, then try again.');
-      const arranged = distributeItemsEvenly(items, {dockPreferredWidth: dockPreview.preferredWidth, contentScale: contentScale || 1});
-      placementFeedbackKey.current = JSON.stringify([placementContextKey, arranged]);
-      reorderItems(arranged);
+      const arranged = distributeItemsEvenly(renderItems, {dockPreferredWidth: dockPreview.preferredWidth, contentScale: contentScale || 1});
+      const savedArranged = saveLayoutPositions(items,arranged,{clearGaps:true});
+      placementFeedbackKey.current = JSON.stringify([placementContextKey, savedArranged]);
+      reorderItems(savedArranged);
       setPlacementError('');
       setPlacementStatus('Items placed evenly.');
     } catch (error) {
@@ -102,8 +105,11 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+  const matchedMonitorPreviews = matchSystemMonitorRuntimePreviews({rows:systemMonitorPreviews,profiles,profileId,resolvePageId,groupPath,activeProfile:activeRuntimeProfile,activeResolvePage:activeRuntimeResolvePage,activeGroupPath:activeStudioGroupPath,runtimeEnabled:activeRuntimeEnabled});
+  const renderItems = items.map(item => item.type === 'systemMonitor' && item.autoFitContent && matchedMonitorPreviews.has(item.id)
+    ? {...item,runtimePreview:matchedMonitorPreviews.get(item.id)} : item);
   const layoutOptions={dockPreferredWidth:dockPreview.preferredWidth,visibleRightEdge,contentScale:contentScale || 1};
-  const frames=layoutFrames(items,layoutOptions);
+  const frames=layoutFrames(renderItems,layoutOptions);
   const reservedWidth = groupPath.length ? 62 : profiles[profileId]?.bundleId === 'com.blackmagic-design.DaVinciResolve' ? 94 : 0;
   const physicalWidth = layoutCapacity?.physicalWidth > 0 ? layoutCapacity.physicalWidth : BAR_WIDTH;
   const projection = previewProjection(physicalWidth, {reserved:reservedWidth, availableWidth:containerWidth, extraWidth:(showControlStrip?176:0)+18});
@@ -113,19 +119,19 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   const previewOuterWidth = previewWidth + 18;
   const previewOuterHeight = previewContentHeight + 18;
   const previewScaleStyle = {width:previewWidth,transform:`scale(${projection.fitScale})`,transformOrigin:'top left',marginRight:(projection.fitScale-1)*previewOuterWidth,marginBottom:(projection.fitScale-1)*previewOuterHeight};
-  const dockItem = items.find(item=>item.type==='dock');
-  const automaticOtherWidth = items.filter(item=>item.type!=='dock').reduce((total,item)=>total+contentFitWidth(item),0);
+  const dockItem = renderItems.find(item=>item.type==='dock');
+  const automaticOtherWidth = renderItems.filter(item=>item.type!=='dock').reduce((total,item)=>total+contentFitWidth(item),0);
   const automaticGaps = ['left','center','right'].reduce((total,alignment)=>{
-    const count=items.filter(item=>(item.align||'center')===alignment&&item.type!=='dock').length;
+    const count=renderItems.filter(item=>(item.align||'center')===alignment&&item.type!=='dock').length;
     return total+Math.max(0,count-1)*4;
   },0);
   const automaticAvailableWidth = Math.max(0,visibleRightEdge-12-automaticOtherWidth-automaticGaps);
-  const automaticDockWidth = autoDockDisplayWidth(items, dockItem?.id, dockPreview.preferredWidth, automaticAvailableWidth);
+  const automaticDockWidth = autoDockDisplayWidth(renderItems, dockItem?.id, dockPreview.preferredWidth, automaticAvailableWidth);
   const previewItem = item => {
     const logicalWidth=item.type==='dock'?(precise?frames.get(item.id).width:(automaticDockWidth ?? item.width)):(precise?frames.get(item.id).width:contentFitWidth(item));
     return {...item,width:projectedFrames.get(item.id)?.width ?? logicalWidth,...(item.type==='dock'?{dockApps:dockPreview.apps,dockIconSize:dockPreview.iconSize,dockItemSpacing:dockPreview.itemSpacing}:{})};
   };
-  const projectedItems = items.map(item => {
+  const projectedItems = renderItems.map(item => {
     const frame=projectedFrames.get(item.id);
     return <div className="positioned-control" key={item.id} style={{left:frame.x,width:frame.width}}><TouchBarItem item={previewItem(item)} dragScale={projection.fitScale} isSelected={selectedItemId===item.id} onSelect={()=>chooseControl(item)} onContextMenu={e=>handleContextMenu(e,item.id)}/></div>;
   });

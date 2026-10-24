@@ -116,6 +116,24 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
                     response["workspace"] = store.apiWorkspace
                 }
                 response["layoutCapacity"] = controller.studioLayoutCapacity.map { $0 as Any } ?? NSNull()
+                response["studioGroupPath"] = controller.studioGroupPath
+                var monitorRows: [[String:Any]] = []
+                if AppSettings.touchBarEnabled, controller.studioLayoutCapacity != nil {
+                    monitorRows = controller.itemDefinitions.compactMap { identifier, definition in
+                    guard let studioId = definition.studioId,
+                          case let .systemMonitor(metrics) = definition.type,
+                          case let .autoFitContent(true)? = definition.additionalParameters[.autoFitContent],
+                          case let .studioPreviewSignature(signature)? = definition.additionalParameters[.studioPreviewSignature],
+                          let monitor = controller.items[identifier] as? SystemMonitorBarItem else { return nil }
+                    return ["studioId":studioId,
+                            "metrics":metrics,
+                            "title":monitor.title,
+                            "naturalWidth":monitor.studioNaturalContentWidth,
+                            "frameWidth":monitor.view.frame.width,
+                            "signature":signature]
+                    }
+                }
+                response["systemMonitorPreviews"] = monitorRows
                 StudioPermissions.statusFields.forEach { response[$0.key] = $0.value }
                 respondJSON(urlSchemeTask,dict:response)
             } catch { respondJSON(urlSchemeTask,dict:["success":false,"error":error.localizedDescription],statusCode:400) }

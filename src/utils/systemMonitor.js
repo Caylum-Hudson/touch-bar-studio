@@ -14,6 +14,7 @@ export function selectedSystemMonitorMetrics(item) {
 }
 
 export function systemMonitorPreview(item) {
+  if (typeof item?.runtimePreview?.title === 'string') return item.runtimePreview.title ? [item.runtimePreview.title] : [];
   const samples = {cpu:'100%',gpu:'100%',memory:'100%',temperature:'130°C'};
   return selectedSystemMonitorMetrics(item).map(metric => samples[metric]);
 }

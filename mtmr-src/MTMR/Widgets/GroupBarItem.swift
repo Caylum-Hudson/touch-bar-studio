@@ -9,6 +9,7 @@ import Cocoa
 
 class GroupBarItem: NSPopoverTouchBarItem, NSTouchBarDelegate {
     var jsonItems: [BarItemDefinition]
+    let studioId: String?
 
     var itemDefinitions: [NSTouchBarItem.Identifier: BarItemDefinition] = [:]
     var items: [NSTouchBarItem.Identifier: NSTouchBarItem] = [:]
@@ -19,8 +20,9 @@ class GroupBarItem: NSPopoverTouchBarItem, NSTouchBarDelegate {
     var scrollArea: NSCustomTouchBarItem?
     var centerScrollArea = NSTouchBarItem.Identifier("com.toxblh.mtmr.scrollArea.".appending(UUID().uuidString))
 
-    init(identifier: NSTouchBarItem.Identifier, items: [BarItemDefinition]) {
+    init(identifier: NSTouchBarItem.Identifier, items: [BarItemDefinition], studioId: String? = nil) {
         jsonItems = items
+        self.studioId = studioId
         super.init(identifier: identifier)
         popoverTouchBar.delegate = self
     }
@@ -32,7 +34,7 @@ class GroupBarItem: NSPopoverTouchBarItem, NSTouchBarDelegate {
     deinit {}
 
     @objc override func showPopover(_: Any?) {
-        TouchBarController.shared.enterSubmenu(jsonItems)
+        TouchBarController.shared.enterSubmenu(jsonItems,studioId:studioId)
     }
 
     func touchBar(_: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {widgetContentWidth} from './widgetSizing.js';
-import {autoDockDisplayWidth, fitDockIcons, layoutFrames, distributeItemsEvenly, layoutContentScale, combineLegacySystemMetrics} from './positionLayout.js';
+import {autoDockDisplayWidth, fitDockIcons, layoutFrames, distributeItemsEvenly, layoutContentScale, combineLegacySystemMetrics, saveLayoutPositions} from './positionLayout.js';
 
 test('auto Dock preview fits its live width before the next control', () => {
   const items = [
@@ -103,6 +103,26 @@ test('even placement preserves visual order, sizes and source data with equal ou
   assert.deepEqual(result.map(item=>item.width),[100,50]);
   assert.ok(result.every(item=>item.studioGap === undefined));
   assert.deepEqual(items,before);
+});
+
+test('auto-place uses the live monitor width instead of its saved manual floor', () => {
+  const item={id:'monitor',type:'systemMonitor',autoFitContent:true,width:376,studioPosition:200,runtimePreview:{title:'8% · 0% · 42% · 57°C',contentWidth:190}};
+  const result=distributeItemsEvenly([item],{availableWidth:300});
+  assert.equal(result[0].studioPosition,55);
+  assert.equal(result[0].width,376);
+  assert.equal(item.studioPosition,200);
+});
+
+test('measured auto-place and drag geometry never persist transient System Monitor readings', () => {
+  const source=[{id:'monitor',type:'systemMonitor',autoFitContent:true,width:376,studioPosition:200}];
+  const measured=[{...source[0],runtimePreview:{title:'8% · 0% · 42% · 57°C',contentWidth:178},studioPosition:300}];
+  const autoPlaced=saveLayoutPositions(source,measured,{clearGaps:true});
+  assert.equal(autoPlaced[0].studioPosition,300);
+  assert.equal('runtimePreview' in autoPlaced[0],false);
+  const dragged=saveLayoutPositions(source,[{...measured[0],studioPosition:410}]);
+  assert.equal(dragged[0].studioPosition,410);
+  assert.equal('runtimePreview' in dragged[0],false);
+  assert.equal(source[0].studioPosition,200);
 });
 
 test('no-fit placement explicitly asks for removal and never changes the source layout', () => {

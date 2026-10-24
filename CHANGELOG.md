@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.3 — Live System Monitor sizing
+
+- Make **Fit live content** opt into the current native monitor width, ignoring the old manual width floor. Numeric widths restore manual sizing.
+- Show matching live readings and widths in the editor only for the active saved profile, Resolve page, submenu, and monitor configuration. Keep illustrative previews for other layouts.
+- Reuse the existing two-second status refresh and shared selected-metric sampler. Keep transient readings out of saved layout geometry.
+- Preserve live preview matching across normal restarts. Source/native checks and two installed restart checks pass; see [release notes](docs/releases/0.9.3.md).
+
 ## 0.9.2 — Compact Date and System Monitor widths
 
 - Correct abbreviated weekday and month samples used to size Date controls.

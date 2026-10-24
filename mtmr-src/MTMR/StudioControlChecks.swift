@@ -429,6 +429,29 @@ enum StudioControlChecks {
         precondition(shortDateWidth <= 80, "A short abbreviated Date label should fit its compact native intrinsic width")
         precondition(wideDateWidth <= 100, "An abbreviated weekday and month Date label should fit its native intrinsic width")
         precondition(compactMonitorWidth <= 270, "The worst-case four-reading System Monitor should fit its native intrinsic width")
+        let configuredMonitorData = #"[{"type":"systemMonitor","metrics":["cpu"],"width":376,"autoFitContent":true,"studioId":"monitor-studio-id","studioPreviewSignature":"a1b2c3d4"}]"#.data(using:.utf8)!
+        guard let configuredMonitor = configuredMonitorData.barItemDefinitions()?.first else {
+            preconditionFailure("An auto-fit System Monitor should decode from generated Studio JSON")
+        }
+        precondition(configuredMonitor.studioId == "monitor-studio-id",
+                     "Native status rows should retain the stable editor monitor ID")
+        guard case .autoFitContent(true)? = configuredMonitor.additionalParameters[.autoFitContent],
+              case .width(376)? = configuredMonitor.additionalParameters[.width] else {
+            preconditionFailure("Auto-fit must decode while preserving the prior saved width as an inactive manual value")
+        }
+        let shortMonitor = CustomButtonTouchBarItem(identifier:.init("test.studio.live-monitor"),title:"8% · 0% · 42% · 57°C")
+        shortMonitor.image = StudioControlStyle.image("systemMonitor",fallback:NSImage(size:NSSize(width:20,height:20)))
+        let shortLiveWidth = shortMonitor.studioNaturalContentWidth
+        let liveFrames = StudioLayout.frames([configuredMonitor],preferredContentWidths:[0:shortLiveWidth/scale])
+        precondition(liveFrames[0].width < 376 && abs(liveFrames[0].width-shortLiveWidth/scale) < 0.1,
+                     "An auto-fit monitor should use its current native natural width instead of the stale manual floor")
+        let wideFrames = StudioLayout.frames([configuredMonitor],preferredContentWidths:[0:compactMonitorWidth/scale])
+        precondition(wideFrames[0].width > liveFrames[0].width && wideFrames[0].width < 376,
+                     "A current wider reading should grow the live frame without restoring the previous saved floor")
+        let manualDefinition = BarItemDefinition(type:configuredMonitor.type,actions:configuredMonitor.actions,action:configuredMonitor.legacyAction,legacyLongAction:configuredMonitor.legacyLongAction,additionalParameters:Dictionary(uniqueKeysWithValues:configuredMonitor.additionalParameters.filter { $0.key != .autoFitContent }.map { ($0.key,$0.value) }))
+        let preservedManualFrames = StudioLayout.frames([manualDefinition],preferredContentWidths:[0:shortLiveWidth/scale])
+        precondition(preservedManualFrames[0].width == 376 && liveFrames[0].width < 376,
+                     "Manual width remains the default; only explicit auto-fit may ignore that floor")
         print(String(format:"PASS: native intrinsic content widths fit Date 'Sep 30' %.1f pt / 'Wed Sep 30' %.1f pt and full System Monitor %.1f pt.",shortDateWidth,wideDateWidth,compactMonitorWidth))
         print(String(format:"NATIVE WIDTH DETAIL: Date text %.1f pt; System Monitor text %.1f + icon %.1f + remaining cell/gap %.1f pt.",compactDateTextWidth,compactMonitorTextWidth,compactMonitorImageWidth,compactMonitorWidth-compactMonitorTextWidth-compactMonitorImageWidth))
         let automaticCPU = CustomButtonTouchBarItem(identifier: .init("test.studio.automaticCPU"), title: "100%")

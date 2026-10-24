@@ -94,15 +94,28 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     private var resolvePagePollTimer: Timer?
     private var lastResolveProcessIdentifier: pid_t?
     var jsonItems: [BarItemDefinition] = []
-    var navigationStack: [[BarItemDefinition]] = []
-    func enterSubmenu(_ items: [BarItemDefinition]) {
+    struct StudioNavigationSnapshot {
+        let items: [BarItemDefinition]
+        let groupPath: [String]
+    }
+    var navigationStack: [StudioNavigationSnapshot] = []
+    private(set) var studioGroupPath: [String] = []
+    func resetStudioNavigation() {
+        navigationStack = []
+        studioGroupPath = []
+    }
+    func enterSubmenu(_ items: [BarItemDefinition], studioId: String? = nil) {
         guard AppSettings.touchBarEnabled else { return }
-        navigationStack.append(jsonItems)
+        navigationStack.append(StudioNavigationSnapshot(items:jsonItems,groupPath:studioGroupPath))
+        if let studioId { studioGroupPath.append(studioId) }
         let back = BarItemDefinition(type: .staticButton(title: "‹ Back"), actions: [Action(trigger:.singleTap,value:.custom(closure:{ [weak self] in self?.leaveSubmenu() }))], action:.none, legacyLongAction:.none, additionalParameters:[.align:.align(.left),.width:.width(54)])
         createAndUpdatePreset(newJsonItems:[back] + items)
     }
     func leaveSubmenu() {
-        if let previous = navigationStack.popLast() { createAndUpdatePreset(newJsonItems:previous) }
+        if let previous = navigationStack.popLast() {
+            studioGroupPath = previous.groupPath
+            createAndUpdatePreset(newJsonItems:previous.items)
+        }
     }
     var itemDefinitions: [NSTouchBarItem.Identifier: BarItemDefinition] = [:]
     var items: [NSTouchBarItem.Identifier: NSTouchBarItem] = [:]
@@ -358,7 +371,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         }
 
         lastFocusConfigurationSignature = signature
-        navigationStack = []
+        resetStudioNavigation()
         createAndUpdatePreset(newJsonItems: items)
     }
 
@@ -401,7 +414,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     func setEnabled(_ enabled: Bool) {
         if !enabled { cancelExpandedNativeSlider(restorePreviousBar: false) }
         AppSettings.touchBarEnabled = enabled
-        navigationStack = []
+        resetStudioNavigation()
         DFRSystemModalShowsCloseBoxWhenFrontMost(!enabled)
         if enabled {
             reloadStandardConfig()
@@ -645,7 +658,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         case let .music(interval: interval, disableMarquee: disableMarquee):
             barItem = MusicBarItem(identifier: identifier, interval: interval, disableMarquee: disableMarquee)
         case let .group(items: items):
-            barItem = GroupBarItem(identifier: identifier, items: items)
+            barItem = GroupBarItem(identifier: identifier, items: items, studioId: item.studioId)
         case .nightShift:
             barItem = NightShiftBarItem(identifier: identifier)
         case .dnd:
@@ -680,7 +693,12 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         if case let .background(color)? = item.additionalParameters[.background], let item = barItem as? CustomButtonTouchBarItem {
             item.backgroundColor = color
         }
-        if case let .width(value)? = item.additionalParameters[.width], let widthBarItem = barItem as? CanSetWidth {
+        let autoFitMonitor: Bool = {
+            guard case .systemMonitor(metrics: _) = item.type,
+                  case let .autoFitContent(enabled)? = item.additionalParameters[.autoFitContent] else { return false }
+            return enabled
+        }()
+        if !autoFitMonitor, case let .width(value)? = item.additionalParameters[.width], let widthBarItem = barItem as? CanSetWidth {
             widthBarItem.setWidth(value: value)
         }
         if case let .image(source)? = item.additionalParameters[.image], let item = barItem as? CustomButtonTouchBarItem {

@@ -55,6 +55,19 @@ test('System Monitor selection width shrinks to icon-only and grows for selected
   assert.equal(systemMonitorWidthForSelection([],0.7),Math.ceil(widgetContentWidth({type:'systemMonitor',metrics:[]})/0.7));
 });
 
+test('live auto-fit System Monitor follows native natural width and ignores its old manual floor', () => {
+  const item={id:'live',type:'systemMonitor',autoFitContent:true,width:376,studioPosition:365,runtimePreview:{title:'8% · 0% · 42% · 57°C',contentWidth:178,frameWidth:178}};
+  const frames=layoutFrames([item],{contentScale:0.63});
+  assert.equal(frames.get('live').width,Math.ceil(178/0.63));
+  assert.ok(frames.get('live').width<376);
+  const uploadedImage=layoutFrames([{...item,image:{base64:'fixture-image-data'}}],{contentScale:0.63});
+  assert.equal(uploadedImage.get('live').width,Math.ceil(178/0.63),'a custom image must retain the measured native width');
+  const expanded=layoutFrames([{...item,runtimePreview:{...item.runtimePreview,title:'100% · 100% · 100% · 130°C',contentWidth:225,frameWidth:225}}],{contentScale:0.63});
+  assert.equal(expanded.get('live').width,Math.ceil(225/0.63));
+  assert.ok(expanded.get('live').width>frames.get('live').width);
+  assert.equal(item.width,376,'runtime measurements must not mutate saved manual width');
+});
+
 test('Date width accounts for the actual formatted preview and long common date formats', () => {
   const short={type:'timeButton',formatTemplate:'MMM d'};
   const abbreviatedDayAndMonth={type:'timeButton',formatTemplate:'EEE MMM d'};

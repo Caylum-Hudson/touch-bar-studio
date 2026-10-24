@@ -109,7 +109,7 @@ final class StudioStore {
         workspaceLoadError = nil
         AppSettings.showControlStripState = keepControlStrip
         StudioLauncher.shared.configure()
-        TouchBarController.shared.navigationStack = []
+        TouchBarController.shared.resetStudioNavigation()
         TouchBarController.shared.reloadStandardConfig()
     }
 

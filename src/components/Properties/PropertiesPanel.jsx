@@ -8,6 +8,7 @@ import {systemMonitorWidthForSelection,widgetWidthForContent} from '../../utils/
 import {getControlInfo} from '../../data/controlCatalog';
 import { getControlStatus } from '../../data/controlAvailability';
 import { useRuntimePermissions } from '../../context/useRuntimePermissions';
+import {matchSystemMonitorRuntimePreviews} from '../../utils/systemMonitorRuntimePreview.js';
 
 const shortcutKeys = [
   ['A', 0], ['B', 11], ['C', 8], ['D', 2], ['E', 14], ['F', 3], ['G', 5], ['H', 4],
@@ -18,9 +19,12 @@ const shortcutKeys = [
 ].map(([label, keycode]) => ({ label, value: String(keycode) }));
 
 export default function PropertiesPanel() {
-  const { getSelectedItem, updateItem, removeItem, selectedItemId, enterGroup, combineSystemMonitor, profiles, profileId, groupPath } = useApp();
-  const { accessibilityAccess, layoutCapacity } = useRuntimePermissions();
+  const { getSelectedItem, updateItem, removeItem, selectedItemId, enterGroup, combineSystemMonitor, profiles, profileId, resolvePageId, groupPath } = useApp();
+  const { accessibilityAccess, layoutCapacity, systemMonitorPreviews, activeStudioGroupPath, activeRuntimeProfile, activeRuntimeResolvePage, activeRuntimeEnabled } = useRuntimePermissions();
   const item = getSelectedItem();
+  const liveMonitorPreview = item?.type === 'systemMonitor' && item.autoFitContent
+    ? matchSystemMonitorRuntimePreviews({rows:systemMonitorPreviews,profiles,profileId,resolvePageId,groupPath,activeProfile:activeRuntimeProfile,activeResolvePage:activeRuntimeResolvePage,activeGroupPath:activeStudioGroupPath,runtimeEnabled:activeRuntimeEnabled}).get(item.id)
+    : null;
   const definition = item ? getElementDefinition(item.type) : null;
   const control = item ? getControlInfo(item.type, item) : null;
   const fittedWidth = item ? contentFitWidth(item) : 0;
@@ -62,17 +66,21 @@ export default function PropertiesPanel() {
           <PropertyInput
             label="Width"
             type="number"
-            value={item.width || ''}
+            value={item.autoFitContent && item.type === 'systemMonitor' ? '' : item.width || ''}
             onChange={(value) => {
               const width=value ? Math.min(1085,Math.max(24,Number(value))) : undefined;
-              updateItem(item.id,{width,...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,Math.max(width||64,contentMinimumWidth(item)))}:{})});
+              updateItem(item.id,{width,...(item.type === 'systemMonitor'?{autoFitContent:false}:{}),...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,Math.max(width||64,contentMinimumWidth(item)))}:{})});
             }}
-            placeholder="Auto"
+            placeholder={item.autoFitContent && item.type === 'systemMonitor' ? 'Live' : 'Auto'}
             action={canFitToContent ? <button type="button" className="fit-content-button" onClick={() => {
-              const width=widgetWidthForContent(item,contentScale);
-              updateItem(item.id,{width,...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,width)}:{})});
-            }}>Fit to content</button> : null}
+              if (item.type === 'systemMonitor') updateItem(item.id,{width:null,autoFitContent:true});
+              else {
+                const width=widgetWidthForContent(item,contentScale);
+                updateItem(item.id,{width,...(Number.isFinite(item.studioPosition)?{studioPosition:clampPosition(item.studioPosition,width)}:{})});
+              }
+            }}>{item.type === 'systemMonitor' ? 'Fit live content' : 'Fit to content'}</button> : null}
           />
+          {item.type === 'systemMonitor' && item.autoFitContent && <p className="placement-help" role="status">{liveMonitorPreview ? `Live on Touch Bar · ${Math.round(liveMonitorPreview.frameWidth)} pt current frame` : 'Illustrative preview · Live readings appear when this saved bar is active.'}</p>}
           {Number.isFinite(item.width) && item.width < fittedWidth && <p className="placement-help">This control needs about {Math.ceil(fittedWidth)} units for its full content. The preview grows to fit; it may overlap nearby controls.</p>}
           <PropertySelect
             label="Alignment"
@@ -306,7 +314,7 @@ function TypeSpecificProperties({ item, definition, updateItem, enterGroup, cont
                 const next = event.target.checked ? [...selected, metric] : selected.filter(value => value !== metric);
                 const metrics = SYSTEM_MONITOR_METRICS.filter(value => next.includes(value));
                 const width = systemMonitorWidthForSelection(metrics,contentScale);
-                updateItem(item.id, {metrics,width,...(Number.isFinite(item.studioPosition) ? {studioPosition:clampPosition(item.studioPosition,width)} : {})});
+                updateItem(item.id, {metrics,...(item.autoFitContent?{width:null}:{width}),...(!item.autoFitContent&&Number.isFinite(item.studioPosition) ? {studioPosition:clampPosition(item.studioPosition,width)} : {})});
               }} />
               <span>{labels[metric]}</span>
             </label>

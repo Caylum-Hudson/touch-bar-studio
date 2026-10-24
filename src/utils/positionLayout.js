@@ -36,7 +36,9 @@ export function layoutFrames(items, {dockPreferredWidth, visibleRightEdge = BAR_
     const group = items.filter(item => (item.align || 'center') === alignment);
     const widths = new Map(group.map(item => [item.id, item.type === 'dock'
       ? autoDockDisplayWidth(items, item.id, dockWidth, visibleRightEdge) ?? itemWidth(item)
-      : Math.max(itemWidth(item), Math.ceil(contentMinimumWidth(item) / scale))]));
+      : item.type === 'systemMonitor' && item.autoFitContent
+        ? Math.max(24, Math.ceil(contentMinimumWidth(item) / scale))
+        : Math.max(itemWidth(item), Math.ceil(contentMinimumWidth(item) / scale))]));
     const total = group.reduce((sum, item) => sum + widths.get(item.id), 0) + Math.max(0, group.length - 1) * 4;
     let cursor = alignment === 'left' ? 0 : alignment === 'right' ? BAR_WIDTH - total : (BAR_WIDTH - total) / 2;
     for (const item of group) {
@@ -112,7 +114,9 @@ export function distributeItemsEvenly(items, {availableWidth = BAR_WIDTH, dockPr
   const widths = new Map(items.map(item => [item.id,
     item.type === 'dock' && item.autoResize !== false && Number.isFinite(dockPreferredWidth)
       ? Math.ceil((Math.max(0, dockPreferredWidth) + 14) / scale)
-      : Math.max(itemWidth(item), Math.ceil(contentMinimumWidth(item) / scale)),
+      : item.type === 'systemMonitor' && item.autoFitContent
+        ? Math.max(24, Math.ceil(contentMinimumWidth(item) / scale))
+        : Math.max(itemWidth(item), Math.ceil(contentMinimumWidth(item) / scale)),
   ]));
   const contentWidth = items.reduce((total, item) => total + widths.get(item.id), 0);
   const gap = items.length ? (width - contentWidth) / (items.length + 1) : 0;
@@ -131,6 +135,19 @@ export function distributeItemsEvenly(items, {availableWidth = BAR_WIDTH, dockPr
     const next = {...item, studioPosition: positions.get(item.id)};
     // This is a one-time arrangement, independent of the local snapping grid.
     delete next.studioGap;
+    return next;
+  });
+}
+
+/** Copy only saved geometry out of transiently measured preview layouts. */
+export function saveLayoutPositions(sourceItems, measuredItems, {clearGaps = false} = {}) {
+  const measured = new Map(measuredItems.map(item => [item.id,item]));
+  return sourceItems.map(item => {
+    const next = {...item,studioPosition:measured.get(item.id)?.studioPosition};
+    delete next.runtimePreview;
+    if (clearGaps) delete next.studioGap;
+    else if (measured.get(item.id)?.studioGap === undefined) delete next.studioGap;
+    else next.studioGap = measured.get(item.id).studioGap;
     return next;
   });
 }

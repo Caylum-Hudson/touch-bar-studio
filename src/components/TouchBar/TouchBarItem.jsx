@@ -256,11 +256,11 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
       onClick={onSelect}
       onContextMenu={onContextMenu}
       title={item.type === 'systemMonitor'
-        ? `Illustrative preview only; selected readings: ${selectedSystemMonitorMetrics(item).map(metric => ({cpu:'CPU usage',gpu:'GPU usage',memory:'Memory usage',temperature:'CPU temperature'})[metric]).join(', ') || 'none'}`
+        ? `${item.runtimePreview ? 'Live readings from the current Touch Bar' : 'Illustrative preview only'}; selected readings: ${selectedSystemMonitorMetrics(item).map(metric => ({cpu:'CPU usage',gpu:'GPU usage',memory:'Memory usage',temperature:'CPU temperature'})[metric]).join(', ') || 'none'}`
         : ['cpu', 'ramUsage', 'gpuUsage', 'boardTemperature', 'cpuTemperature'].includes(item.type) ? 'Illustrative preview only; system metrics are not read in the editor' : undefined}
       {...attributes}
       {...listeners}
-      aria-label={`${definition.label}${item.title ? `: ${item.title}` : item.type === 'systemMonitor' ? `: ${selectedSystemMonitorMetrics(item).join(', ') || 'icon only'}` : ''} — editor preview`}
+      aria-label={`${definition.label}${item.title ? `: ${item.title}` : item.type === 'systemMonitor' ? `: ${selectedSystemMonitorMetrics(item).join(', ') || 'icon only'}` : ''} — ${item.type === 'systemMonitor' && item.runtimePreview ? 'live readings from the current Touch Bar' : 'editor preview'}`}
     >
       {renderContent()}
       {isSelected && <div className="selection-indicator" />}

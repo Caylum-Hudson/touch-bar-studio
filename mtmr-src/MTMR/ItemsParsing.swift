@@ -16,6 +16,10 @@ struct BarItemDefinition: Decodable {
     let additionalParameters: [GeneralParameters.CodingKeys: GeneralParameter]
     // Runtime-only identity for the generated Resolve page selector. It is never decoded or encoded.
     let isStudioResolvePagePicker: Bool
+    var studioId: String? {
+        if case let .studioId(value)? = additionalParameters[.studioId] { return value }
+        return nil
+    }
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -685,6 +689,9 @@ enum LegacyLongActionType: Decodable {
 
 enum GeneralParameter {
     case studioPosition(_: CGFloat)
+    case studioId(_: String)
+    case studioPreviewSignature(_: String)
+    case autoFitContent(_: Bool)
     case width(_: CGFloat)
     case image(source: SourceProtocol)
     case align(_: Align)
@@ -699,6 +706,9 @@ struct GeneralParameters: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case studioPosition
+        case studioId
+        case studioPreviewSignature
+        case autoFitContent
         case width
         case image
         case align
@@ -715,6 +725,9 @@ struct GeneralParameters: Decodable {
         if let value = try container.decodeIfPresent(CGFloat.self, forKey: .studioPosition), value.isFinite {
             result[.studioPosition] = .studioPosition(value)
         }
+        if let value = try container.decodeIfPresent(String.self, forKey: .studioId) { result[.studioId] = .studioId(value) }
+        if let value = try container.decodeIfPresent(String.self, forKey: .studioPreviewSignature) { result[.studioPreviewSignature] = .studioPreviewSignature(value) }
+        if let value = try container.decodeIfPresent(Bool.self, forKey: .autoFitContent) { result[.autoFitContent] = .autoFitContent(value) }
 
         if let value = try container.decodeIfPresent(CGFloat.self, forKey: .width) {
             result[.width] = .width(value)

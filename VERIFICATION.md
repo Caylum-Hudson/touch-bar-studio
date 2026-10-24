@@ -1,4 +1,15 @@
-# Verification — 23 October 2026
+# Verification — 24 October 2026
+
+## 0.9.3 — Live System Monitor sizing
+
+- 53 frontend/staging tests pass, including active profile/page/submenu/configuration matching, stale-width auto-fit geometry, uploaded-image measured widths, exclusion of transient readings from saved geometry, and root/nested restore round trips. Retained native IDs continue to match regenerated editor IDs after restart; ambiguous aliases and changed configuration signatures are rejected. Reducer/state checks and the 53-entry palette audit pass. The production build passes with 68 modules. Source ESLint has exactly the same seven errors and five warnings as HEAD, with no new diagnostics; the new live fixture passes lint. Repository-wide lint also includes older fixture and generated WebApp errors.
+- Native compilation and signing pass. The sandboxed build script reaches the first self-test then aborts on LaunchServices notification access; the same read-only native self-tests pass with normal macOS access. The control audit and `--include-widgets` checks pass. AppKit measures the maximum four-reading monitor at 237 pt, with 195.3 pt of text, a 20 pt icon, and 21.7 pt of chrome/gap. Auto-fit native assertions ignore a stale 376-unit manual floor and grow for longer current values.
+- The built bundle reports 0.9.3, build 18; strict signature verification passes. The full 89-file staged WebApp manifest matches the production output by SHA-256. No commit, tag, or push was created during this verification.
+- Isolated browser fixture review verified short 190 pt and maximum 237 pt live mock rows, with a 15 px font and no maximum-title clipping (client width and scroll width both 195 px). Numeric width 420 disables live fit; **Fit live content** restores it with a null manual width. Hiding runtime data displays the illustrative-preview status. These injected readings verify editor behavior, not physical Touch Bar pixels or hardware measurements.
+
+- Installed editor review after **Fit live content** and **Apply & Save** showed “Live on Touch Bar · 180 pt current frame” for the active all-readings monitor, compared with the prior 237 pt worst-case sizing. This is a momentary current-content width; it changes with readings and is not a fixed width guarantee or a physical Touch Bar pixel capture. Matched live preview tooltips and accessibility labels identify the current bar readings.
+
+- Final installed 0.9.3 review passed two normal launches/restarts without **Apply & Save**: live data matched on the first poll and Properties showed a momentary 180 pt frame both times. Accessibility was restored to granted and the warning disappeared. The saved workspace delta is limited to the monitor live-fit flag, null manual width, and derived native identity/signature metadata; positions and other controls are unchanged. [Installed screenshot](docs/screenshots/live-system-monitor-installed-0.9.3.png). See [0.9.3 release notes](docs/releases/0.9.3.md).
 
 ## 0.9.0 — Combined System Monitor
 

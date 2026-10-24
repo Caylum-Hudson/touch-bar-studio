@@ -2,7 +2,7 @@
 
 Touch Bar Studio is a macOS app for designing Touch Bar layouts, switching layouts by app, launching apps and folders, and browsing photos. It builds on [MTMR Designer](https://github.com/josmanvis/mtmr-designer) and its bundled [MTMR](https://github.com/Toxblh/MTMR) runtime; upstream history and source notices are retained.
 
-The current source version is **0.9.2**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
+The current source version is **0.9.3**. This is the repository version, not a published GitHub release. See the [verification record](VERIFICATION.md) for checks and known limits.
 
 ## Edit and apply profiles
 
@@ -16,7 +16,7 @@ The **Dock** preview uses the current Dock app list and icons. It expands when r
 
 ## System metric controls
 
-The **Time & status** library provides one **System Monitor** control. Select CPU usage, GPU usage, memory, and CPU temperature with its checkboxes in Properties. Readings display in that fixed order, separated compactly beside one shared icon; full names remain available through tooltips and accessibility labels. The saved width follows the selected readings, shrinking to the icon when every checkbox is clear. The native shared sampler reads only selected metrics and refreshes every two seconds while at least one is active. Values in the editor are illustrative.
+The **Time & status** library provides one **System Monitor** control. Select CPU usage, GPU usage, memory, and CPU temperature with its checkboxes in Properties. Readings display in that fixed order, separated compactly beside one shared icon; full names remain available through tooltips and accessibility labels. The saved width follows the selected readings, shrinking to the icon when every checkbox is clear. The native shared sampler reads only selected metrics and refreshes every two seconds while at least one is active. Choose **Fit live content** to let the native monitor grow and shrink with its current readings instead of keeping a saved manual width. The editor uses the same live title and natural width when that saved profile, page, and submenu are active; otherwise it shows an illustrative preview. Entering a numeric width returns to manual sizing.
 
 CPU percentages round to whole numbers. RAM is calculated from non-purgeable internal, wired, and compressed pages divided by physical memory. Its native detail text gives used/total bytes and the formula; this is a defined host-statistics measure, not an Activity Monitor-equivalent promise. GPU shows the system-wide IOAccelerator utilization counter when macOS exposes it; when multiple devices are present, the busiest device is shown rather than summing percentages. CPU temperature shows the hottest plausible AppleSMC `Tp`/`Te` CPU sensor value, not a die average; available keys vary by Apple chip generation.
 
