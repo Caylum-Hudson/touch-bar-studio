@@ -19,6 +19,37 @@
   border: 1px solid #333;
 }
 
+/* The editor chrome sits outside this face; its native content row is 30 pt tall. */
+.touchbar-frame.preview-projected {
+  box-sizing: content-box;
+  padding: 0;
+  border-radius: 5px;
+}
+
+.touchbar-screen.preview-projected {
+  box-sizing: content-box;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.preview-calibration-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 12px;
+  color: var(--text-primary, #e8e8ef);
+  font-size: 12px;
+}
+.preview-calibration-control span { color: var(--text-secondary, #aaa); font-variant-numeric: tabular-nums; }
+.preview-calibration-control input { grid-column: 1 / -1; width: 100%; }
+.preview-calibration-control small { grid-column: 1 / -1; color: var(--text-secondary, #aaa); line-height: 1.45; }
+div.touchbar-frame.preview-projected { padding: 0; }
+div.touchbar-screen.preview-projected { min-width: 0; min-height: 0; max-width: none; }
+
 .touchbar-frame.drag-over {
   border-color: #007aff;
   box-shadow: 
@@ -104,6 +135,60 @@
     0 0.5px 1px rgba(0, 0, 0, 0.3),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
 }
+
+/* Resolve controls are shown as compact, explicitly illustrative inline widgets. */
+.touchbar-item.type-resolveColorDial {
+  width: 90px;
+  min-width: 90px;
+  padding: 3px 5px;
+}
+.touchbar-item.type-resolveNumericDial {
+  width: 110px;
+  min-width: 110px;
+  padding: 3px 5px;
+}
+.resolve-numeric-actions { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+
+.resolve-dial-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  color: #f4f4f4;
+}
+
+.resolve-dial-ring {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  overflow: visible;
+}
+
+.resolve-dial-ring > circle:first-child { fill: #343638; stroke: #8b8d90; stroke-width: 1; }
+.resolve-dial-track { fill: none; stroke: #6da9ff; stroke-width: 1.4; stroke-dasharray: 38 22; transform: rotate(-125deg); transform-origin: center; }
+.resolve-dial-ring line { stroke: #fff; stroke-width: 1.8; stroke-linecap: round; }
+.resolve-dial-center { fill: #d9dadd; }
+.resolve-dial-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; line-height: 1.05; }
+.resolve-dial-copy strong { font-size: 9px; font-weight: 650; letter-spacing: .02em; }
+.resolve-dial-copy small { color: #aeb2b8; font-size: 9px; }
+
+.touchbar-item.type-resolveTimelineJog {
+  width: 140px;
+  min-width: 140px;
+  padding: 3px 8px;
+}
+
+.resolve-jog-preview { display: flex; width: 100%; flex-direction: column; gap: 3px; color: #f4f4f4; line-height: 1; }
+.resolve-jog-label { font-size: 8px; font-weight: 650; letter-spacing: .04em; }
+.resolve-jog-track { position: relative; height: 9px; margin: 0 4px; border-top: 1px solid #79818d; }
+.resolve-jog-track::before, .resolve-jog-track::after { position: absolute; top: -3px; width: 1px; height: 6px; background: #79818d; content: ''; }
+.resolve-jog-track::before { left: 0; }
+.resolve-jog-track::after { right: 0; }
+.resolve-jog-track i { position: absolute; top: -2px; left: 50%; width: 1px; height: 7px; background: #6da9ff; }
+.resolve-jog-track b { position: absolute; top: -4px; left: calc(50% - 4px); width: 9px; height: 9px; border-radius: 50%; background: #d9e8ff; box-shadow: 0 0 3px #6da9ff; }
+.resolve-jog-caption { color: #aeb2b8; font-size: 7px; }
 
 .touchbar-item:hover {
   background: linear-gradient(180deg, #3a3a3a 0%, #303030 50%, #262626 100%);

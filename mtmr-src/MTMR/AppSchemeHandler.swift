@@ -51,6 +51,14 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         photoQueue.cancelAllOperations()
     }
 
+    /// Called only by an explicit Learn/Test action in Studio, never by background polling.
+    private func activateResolveForNumericControl() {
+        let activate = {
+            NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == "com.blackmagic-design.DaVinciResolve" }?.activate(options:.activateIgnoringOtherApps)
+        }
+        if Thread.isMainThread { _=activate() } else { DispatchQueue.main.sync { _=activate() } }
+    }
+
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else {
             urlSchemeTask.didFailWithError(URLError(.badURL))
@@ -111,7 +119,7 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
                 let runtimeLayouts=runtimeProfile?["resolvePageLayouts"] as? [String:[[String:Any]]]
                 let query=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
                 let statusOnly=query.contains { $0.name == "statusOnly" && $0.value == "1" }
-                var response: [String: Any] = ["success": true,"workspaceLoadError":store.workspaceLoadError.map { $0 as Any } ?? NSNull(),"activeProfile":store.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState,"frontmostBundleId":controller.frontmostApplicationIdentifier.map { $0 as Any } ?? NSNull(),"activeResolvePage":store.activeResolvePage.map { $0 as Any } ?? NSNull(),"resolvePageOverride":controller.resolvePageOverride.map { $0 as Any } ?? NSNull(),"resolvePageMode":controller.resolvePageOverride == nil ? "automatic" : "manual","resolvePageDetection":store.resolvePageDetectionStatus,"activeResolvePageFallback":store.activeResolvePage.map { runtimeLayouts?[$0] == nil } ?? false]
+                var response: [String: Any] = ["success": true,"workspaceLoadError":store.workspaceLoadError.map { $0 as Any } ?? NSNull(),"activeProfile":store.activeProfile,"enabled":AppSettings.touchBarEnabled,"keepControlStrip":AppSettings.showControlStripState,"useResolveNativeColorPage":AppSettings.useResolveNativeColorPage,"nativeResolveColorPageActive":controller.nativeResolveColorPageActive,"frontmostBundleId":controller.frontmostApplicationIdentifier.map { $0 as Any } ?? NSNull(),"activeResolvePage":store.activeResolvePage.map { $0 as Any } ?? NSNull(),"resolvePageOverride":controller.resolvePageOverride.map { $0 as Any } ?? NSNull(),"resolvePageMode":controller.resolvePageOverride == nil ? "automatic" : "manual","resolvePageDetection":store.resolvePageDetectionStatus,"activeResolvePageFallback":store.activeResolvePage.map { runtimeLayouts?[$0] == nil } ?? false]
                 if StudioWorkspaceResponsePolicy.includesWorkspace(method:taskMethod(urlSchemeTask),statusOnly:statusOnly) {
                     response["workspace"] = store.apiWorkspace
                 }
@@ -137,6 +145,35 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
                 StudioPermissions.statusFields.forEach { response[$0.key] = $0.value }
                 respondJSON(urlSchemeTask,dict:response)
             } catch { respondJSON(urlSchemeTask,dict:["success":false,"error":error.localizedDescription],statusCode:400) }
+            return
+        }
+        if path == "/api/resolve-numeric-learn" {
+            let reader=ResolveNumericDialReader.shared
+            if taskMethod(urlSchemeTask) == "POST" {
+                guard let data=urlSchemeTask.request.httpBody ?? readStreamBody(urlSchemeTask.request.httpBodyStream),
+                      let json=try? JSONSerialization.jsonObject(with:data) as? [String:Any],
+                      let action=json["action"] as? String else {
+                    respondJSON(urlSchemeTask,dict:["success":false,"error":"Expected a learning action."],statusCode:400); return
+                }
+                let id=json["id"] as? String ?? ""
+                if TouchBarController.shared.nativeResolveColorPageActive && ["start","test"].contains(action) {
+                    respondJSON(urlSchemeTask,dict:["success":false,"error":"Use the custom Color bar to learn or test this control."],statusCode:409); return
+                }
+                if action == "start", !id.isEmpty, id.count <= 200 {
+                    activateResolveForNumericControl()
+                    reader.startLearning(id:id)
+                } else if action == "test", !id.isEmpty, id.count <= 200,
+                          let object=json["binding"] as? [String:Any], let bytes=try? JSONSerialization.data(withJSONObject:object),
+                          let binding=try? JSONDecoder().decode(ResolveNumericBinding.self,from:bytes), binding.isValid,
+                          let step=json["step"] as? Double, step.isFinite, step >= 0.0001, step <= 1,
+                          let direction=json["direction"] as? Int, [-1,1].contains(direction) {
+                    activateResolveForNumericControl()
+                    reader.test(id:id,binding:binding,step:step,direction:direction)
+                } else if action == "cancel" { reader.cancelLearning() }
+                else { respondJSON(urlSchemeTask,dict:["success":false,"error":"Invalid learning action, control id or numeric binding."],statusCode:400); return }
+                respondJSON(urlSchemeTask,dict:["success":true,"state":"starting","id":id]); return
+            }
+            respondJSON(urlSchemeTask,dict:reader.learnResponse())
             return
         }
         if path == "/api/resolve-page" {

@@ -5,6 +5,7 @@ const ACCESSIBILITY_CONTROLS = new Set([
   'resolvePlayReverse', 'resolveStop', 'resolvePlayForward', 'resolveFrameBack',
   'resolveFrameForward', 'resolvePreviousEdit', 'resolveNextEdit', 'resolveTimelineStart',
   'resolveTimelineEnd', 'resolveMarkIn', 'resolveMarkOut', 'resolveToggleSnapping',
+  'resolveColorDial', 'resolveNumericDial', 'resolveTimelineJog',
 ]);
 
 

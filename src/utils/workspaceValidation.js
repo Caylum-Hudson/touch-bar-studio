@@ -1,4 +1,5 @@
 import { parseJSON } from './jsonGenerator.js';
+import { resolveNumericBindingError } from './resolveNumericDial.js';
 
 const resolvePages = new Set(['media', 'photo', 'cut', 'edit', 'fusion', 'color', 'fairlight', 'deliver']);
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -6,7 +7,22 @@ const isRecord = value => value !== null && typeof value === 'object' && !Array.
 function validateItems(items, label) {
   if (!Array.isArray(items)) return `${label} must be an array of controls.`;
   const result = parseJSON(JSON.stringify(items));
-  return result.error ? `${label}: ${result.error}` : null;
+  if (result.error) return `${label}: ${result.error}`;
+  const validateNumeric = (controls, path) => {
+    for (const item of controls) {
+      if (item.type === 'resolveNumericDial') {
+        if (item.step !== undefined && (!Number.isFinite(item.step) || item.step < 0.0001 || item.step > 1)) return `${path}: Resolve Adjustment Dial step must be between 0.0001 and 1.`;
+        const bindingError = resolveNumericBindingError(item.binding);
+        if (bindingError) return `${path}: ${bindingError}`;
+      }
+      if (item.type === 'group' && item.items) {
+        const nestedError = validateNumeric(item.items, path);
+        if (nestedError) return nestedError;
+      }
+    }
+    return null;
+  };
+  return validateNumeric(result.items, label);
 }
 
 /** Validate all profile and Resolve layouts before they enter editor state. */
@@ -43,10 +59,19 @@ export function workspaceImportError(workspace) {
 /** Convert only fully validated imported layouts to editor control state. */
 export function restoreWorkspaceProfiles(workspace) {
   if (workspaceImportError(workspace)) return null;
+  const markRetainedStudioIds = items => items.map(item => ({
+    ...item,
+    ...(item.studioId != null ? {preserveStudioId:true} : {}),
+    ...(Array.isArray(item.items) ? {items:markRetainedStudioIds(item.items)} : {}),
+  }));
   return Object.fromEntries(Object.entries(workspace.profiles).map(([id, profile]) => {
-    const items = parseJSON(JSON.stringify(profile.items));
+    const parsedItems = parseJSON(JSON.stringify(profile.items));
+    const items = {...parsedItems, items:markRetainedStudioIds(parsedItems.items)};
     const resolvePageLayouts = profile.resolvePageLayouts
-      ? Object.fromEntries(Object.entries(profile.resolvePageLayouts).map(([page, pageItems]) => [page, parseJSON(JSON.stringify(pageItems)).items]))
+      ? Object.fromEntries(Object.entries(profile.resolvePageLayouts).map(([page, pageItems]) => {
+          const parsedPageItems = parseJSON(JSON.stringify(pageItems));
+          return [page, markRetainedStudioIds(parsedPageItems.items)];
+        }))
       : undefined;
     return [id, {
       ...profile,

@@ -40,6 +40,22 @@ The palette includes 12 Resolve-specific timeline buttons for J/K/L playback, fr
 
 Shortcut defaults and app filtering are documented in [Resolve timeline controls](docs/RESOLVE-TIMELINE-CONTROLS.md). The palette, shortcut editing, serialization, native decoding, and permission-state checks passed. The final installed binary has Accessibility access and Auto mode followed Edit → Color → Fairlight → Edit; Fairlight used the profile fallback. Manual Color selection followed by returning to Auto was verified on the immediately preceding 0.6.0 build. Physical Touch Bar behavior and shortcut delivery remain untested.
 
+### Fine color dials and relative timeline jog
+
+Add one or more **Resolve Color Dial** controls for Lift, Gamma, or Gain and choose Y, red, green, or blue. The 90 pt inline dials can sit beside each other. They require Resolve’s Color page with the Primaries **Color Bars** mode visible; the runtime rechecks the visible bar structure and slider range before every write. The dial displays the associated bar value when available, or an explicitly labeled raw position. Fine is the default: it accumulates small finger movements until they add up to one integer slider step. Normal and Coarse use larger steps.
+
+The 140 pt **Resolve Timeline Jog** moves by relative frame steps on the Edit page. Fine is the default and accumulates small movements until one frame; Normal and Coarse move faster. A drag selects the Timeline panel, then sends bounded frame-step menu commands. It does not report or seek to an absolute timeline position. Both controls stop applying changes when Resolve loses focus, the expected page/control is unavailable, or the custom Touch Bar is turned off. Editor dial values are illustrative placeholders, not live readings.
+
+### Learned HDR adjustment dial
+
+Add **Resolve Adjustment Dial** to a Resolve Color page layout, choose a short Touch Bar label and change step, then click **Learn in Resolve**. With the HDR panel and intended zone visible, double-click its Exp or Sat number within 30 seconds. Learning stores the captured field’s panel-relative target and leaves its value unchanged. **Test −/+** changes one step and checks the committed readout. The dial can find the learned HDR zone row with the panel navigation arrows. If the panel shape changes or its navigation cannot be verified, show the captured row manually or re-learn. The installed reader only adjusts the exact learned Exp or Sat field. A custom label does not create separate Blacks, Whites, Shadows, or Highlights parameters. The displayed editor value remains illustrative.
+
+### Recent Touch Bar behavior
+
+When DaVinci Resolve is frontmost on its detected Color page, Studio yields to Resolve’s native Color Touch Bar by default. This preference is saved with the workspace and can be turned off in Studio settings; custom Resolve dials, jog, and HDR learning/testing pause during the handoff. See the [0.11.2 release notes](docs/releases/0.11.2.md).
+
+Focus and break timers keep running across app changes, Touch Bar rebuilds, sleep, and Studio restarts. Each timer keeps its own finish time, and completion is delivered once when Studio can run again. The preview fills the available width at 100% while keeping the bar and controls proportional; **Auto-place evenly** aligns edge items to the usable bar edges and spaces the remaining items evenly without changing their sizes. See the [0.11.3 release notes](docs/releases/0.11.3.md).
+
 ## Resolve page layouts
 
 Create a Resolve app profile with **＋ Resolve page layouts**. It starts from a copy of Default and adds separate Edit and Color layouts; existing profiles and layouts are preserved. Edit starts with the 12 timeline controls above, and Color starts with eight shortcuts verified against Blackmagic's Resolve manual. Other Resolve pages are listed too: until you create a layout for one, it uses that profile's fallback layout. Editing a page never changes the fallback or another page.

@@ -36,9 +36,20 @@
 .studio-shell .touchbar-container{box-sizing:border-box}
 .studio-shell .touchbar-frame.preview-projected{box-sizing:content-box;max-width:none;flex:none;align-self:flex-start}
 .studio-shell .touchbar-screen.preview-projected{box-sizing:border-box;max-width:none;min-width:0;overflow:hidden;flex:none}
+.studio-shell .preview-projected.expanded-slider-bar{box-sizing:border-box;display:flex;align-items:center;gap:8px;min-width:0;min-height:0;padding:2px 8px;border-radius:0}
+.studio-shell .preview-projected.expanded-slider-bar button{flex:0 0 auto;min-height:0;padding:2px 6px;font-size:9px;line-height:1}
+.studio-shell .preview-projected.expanded-slider-center{gap:8px;max-width:none;min-width:0}
+.studio-shell .preview-projected.expanded-slider-center .control-icon{width:18px;height:18px}
+.studio-shell .preview-projected.control-strip-full-screen{box-sizing:border-box;min-height:0;padding:0;}
+.studio-shell .preview-projected .control-strip-expanded{height:30px;gap:8px;}
+.studio-shell .preview-projected .control-strip-compact{height:30px;min-height:0;padding:0 3px;gap:1px;}
 .studio-shell .preview-projected .precise-scroll{box-sizing:border-box;max-width:none;min-width:0;overflow:hidden;padding:0}
-.studio-shell .preview-projected .precise-canvas{box-sizing:border-box;margin-top:6px;border:1px solid #ffffff12;background:#070a11}
-.studio-shell .touchbar-screen.preview-projected.precise-preview .control-strip-widget-slot{padding-top:31px}
+.studio-shell .preview-projected .precise-canvas{box-sizing:border-box;margin-top:0;border:1px solid #ffffff12;background:#070a11}
+.studio-shell .preview-scale-stage{transform-origin:top left;}
+.studio-shell .preview-ruler{box-sizing:border-box;position:relative;height:31px;margin:0 0 0 1px;overflow:hidden;color:var(--studio-muted);font:9px/1 -apple-system,BlinkMacSystemFont,sans-serif;}
+.studio-shell .preview-ruler span{position:absolute;bottom:4px;transform:translateX(-50%);white-space:nowrap}
+.studio-shell .preview-ruler::after{content:"";position:absolute;left:0;right:0;bottom:1px;height:1px;background:var(--studio-border)}
+.studio-shell .touchbar-screen.preview-projected.precise-preview .control-strip-widget-slot{box-sizing:border-box;height:30px;min-height:0;padding:0 8px}
 .studio-shell .preview-projected .touchbar-custom-region{box-sizing:border-box;overflow:hidden}
 .studio-shell .preview-projected .positioned-control{top:0;height:30px}
 .studio-shell .preview-projected .positioned-control .touchbar-item{height:30px;min-height:0;padding:2px 4px}

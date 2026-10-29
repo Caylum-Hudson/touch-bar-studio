@@ -119,13 +119,13 @@ export function distributeItemsEvenly(items, {availableWidth = BAR_WIDTH, dockPr
         : Math.max(itemWidth(item), Math.ceil(contentMinimumWidth(item) / scale)),
   ]));
   const contentWidth = items.reduce((total, item) => total + widths.get(item.id), 0);
-  const gap = items.length ? (width - contentWidth) / (items.length + 1) : 0;
+  const gap = items.length > 1 ? (width - contentWidth) / (items.length - 1) : 0;
   const dockNeedsGap = items.length > 1 && items.some(item => item.type === 'dock' && item.autoResize !== false);
   if (contentWidth > width || (dockNeedsGap && gap < 4)) {
     throw new Error('Not enough room to place all items evenly. Remove one or more items, then try again. Your layout has not changed.');
   }
   if (!items.length) return [];
-  let cursor = gap;
+  let cursor = items.length > 1 ? 0 : (width - contentWidth) / 2;
   const positions = new Map();
   for (const {item} of ordered) {
     positions.set(item.id, Math.round(cursor));

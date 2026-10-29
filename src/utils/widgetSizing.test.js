@@ -35,6 +35,24 @@ test('system metric preview widths fit worst-case percentages and unavailable la
   }
 });
 
+test('Resolve dials and jog keep their native minimum widths in scaled previews', () => {
+  const items = [
+    {id:'lift',type:'resolveColorDial',width:90,align:'left'},
+    {id:'hdr',type:'resolveNumericDial',title:'HDR',width:110,align:'left'},
+    {id:'jog',type:'resolveTimelineJog',width:140,align:'left'},
+  ];
+  assert.equal(widgetContentWidth(items[0]),90);
+  assert.equal(widgetContentWidth(items[1]),110);
+  assert.equal(widgetContentWidth(items[2]),140);
+  for (const nativeCapacity of [685,1085]) {
+    const scale=nativeCapacity/1085;
+    const frames=layoutFrames(items,{contentScale:scale});
+    assert.ok(frames.get('lift').width*scale>=90,`dial fits at ${nativeCapacity} pt capacity`);
+    assert.ok(frames.get('hdr').width*scale>=110,`HDR dial fits at ${nativeCapacity} pt capacity`);
+    assert.ok(frames.get('jog').width*scale>=140,`jog fits at ${nativeCapacity} pt capacity`);
+  }
+});
+
 test('System Monitor previews selected readings in a fixed order with compact icon and padding allowance', () => {
   const monitor=createElement('systemMonitor');
   assert.deepEqual(selectedSystemMonitorMetrics(monitor),['cpu','gpu','memory','temperature']);

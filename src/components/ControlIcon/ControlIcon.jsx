@@ -9,6 +9,7 @@ const glyphs = {
   dock: '▤', exitTouchbar: '↙', network: '⌁', weather: '☼', yandexWeather: '☼', currency: '↔',
   upnext: '▦', ramUsage: '▤', gpuUsage: '▭', boardTemperature: '°C', cpuTemperature: '°C', systemMonitor: '◉', staticButton: '●', appleScriptTitledButton: '⌘', shellScriptTitledButton: '$',
   group: '▣', close: '×', swipe: '↔', sleep: '◌', displaySleep: '◉',
+  resolveColorDial: '◉', resolveNumericDial: '◉', resolveTimelineJog: '↔',
 };
 
 export default function ControlIcon({ type, className = '' }) {

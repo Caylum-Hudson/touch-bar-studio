@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.11.3 — Focus timer persistence
+
+- Keep Focus and break countdowns separate from the Touch Bar widget lifecycle, using saved finish times so switching apps and sleeping do not reset them.
+- Restore active countdowns after restarting Studio and deliver completion once, including when the widget is hidden. Sleep counts toward the selected duration.
+- Preserve the full-width proportional preview and edge-to-edge auto-placement improvements from the local 0.11.2 update.
+
+## 0.11.0 — Learned Resolve HDR adjustment dial
+
+- Add a 110 pt Resolve Adjustment Dial with a custom Touch Bar label, .01/.1/1 change steps, and a Learn flow for a visible HDR Exp or Sat value. Learning captures the selected value’s stable panel-relative binding without changing the value; Test −/+ commits and verifies one step.
+- Require the captured HDR zone layout to stay visible. Unknown, ambiguous, resized, or changed layouts fail closed. Bindings, aliases, and step settings survive saved-workspace round trips; stale polling results cannot update another selected dial.
+- Keep HDR labels limited to the captured target, rather than claiming named Blacks/Whites controls. Physical dial gestures and installed Resolve writes still need root’s live QA.
+- Keep the compact Control Strip preview inside the 30 pt face so its buttons are not clipped.
+
+## 0.10.1 — Resolve assignment guidance and preview calibration
+
+- Replace the separate color parameter/channel selectors with one **Adjustment** menu for the supported Resolve Primaries Color Bars controls: Lift, Gamma, or Gain on Y, Red, Green, or Blue. The existing serialized `parameter` and `channel` fields remain unchanged.
+- Explain the Color page and Primaries Color Bars requirement, warn when a dial is in the wrong Resolve page layout, and state that HDR Color Wheels controls are unsupported because they do not expose stable settable sliders.
+- Add a persisted 50–200% editor-only preview calibration (100% default). Keep the 30 pt control face separate from the ruler and bezel, preserve uniform scaling and hit mapping, and do not enlarge the default preview to fill a fullscreen editor. Physical gesture confirmation remains pending.
+
+## 0.10.0 — Resolve fine controls
+
+- Add compact inline color dials for Lift, Gamma, and Gain Y/R/G/B Color Bars sliders, plus a relative Edit-page timeline jog. Fine adjustment is the default; fractional dial motion accumulates to whole AX slider steps, and jog motion accumulates to frame steps. Normal and Coarse remain selectable.
+- Scope color reads and writes to the unique visible Primaries Color Bars structure and fresh, ranged, settable sliders. Jog uses the verified Timeline-focus and frame-step menu leaves. Both controls fail closed when Resolve context changes or the custom Touch Bar is off.
+- Add palette/Properties support, native controls, serialization and self-check coverage, and an isolated inline preview fixture. The 0.10.0 native build, self-tests, staged WebApp asset check, and strict ad-hoc signature verification pass. Root reviewed the isolated fixture; installed interaction and physical Touch Bar gesture confirmation remain pending. See [release notes](docs/releases/0.10.0.md).
+
 ## 0.9.3 — Live System Monitor sizing
 
 - Make **Fit live content** opt into the current native monitor width, ignoring the old manual width floor. Numeric widths restore manual sizing.

@@ -115,6 +115,7 @@ enum StudioFocusRefreshPolicy {
 /// Read-only runtime checks: decode defaults and render local status controls without sending actions.
 enum StudioControlChecks {
     static func runWidgetLifecycleChecks() {
+        runPomodoroCoordinatorChecks()
         let baselineSubscribers = Dictionary(uniqueKeysWithValues: [SystemMetrics.Monitor.cpu,.ram,.gpu,.cpuTemperature].map { ($0,SystemMetrics.monitorSubscriberCount(for:$0)) })
         let baselineSampling = SystemMetrics.isSampling
         precondition(SystemMetrics.cpuPercent(previous:[2,5,8,1],current:[4,7,12,1]) == 50)
@@ -152,6 +153,58 @@ enum StudioControlChecks {
         print("PASS: 20 read-only widget lifecycle cycles release timers, audio listeners, battery callback contexts, and owned network monitors.")
     }
 
+    private static func runPomodoroCoordinatorChecks() {
+        let suite = "MTMR.Pomodoro.Checks.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suite) else { preconditionFailure("Pomodoro checks need isolated defaults") }
+        defaults.removePersistentDomain(forName: suite)
+        var now = Date(timeIntervalSince1970: 30_000)
+        var completions: [PomodoroTimerCoordinator.State.Phase] = []
+        let coordinator = PomodoroTimerCoordinator(defaults: defaults, clock: { now }, drivesRunLoop: false, deliver: { completions.append($0) })
+
+        coordinator.start(key: "profile.widget-a", phase: .work, duration: 10)
+        coordinator.start(key: "profile.widget-b", phase: .rest, duration: 20)
+        precondition(coordinator.stateIsActive(key: "profile.widget-a") && coordinator.stateIsActive(key: "profile.widget-b"))
+        now = now.addingTimeInterval(10)
+        coordinator.processDeadlines()
+        precondition(!coordinator.stateIsActive(key: "profile.widget-a") && coordinator.stateIsActive(key: "profile.widget-b"))
+        precondition(completions == [.work], "An absent widget must still complete once")
+        coordinator.processDeadlines()
+        precondition(completions == [.work], "Repeated deadline checks must not repeat notifications")
+
+        // Seed persisted state and create a fresh coordinator to exercise launch restoration.
+        let restoredKey = "other-profile.widget"
+        let restoredState = PomodoroTimerCoordinator.State(phase: .rest, deadline: now.addingTimeInterval(5))
+        defaults.set(try! JSONEncoder().encode(restoredState), forKey: "MTMR.Pomodoro.state.\(restoredKey)")
+        let restored = PomodoroTimerCoordinator(defaults: defaults, clock: { now }, drivesRunLoop: false, deliver: { completions.append($0) })
+        precondition(restored.stateIsActive(key: restoredKey), "Startup must load sessions even with no view attached")
+        now = now.addingTimeInterval(6)
+        restored.processDeadlines()
+        restored.processDeadlines()
+        precondition(completions == [.work, .rest], "A restored expired session must notify only once")
+
+        let firstView = PomodoroBarItem(identifier: .init("check.pomodoro.first"), workTime: 10, restTime: 5, persistenceKey: "view-check")
+        let secondView = PomodoroBarItem(identifier: .init("check.pomodoro.second"), workTime: 10, restTime: 5, persistenceKey: "view-check")
+        let firstToken = restored.attach(firstView, key: "profile.views")
+        let secondToken = restored.attach(secondView, key: "profile.views")
+        weak var releasedView: PomodoroBarItem?
+        autoreleasepool {
+            let temporary = PomodoroBarItem(identifier: .init("check.pomodoro.temporary"), workTime: 10, restTime: 5, persistenceKey: "view-check-temporary")
+            releasedView = temporary
+            _ = restored.attach(temporary, key: "profile.views")
+        }
+        precondition(releasedView == nil, "Coordinator subscriptions must not retain their views")
+        restored.start(key: "profile.views", phase: .work, duration: 10)
+        precondition(firstView.title == secondView.title && firstView.title != "Focus", "All live views must reflect one shared session")
+        restored.detach(key: "profile.views", subscriptionID: firstToken)
+        restored.detach(key: "profile.views", subscriptionID: secondToken)
+        restored.stop(key: "profile.views")
+        restored.processDeadlines()
+        precondition(!restored.stateIsActive(key: "profile.views"))
+
+        defaults.removePersistentDomain(forName: suite)
+        print("PASS: Pomodoro coordinator restores deadlines, completes hidden timers once, isolates timer keys, and updates multiple views.")
+    }
+
     static func runStudioPolicyChecks() {
         precondition(StudioWorkspaceResponsePolicy.includesWorkspace(method:"GET",statusOnly:false))
         precondition(!StudioWorkspaceResponsePolicy.includesWorkspace(method:"GET",statusOnly:true))
@@ -160,6 +213,149 @@ enum StudioControlChecks {
         precondition(PomodoroBarItem.remainingSeconds(deadline:deadline,now:Date(timeIntervalSince1970:9_997.2))==3)
         precondition(PomodoroBarItem.remainingSeconds(deadline:deadline,now:Date(timeIntervalSince1970:10_000))==0)
         print("PASS: status-only polling omits workspace data; Pomodoro deadline math tolerates delayed timer ticks.")
+        runResolveColorAndJogPolicyChecks()
+        runResolveNumericPolicyChecks()
+    }
+
+    private static func runResolveNumericPolicyChecks() {
+        let binding=ResolveNumericBinding(version:1,zone:"Shadow",readout:"Exp",panelWidth:600,panelHeight:220,anchorX:0.4,anchorY:0.8,fingerprint:["Dark","Shadow","Light","Global"])
+        let dark=["Dark","Shadow","Light","Global"], black=["Black","Dark","Shadow","Global"], highlight=["Shadow","Light","Highlight","Global"]
+        precondition(ResolveNumericBinding.pagingDirection(from:dark,to:black,seen:[]) == -1)
+        precondition(ResolveNumericBinding.pagingDirection(from:dark,to:highlight,seen:[]) == 1)
+        precondition(ResolveNumericBinding.pagingDirection(from:dark,to:dark,seen:[]) == nil)
+        precondition(ResolveNumericBinding.pagingDirection(from:dark,to:black,seen:[dark]) == nil,"Repeated rows cannot trigger another click")
+        precondition(ResolveNumericBinding.pagingDirection(from:["Dark","Light","Shadow","Global"],to:black,seen:[]) == nil)
+        precondition(ResolveNumericBinding.pagingDirection(from:dark,to:black,seen:Array(repeating:highlight,count:6)) == nil)
+        precondition(binding.isValid)
+        precondition(ResolveNumericBinding.isHDRPaletteLabel("HDR Grade"))
+        precondition(ResolveNumericBinding.isHDRPaletteLabel("HDRGrade"))
+        precondition(!ResolveNumericBinding.isHDRPaletteLabel("HDR Grade Other"))
+        precondition(ResolveNumericBinding.readoutBeforeEditor("Exp 0.00 Sat 1.00") == "Sat")
+        precondition(ResolveNumericBinding.readoutBeforeEditor("Sat1.00 Exp0.00") == "Exp")
+        precondition(ResolveNumericBinding.editorReadoutMatches("Exp0.00",expected:"Exp"))
+        precondition(!ResolveNumericBinding.editorReadoutMatches("Sat1.00",expected:"Exp"),"A changed neighboring readout must not redirect a learned Exp binding to Sat")
+        precondition(ResolveNumericBinding.editorReadoutMatches("Exp0.00 Sat1.00",expected:"Sat"))
+        precondition(ResolveNumericBinding.namedValue("Sat",in:"Exp0.00 Sat1.00 0.00 0.00 0.22") == 1)
+        precondition(ResolveNumericBinding.namedValue("Exp",in:"Sat1.00 Exp0.01 0.00") == 0.01)
+        precondition(ResolveNumericBinding.namedValue("Exp",in:"Exp0.00 Exp0.01") == nil)
+        precondition(binding.matches(size:CGSize(width:600,height:220),fingerprint:binding.fingerprint))
+        precondition(!binding.matches(size:CGSize(width:650,height:220),fingerprint:binding.fingerprint),"Changed HDR geometry must require rebinding")
+        precondition(!binding.matches(size:CGSize(width:600,height:220),fingerprint:["Black","Dark","Shadow","Global"]),"Hidden or reordered HDR zones must never receive a click")
+        precondition(ResolveNumericBinding.nextValue(current:0,points:12,step:0.01) == 0.01)
+        precondition(ResolveNumericBinding.nextValue(current:0,points:-12,step:0.01) == -0.01)
+        precondition(ResolveNumericBinding.nextValue(current:0,points:10000,step:0.01) == 0.04,"Numeric batches are capped at four configured steps")
+        precondition(ResolveNumericBinding.nextValue(current:0,points:.infinity,step:0.01) == nil)
+        precondition(ResolveNumericBinding.nextValue(current:0,points:12,step:0) == nil)
+        let invalid=ResolveNumericBinding(version:1,zone:"Whites",readout:"Exp",panelWidth:600,panelHeight:220,anchorX:0.4,anchorY:0.8,fingerprint:["Dark","Shadow","Light","Global"])
+        precondition(!invalid.isValid,"User titles must not become fictional HDR parameter aliases")
+        let unbound="[{\"type\":\"resolveNumericDial\",\"title\":\"Shadows\",\"step\":0.01}]".data(using:.utf8)!
+        precondition((try? JSONDecoder().decode([BarItemDefinition].self,from:unbound))?.count == 1)
+        let invalidStep="{\"type\":\"resolveNumericDial\",\"step\":0}".data(using:.utf8)!
+        precondition((try? JSONDecoder().decode(ItemType.self,from:invalidStep)) == nil)
+        print("PASS: learned HDR binding rejects changed/hidden zones and invalid imports; numeric steps remain finite and capped.")
+    }
+
+    private static func runResolveColorAndJogPolicyChecks() {
+        let touchBarViews: [NSView] = [ResolveDialView(frame:.zero),ResolveTimelineJogView(frame:.zero)]
+        for view in touchBarViews {
+            precondition(view.allowedTouchTypes == .direct,"Custom Touch Bar views must accept direct Touch Bar touches")
+            let pans=view.gestureRecognizers.compactMap { $0 as? NSPanGestureRecognizer }
+            precondition(pans.count==1 && pans[0].allowedTouchTypes == .direct && pans[0].numberOfTouchesRequired==1,
+                         "Each Resolve dial/jog view needs exactly one direct-touch pan recognizer")
+        }
+        let outerColorWheels = (label:"Color Wheels",selected:true)
+        let directTabs = [
+            (label:"Color Wheels",selected:false),
+            (label:"Color Bars",selected:true),
+            (label:"Log Wheels",selected:false),
+        ]
+        precondition(ResolveColorDialStructure.selectedModeTabs(from:directTabs)==["ColorBars"],"Color Bars mode labels are matched in the scoped Primaries container")
+        precondition(ResolveColorDialStructure.selectedModeTabs(from:[outerColorWheels]+directTabs)==nil,"An outer selected Color Wheels control must not be mixed into the scoped mode tabs")
+
+        func child(_ role:String,_ label:String,minimum:Double? = nil,maximum:Double? = nil,value:Double? = nil,settable:Bool = false) -> ResolveColorBarSiblingSnapshot {
+            ResolveColorBarSiblingSnapshot(role:role,label:label,minimum:minimum,maximum:maximum,value:value,settable:settable)
+        }
+        func slider(_ value:Double = 0) -> ResolveColorBarSiblingSnapshot {
+            child("AXSlider","",minimum:0,maximum:1000,value:value,settable:true)
+        }
+        var siblings = [child("AXStaticText","Lift"),child("AXButton","Reset")]
+        siblings += (0..<4).map { _ in slider() }
+        siblings += [child("AXStaticText","0.00 0.00 0.00 0.00 Gamma"),child("AXButton","Reset")]
+        siblings += (0..<4).map { _ in slider() }
+        siblings += [child("AXStaticText","0.00 0.00 0.00 0.00"),child("AXCheckBox","Pick White Point"),child("AXStaticText","Gain"),child("AXButton","Reset")]
+        siblings += (0..<4).map { _ in slider(700) }
+        siblings += [child("AXStaticText","1.00 1.00 1.00 1.00 Offset"),child("AXButton","Reset")]
+        siblings += (0..<3).map { _ in slider(25) }
+        siblings += [child("AXStaticText","25.00 25.00 25.00 Color Boost 0.00")]
+
+        guard let groups=ResolveColorDialStructure.groups(from:siblings) else { fatalError("Actual Color Bars sibling fixture should resolve Lift/Gamma/Gain") }
+        let snapshot=ResolveColorBarStructureSnapshot(selectedTabs:["ColorBars"],unrelatedSelectedTabs:["ColorWheels"],primariesGroupCount:1,groups:groups)
+        precondition(ResolveColorDialStructure.slider(in:snapshot,parameter:.lift,channel:.y)?.displayValue=="0.00")
+        precondition(ResolveColorDialStructure.slider(in:snapshot,parameter:.gamma,channel:.green)?.displayValue=="0.00","Gamma readout must come from the numeric static text before Pick White Point")
+        precondition(ResolveColorDialStructure.slider(in:snapshot,parameter:.gain,channel:.blue)?.displayValue=="1.00")
+
+        var fineDial=ResolveColorDialAccumulator()
+        precondition(fineDial.advance(points:3,range:1000,sensitivity:.fine)==0)
+        precondition(fineDial.advance(points:3,range:1000,sensitivity:.fine)==0)
+        precondition(fineDial.advance(points:4,range:1000,sensitivity:.fine)==1,"Fine color input accumulates sub-unit raw movement until one integer slider step")
+        var cancellingDial=ResolveColorDialAccumulator()
+        precondition(cancellingDial.advance(points:3,range:1000,sensitivity:.fine)==0)
+        precondition(cancellingDial.advance(points:-3,range:1000,sensitivity:.fine)==0 && cancellingDial.rawRemainder==0,"Reverse movement cancels sub-step motion")
+        let fineAmount=ResolveColorDialSensitivity.fine.rangeFractionPerPoint
+        let normalAmount=ResolveColorDialSensitivity.normal.rangeFractionPerPoint
+        let coarseAmount=ResolveColorDialSensitivity.coarse.rangeFractionPerPoint
+        precondition(fineAmount < normalAmount && normalAmount < coarseAmount,"Color dial sensitivities increase from fine to coarse")
+        precondition(ResolveColorDialSensitivity.fine.rangeFractionPerPoint==0.0001 && ResolveColorDialSensitivity.normal.rangeFractionPerPoint==0.0005 && ResolveColorDialSensitivity.coarse.rangeFractionPerPoint==0.001)
+        precondition(ResolveColorDialReleasePolicy.shouldWaitForWrite(pendingRawStep:1,writeScheduled:false),"Finger-up must drain the last queued color delta")
+        precondition(ResolveColorDialReleasePolicy.shouldWaitForWrite(pendingRawStep:0,writeScheduled:true),"Finger-up must wait for an in-flight color write")
+        precondition(!ResolveColorDialReleasePolicy.shouldWaitForWrite(pendingRawStep:0,writeScheduled:false),"An idle release should close immediately")
+        precondition(ResolveDialTextLayout.availableWidth(viewWidth:90,leadingX:30)==56 && ResolveDialTextLayout.availableWidth(viewWidth:110,leadingX:30)==76,"Color and numeric readouts must stay within their native view bounds")
+        var cappedDial=ResolveColorDialAccumulator()
+        precondition(cappedDial.advance(points:1000,range:1000,sensitivity:.coarse)==ResolveColorDialAccumulator.maximumRawStepsPerUpdate)
+        precondition(cappedDial.advance(points:0,range:1000,sensitivity:.fine)==0 && cappedDial.rawRemainder==0,"Capped raw increments discard overflow instead of scheduling a retry")
+        var missingRange=siblings
+        if let firstSlider=missingRange.firstIndex(where:{$0.role=="AXSlider"}) { missingRange[firstSlider]=child("AXSlider","",maximum:1000,value:0,settable:true) }
+        precondition(ResolveColorDialStructure.groups(from:missingRange)==nil,"A slider without an accessible minimum must be rejected")
+        var ambiguousGamma=siblings
+        if let whitePoint=ambiguousGamma.firstIndex(where:{$0.label=="Pick White Point"}) { ambiguousGamma.insert(child("AXStaticText","1 2 3 4"),at:whitePoint) }
+        precondition(ResolveColorDialStructure.groups(from:ambiguousGamma)==nil,"Ambiguous Gamma value labels must be rejected")
+
+        var jog=ResolveTimelineJogAccumulator()
+        var fineJog=ResolveTimelineJogAccumulator()
+        precondition(fineJog.advance(points:5,sensitivity:.fine)==0)
+        precondition(fineJog.advance(points:5,sensitivity:.fine)==0)
+        precondition(fineJog.advance(points:2.5,sensitivity:.fine)==1,"Fine jog accumulates small movements until one frame")
+        let fineJogRate=ResolveTimelineJogSensitivity.fine.framesPerPoint
+        precondition(fineJogRate < ResolveTimelineJogSensitivity.normal.framesPerPoint && ResolveTimelineJogSensitivity.normal.framesPerPoint < ResolveTimelineJogSensitivity.coarse.framesPerPoint)
+        var cancelledFineJog=ResolveTimelineJogAccumulator()
+        precondition(cancelledFineJog.advance(points:5,sensitivity:.fine)==0)
+        precondition(cancelledFineJog.advance(points:-5,sensitivity:.fine)==0,"Reverse jog input cancels fractional frame motion")
+        precondition(jog.advance(points:2.5,sensitivity:.normal)==0)
+        precondition(jog.advance(points:2.5,sensitivity:.normal)==1)
+        precondition(jog.advance(points:100,sensitivity:.coarse)==ResolveTimelineJogAccumulator.maximumFramesPerUpdate)
+        precondition(jog.advance(points:0,sensitivity:.fine)==0,"Jog overflow is discarded instead of queued")
+        precondition(ResolveDragGenerationPolicy.shouldContinue(dragging:true,currentGeneration:4,capturedGeneration:4))
+        precondition(!ResolveDragGenerationPolicy.shouldContinue(dragging:false,currentGeneration:5,capturedGeneration:4),"Ending a drag cancels pending frame commands")
+        precondition(!ResolveDragGenerationPolicy.shouldContinue(dragging:true,currentGeneration:4,capturedGeneration:4,touchBarEnabled:false),"Disabling the custom Touch Bar cancels queued color and jog operations")
+        precondition(ResolveJogInFlightPolicy.shouldRelease(activeGeneration:9,completedGeneration:9))
+        precondition(!ResolveJogInFlightPolicy.shouldRelease(activeGeneration:9,completedGeneration:8),"A stale jog completion cannot clear a newer drag's in-flight batch")
+
+        let leaf=ResolveMenuNodeSnapshot(role:"AXMenuItem",title:"Frame Reverse",enabled:true,children:[])
+        let step=ResolveMenuNodeSnapshot(role:"AXMenuItem",title:"Step One",enabled:true,children:[ResolveMenuNodeSnapshot(role:"AXMenu",title:"",enabled:true,children:[leaf])])
+        let playback=ResolveMenuNodeSnapshot(role:"AXMenuBarItem",title:"Playback",enabled:true,children:[ResolveMenuNodeSnapshot(role:"AXMenu",title:"",enabled:true,children:[step])])
+        let menuBar=ResolveMenuNodeSnapshot(role:"AXMenuBar",title:"",enabled:true,children:[playback])
+        precondition(ResolveTimelineMenuPath.pressTargets(in:menuBar,titles:["Playback","Step One","Frame Reverse"]).map(\.title)==["Frame Reverse"],"Jog dispatch must AXPress only the enabled leaf, never menu ancestors")
+
+        let fixtureData="""
+        [{"type":"resolveColorDial","parameter":"lift","channel":"Y","sensitivity":"fine","width":24},{"type":"resolveTimelineJog","sensitivity":"normal","width":24}]
+        """.data(using:.utf8)!
+        guard let definitions=fixtureData.barItemDefinitions(),definitions.count==2 else { fatalError("Resolve width fixture should decode") }
+        for capacity in [CGFloat(685),CGFloat(1085)] {
+            let scale=capacity/StudioLayout.width
+            let frames=StudioLayout.frames(definitions,preferredContentWidths:[0:90/scale,1:140/scale])
+            precondition(frames[0].width*scale>=90 && frames[1].width*scale>=140,"Resolve widget content floors must hold at Touch Bar capacity \(capacity)")
+        }
+        print("PASS: Resolve Color Bars uses direct spaced mode tabs and numeric sibling readouts; unsafe grade structures fail closed. Relative jog bounds and leaf-only menu dispatch pass. 90/140 pt native width floors hold at 685/1085 pt capacities.")
     }
 
     static func runPhotoRequestCancellationChecks() {
@@ -231,6 +427,11 @@ enum StudioControlChecks {
         let selectedModes=StudioFocusRefreshPolicy.signature(profileIdentifier:"resolve",items:[],bundleIdentifier:"com.blackmagic-design.DaVinciResolve",selectionContext:"edit|automatic")
         let manualSamePage=StudioFocusRefreshPolicy.signature(profileIdentifier:"resolve",items:[],bundleIdentifier:"com.blackmagic-design.DaVinciResolve",selectionContext:"edit|manual")
         precondition(StudioFocusRefreshPolicy.shouldRefresh(previous:selectedModes,next:manualSamePage), "Changing Auto/Manual mode on the same page must rebuild the picker state")
+        let detectedColorOverManualCut=StudioFocusRefreshPolicy.signature(profileIdentifier:"resolve",items:[],bundleIdentifier:"com.blackmagic-design.DaVinciResolve",selectionContext:"cut|manual|detected:color|native:true")
+        let detectedEditOverManualCut=StudioFocusRefreshPolicy.signature(profileIdentifier:"resolve",items:[],bundleIdentifier:"com.blackmagic-design.DaVinciResolve",selectionContext:"cut|manual|detected:edit|native:true")
+        let nativeColorTurnedOff=StudioFocusRefreshPolicy.signature(profileIdentifier:"resolve",items:[],bundleIdentifier:"com.blackmagic-design.DaVinciResolve",selectionContext:"cut|manual|detected:color|native:false")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous:detectedEditOverManualCut,next:detectedColorOverManualCut), "Actual Color detection must refresh presentation even when a manual Cut override keeps the same layout")
+        precondition(StudioFocusRefreshPolicy.shouldRefresh(previous:detectedColorOverManualCut,next:nativeColorTurnedOff), "Turning native Color off must restore the custom bar without a focus change")
         precondition(!ResolvePageDetection.shouldResetManualOverride(previousProcess:nil,currentProcess:101), "A manual page chosen in Studio should survive the first Resolve activation")
         precondition(!ResolvePageDetection.shouldResetManualOverride(previousProcess:101,currentProcess:101), "Changing frontmost apps must not clear the Resolve process override")
         precondition(ResolvePageDetection.shouldResetManualOverride(previousProcess:101,currentProcess:202), "Launching a different Resolve process should clear the old page override")

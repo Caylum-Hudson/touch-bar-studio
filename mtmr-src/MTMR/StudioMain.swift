@@ -59,6 +59,20 @@ enum StudioMain {
             precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: false) == true)
             precondition(AppSettings.shouldUseCompactControlStripPresentation(keepControlStrip: true, sliderExpanded: true) == false)
             print("PASS: Control Strip preference selects compact presentation, while an expanded slider temporarily uses the full bar.")
+            let oldNativeColorPreference=AppSettings.useResolveNativeColorPage
+            AppSettings.useResolveNativeColorPage=true
+            precondition(AppSettings.shouldYieldToResolveNativeColor(frontmostBundleIdentifier:"com.blackmagic-design.DaVinciResolve",detectedPage:"color",enabled:true))
+            // The policy deliberately keys actual detection, so a manual Cut
+            // override cannot keep Studio controls in front of native Color.
+            precondition(!AppSettings.shouldYieldToResolveNativeColor(frontmostBundleIdentifier:"com.blackmagic-design.DaVinciResolve",detectedPage:"edit",enabled:true))
+            precondition(!AppSettings.shouldYieldToResolveNativeColor(frontmostBundleIdentifier:"com.example.editor",detectedPage:"color",enabled:true))
+            precondition(!AppSettings.shouldYieldToResolveNativeColor(frontmostBundleIdentifier:"com.blackmagic-design.DaVinciResolve",detectedPage:nil,enabled:true))
+            AppSettings.useResolveNativeColorPage=false
+            precondition(!AppSettings.shouldYieldToResolveNativeColor(frontmostBundleIdentifier:"com.blackmagic-design.DaVinciResolve",detectedPage:"color",enabled:true))
+            AppSettings.useResolveNativeColorPage=true
+            precondition(!AppSettings.shouldYieldToResolveNativeColor(frontmostBundleIdentifier:"com.blackmagic-design.DaVinciResolve",detectedPage:"color",enabled:false))
+            AppSettings.useResolveNativeColorPage=oldNativeColorPreference
+            print("PASS: native Color yields only for enabled Studio, detected Resolve Color, and the preference; manual page override does not mask detection.")
             let workspaceTestDirectory=FileManager.default.temporaryDirectory.appendingPathComponent("TouchBarStudio-workspace-selftest-\(UUID().uuidString)")
             try! FileManager.default.createDirectory(at:workspaceTestDirectory,withIntermediateDirectories:true)
             defer { try? FileManager.default.removeItem(at:workspaceTestDirectory) }

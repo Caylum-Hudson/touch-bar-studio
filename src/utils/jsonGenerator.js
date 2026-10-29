@@ -2,6 +2,16 @@
 // Converts internal state to MTMR-compatible JSON format
 import { systemMonitorConfigurationSignature } from './systemMonitorRuntimePreview.js';
 
+export const cloneWithoutRuntimeIdentity = item => {
+  const copy = {...item};
+  delete copy.id;
+  delete copy.studioId;
+  delete copy.studioPreviewSignature;
+  delete copy.preserveStudioId;
+  if (Array.isArray(copy.items)) copy.items = copy.items.map(cloneWithoutRuntimeIdentity);
+  return copy;
+};
+
 /**
  * Generate MTMR-compatible JSON from items array
  * @param {Array} items - Array of item objects from state
@@ -23,11 +33,14 @@ const generateItemJSON = (item) => {
   const { id: _editorId, ...preserved } = item;
   delete preserved.studioId;
   delete preserved.studioPreviewSignature;
+  delete preserved.preserveStudioId;
   const result = { ...preserved, type: item.type };
 
   const containsMonitor = item.type === 'systemMonitor'
     || (item.type === 'group' && (item.items || []).some(containsSystemMonitor));
-  if (containsMonitor && (item.id != null || item.studioId)) result.studioId = String(item.id ?? item.studioId);
+  if (containsMonitor && (item.preserveStudioId === true ? item.studioId != null : item.id != null || item.studioId != null)) {
+    result.studioId = String(item.preserveStudioId === true ? item.studioId : item.id ?? item.studioId);
+  }
   if (item.type === 'systemMonitor') result.studioPreviewSignature = systemMonitorConfigurationSignature(item);
 
   // Add common properties if they have values
@@ -132,6 +145,12 @@ const addTypeSpecificProperties = (result, item) => {
       if (item.to !== undefined) result.to = item.to;
       if (item.maxToShow !== undefined) result.maxToShow = item.maxToShow;
       if (item.autoResize !== undefined) result.autoResize = item.autoResize;
+      break;
+
+    case 'resolveNumericDial':
+      if (typeof item.title === 'string') result.title = item.title;
+      if (item.step !== undefined) result.step = item.step;
+      if (item.binding !== undefined) result.binding = item.binding;
       break;
 
     case 'staticButton':
@@ -375,6 +394,7 @@ const parseItem = (item, index) => {
     'workTime', 'restTime', 'flip',
     'source', 'alternativeImages',
     'fingers', 'direction', 'minOffset', 'sourceApple', 'sourceBash',
+    'step', 'binding',
   ];
 
   typeSpecificProps.forEach((prop) => {

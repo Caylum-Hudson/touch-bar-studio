@@ -21,7 +21,7 @@ function download(name, data) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   const a = document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-const defaults = {accent:'#a78bfa',background:'#14151d',motion:'off',tiles:[],keepControlStrip:false};
+const defaults = {accent:'#a78bfa',background:'#14151d',motion:'off',tiles:[],keepControlStrip:false,previewScalePercent:100,useResolveNativeColorPage:true};
 const RESOLVE_BUNDLE_ID='com.blackmagic-design.DaVinciResolve';
 const resolvePages=[['media','Media'],['photo','Photo'],['cut','Cut'],['edit','Edit'],['fusion','Fusion'],['color','Color'],['fairlight','Fairlight'],['deliver','Deliver']];
 const resolveEditorPages=[['fallback','Profile fallback'],...resolvePages];
@@ -44,6 +44,7 @@ export default function StudioShell() {
   const [resolvePageOverride,setResolvePageOverride] = useState(null);
   const [resolvePageDetection,setResolvePageDetection] = useState('inactive');
   const [activeResolvePageFallback,setActiveResolvePageFallback] = useState(false);
+  const [nativeResolveColorPageActive,setNativeResolveColorPageActive] = useState(false);
   const [enabled,setEnabled] = useState(null);
   const [toggling,setToggling] = useState(false);
   const [keyboardAccess,setKeyboardAccess] = useState(null);
@@ -54,6 +55,8 @@ export default function StudioShell() {
   const [systemMonitorPreviews,setSystemMonitorPreviews] = useState([]);
   const [activeStudioGroupPath,setActiveStudioGroupPath] = useState([]);
   const controlStripBusyRef=useRef(false);
+  const nativeColorPreferenceDirtyRef=useRef(false);
+  const nativeColorPreferenceRevisionRef=useRef(0);
   const studioRequestRef=useRef(null);
   const refreshStudioRef=useRef(null);
   const initialStudioLoadedRef=useRef(false);
@@ -83,6 +86,7 @@ export default function StudioShell() {
     const refreshStudio=()=>{
       if(studioRequestRef.current)return studioRequestRef.current;
       const includeWorkspace=!studioWorkspaceFetchedRef.current;
+      const nativeColorPreferenceRevision=nativeColorPreferenceRevisionRef.current;
       const request=api(includeWorkspace?'studio':'studio?statusOnly=1').then(r=>{
         if(includeWorkspace)studioWorkspaceFetchedRef.current=true;
         const loadError=typeof r.workspaceLoadError==='string'?r.workspaceLoadError:'';
@@ -93,9 +97,11 @@ export default function StudioShell() {
         setLayoutCapacity(r.layoutCapacity || null);
         setSystemMonitorPreviews(Array.isArray(r.systemMonitorPreviews)?r.systemMonitorPreviews:[]);
         setActiveStudioGroupPath(Array.isArray(r.studioGroupPath)?r.studioGroupPath:[]);
-        setActive(r.activeProfile);setActiveResolvePage(r.activeResolvePage||null);setResolvePageOverride(r.resolvePageOverride||null);setResolvePageDetection(r.resolvePageDetection||'inactive');setActiveResolvePageFallback(r.activeResolvePageFallback===true);setEnabled(r.enabled);setKeyboardAccess(r.accessibilityTrusted ?? r.keyboardAccess ?? null);setEventPostingAllowed(r.eventPostingAllowed ?? null);
+        setActive(r.activeProfile);setActiveResolvePage(r.activeResolvePage||null);setResolvePageOverride(r.resolvePageOverride||null);setResolvePageDetection(r.resolvePageDetection||'inactive');setActiveResolvePageFallback(r.activeResolvePageFallback===true);setNativeResolveColorPageActive(r.nativeResolveColorPageActive===true);setEnabled(r.enabled);setKeyboardAccess(r.accessibilityTrusted ?? r.keyboardAccess ?? null);setEventPostingAllowed(r.eventPostingAllowed ?? null);
         const effective=r.keepControlStrip ?? r.workspace?.settings?.keepControlStrip;
         if(typeof effective==='boolean'&&!controlStripBusyRef.current)setSettings(s=>s.keepControlStrip===effective?s:{...s,keepControlStrip:effective});
+        const nativeColor=r.useResolveNativeColorPage ?? r.workspace?.settings?.useResolveNativeColorPage;
+        if(typeof nativeColor==='boolean'&&!nativeColorPreferenceDirtyRef.current&&nativeColorPreferenceRevision===nativeColorPreferenceRevisionRef.current)setSettings(s=>s.useResolveNativeColorPage===nativeColor?s:{...s,useResolveNativeColorPage:nativeColor});
         return r;
       }).catch(e=>{setStatus(e.message);throw e;}).finally(()=>{studioRequestRef.current=null;});
       studioRequestRef.current=request;
@@ -116,7 +122,7 @@ export default function StudioShell() {
   const profile=app.profiles[app.profileId];
   const activeRuntimeProfile=app.profiles[active];
   const activeRuntimePageLabel=resolvePages.find(([id])=>id===activeResolvePage)?.[1];
-  const activeRuntimePageStatus=activeRuntimeProfile?.bundleId===RESOLVE_BUNDLE_ID&&!activeRuntimePageLabel
+  const activeRuntimePageStatus=nativeResolveColorPageActive?'Native Color page':activeRuntimeProfile?.bundleId===RESOLVE_BUNDLE_ID&&!activeRuntimePageLabel
     ? resolvePageDetection==='accessibility-required'?'Page unknown · Accessibility required':'Page unknown · profile fallback'
     : activeRuntimePageLabel?`Page: ${activeRuntimePageLabel} (${resolvePageOverride?'Manual':'Auto'}${activeResolvePageFallback?' · profile fallback':''})`:null;
   const resolveProfile=Object.entries(app.profiles).find(([,p])=>p.bundleId===RESOLVE_BUNDLE_ID);
@@ -133,8 +139,12 @@ export default function StudioShell() {
     const result=await api('studio',{workspace:workspace(),replaceUnreadable});
     setWorkspaceLoadError('');
     setWorkspaceReplacementPrepared(false);
+    nativeColorPreferenceDirtyRef.current=false;
+    nativeColorPreferenceRevisionRef.current+=1;
+    setNativeResolveColorPageActive(result.nativeResolveColorPageActive===true);
     if(typeof result.keepControlStrip==='boolean')setSettings(s=>({...s,keepControlStrip:result.keepControlStrip}));
-    setStatus(enabled?'Applied to Touch Bar · saved on this Mac':'Saved on this Mac · custom Touch Bar is off');
+    if(typeof result.useResolveNativeColorPage==='boolean')setSettings(s=>({...s,useResolveNativeColorPage:result.useResolveNativeColorPage}));
+    setStatus(result.nativeResolveColorPageActive?'Native Color page is using Resolve controls':enabled?'Applied to Touch Bar · saved on this Mac':'Saved on this Mac · custom Touch Bar is off');
   });
   const updateControlStrip=async value=>{
     if(!native||controlStripBusyRef.current)return;
@@ -225,10 +235,12 @@ export default function StudioShell() {
       <details className="studio-options"><summary>Studio options <span>{profile?.name||'Default'} profile</span></summary><div className="studio-options-content"><div className="profile-strip">
       {app.profileId!=='default'&&<><input aria-label="Profile name" value={profile.name} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,name:e.target.value}})}/><label><input type="checkbox" checked={profile.enabled} onChange={e=>app.setProfiles({...app.profiles,[app.profileId]:{...profile,enabled:e.target.checked}})}/>Enabled</label><button onClick={()=>{const id=app.profileId;app.switchProfile('default');const p={...app.profiles};delete p[id];app.setProfiles(p);}}>Delete profile</button></>}
       <button onClick={()=>download('touchbar-workspace.json',workspace())}>Export workspace</button><button onClick={()=>importRef.current.click()}>Import workspace</button>
-      <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const input=e.target;const file=input.files[0];if(!file)return;try{const w=JSON.parse(await file.text());const error=workspaceImportError(w);if(error)throw Error(error);app.restoreWorkspace(w);if(w.settings)setSettings({...defaults,...w.settings});setWorkspaceReplacementPrepared(true);setStatus('Workspace imported locally. Apply & Save to activate.');}finally{input.value='';}})}/>
+      <input ref={importRef} hidden type="file" accept=".json" onChange={e=>run(async()=>{const input=e.target;const file=input.files[0];if(!file)return;try{const w=JSON.parse(await file.text());const error=workspaceImportError(w);if(error)throw Error(error);app.restoreWorkspace(w);if(w.settings){setSettings({...defaults,...w.settings});nativeColorPreferenceDirtyRef.current=true;nativeColorPreferenceRevisionRef.current+=1;}setWorkspaceReplacementPrepared(true);setStatus('Workspace imported locally. Apply & Save to activate.');}finally{input.value='';}})}/>
       </div></div></details>
+      {resolveProfile&&<label className="resolve-native-color-toggle"><span><strong>Use Resolve’s native Touch Bar on Color</strong><small>When DaVinci Resolve is on its detected Color page, let Resolve show its own controls. The detected page takes priority over the manual Touch Bar page while this is on. Your custom Studio layout returns on Edit and other pages.</small></span><input type="checkbox" checked={settings.useResolveNativeColorPage!==false} onChange={e=>{nativeColorPreferenceDirtyRef.current=true;nativeColorPreferenceRevisionRef.current+=1;setSettings(s=>({...s,useResolveNativeColorPage:e.target.checked}));}}/></label>}
+      {resolveProfile&&nativeResolveColorPageActive&&<div className="resolve-native-preview" role="status">Resolve’s native Color controls are active; this editor shows the Studio layout you are editing.</div>}
       {app.groupPath.length>0&&<div className="submenu-strip"><button onClick={app.leaveGroup}>‹ Back</button><span>{profile?.name||'Default'}{app.groupNames.map((n,i)=><span key={i}> / {n}</span>)}</span>{app.selectedItemId&&<select aria-label="Move selected control" value="" onChange={e=>app.moveItem(app.selectedItemId,e.target.value==='root'?null:e.target.value)}><option value="">Move selected to…</option><option value="root">Root layout</option>{app.items.filter(i=>i.type==='group'&&i.id!==app.selectedItemId).map(i=><option key={i.id} value={i.id}>{i.title||'Submenu'}</option>)}</select>}</div>}
-      {profile?.bundleId===RESOLVE_BUNDLE_ID&&!app.resolvePageReady&&app.resolvePageId!=='fallback'?<section className="resolve-page-empty"><h2>No {resolvePages.find(([id])=>id===app.resolvePageId)?.[1]} layout yet</h2><p>The Touch Bar uses the profile fallback layout for that page. Create a separate layout by copying the profile fallback; this will not change other pages.</p><button type="button" className="primary" onClick={()=>createResolvePageLayout(app.resolvePageId)}>Create layout from profile</button></section>:<div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native} keepControlStrip={settings.keepControlStrip===true} updateKeepControlStrip={updateControlStrip} controlStripBusy={controlStripBusy} layoutCapacity={layoutCapacity} systemMonitorPreviews={systemMonitorPreviews} activeStudioGroupPath={activeStudioGroupPath} activeRuntimeProfile={active} activeRuntimeResolvePage={activeResolvePageFallback?'fallback':activeResolvePage} activeRuntimeEnabled={enabled===true}><AppContent/></RuntimePermissionsProvider></div>}
+      {profile?.bundleId===RESOLVE_BUNDLE_ID&&!app.resolvePageReady&&app.resolvePageId!=='fallback'?<section className="resolve-page-empty"><h2>No {resolvePages.find(([id])=>id===app.resolvePageId)?.[1]} layout yet</h2><p>The Touch Bar uses the profile fallback layout for that page. Create a separate layout by copying the profile fallback; this will not change other pages.</p><button type="button" className="primary" onClick={()=>createResolvePageLayout(app.resolvePageId)}>Create layout from profile</button></section>:<div className="editor-host"><RuntimePermissionsProvider accessibilityAccess={keyboardAccess} eventPostingAllowed={eventPostingAllowed} native={native} keepControlStrip={settings.keepControlStrip===true} updateKeepControlStrip={updateControlStrip} controlStripBusy={controlStripBusy} layoutCapacity={layoutCapacity} systemMonitorPreviews={systemMonitorPreviews} activeStudioGroupPath={activeStudioGroupPath} activeRuntimeProfile={active} activeRuntimeResolvePage={activeResolvePageFallback?'fallback':activeResolvePage} activeRuntimeEnabled={enabled===true} previewScalePercent={settings.previewScalePercent ?? 100} updatePreviewScalePercent={value=>setSettings(current=>({...current,previewScalePercent:value}))}><AppContent/></RuntimePermissionsProvider></div>}
     </>}
     {tab==='Launcher'&&<main className="workspace-page"><div className="page-heading"><div><p className="eyebrow">MAKE SPACE FOR YOUR WORK</p><h1>Everything, one touch away.</h1><p>Apps and folders for whatever you’re working on.</p></div><div><button onClick={()=>addTile('app')}>+ App</button> <button onClick={()=>addTile('folder')}>+ Folder</button></div></div>
       {!settings.tiles.length&&<div className="empty-card"><h2>Build your launchpad</h2><p>Add an app or folder above. Click a tile to open it.</p><button onClick={()=>addTile('app')}>Choose your first app</button></div>}

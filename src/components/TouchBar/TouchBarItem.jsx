@@ -11,6 +11,8 @@ import './TouchBar.css';
 function getItemDisplay(item, definition) {
   const type = item.type;
 
+  if (type === 'resolveNumericDial') return { type: 'resolve-numeric-dial' };
+
   // Handle items with custom images
   if (item.image?.base64) {
     return { type: 'image', content: `data:image/png;base64,${item.image.base64}` };
@@ -23,6 +25,10 @@ function getItemDisplay(item, definition) {
 
   // Type-specific displays
   switch (type) {
+    case 'resolveColorDial':
+      return { type: 'resolve-color-dial' };
+    case 'resolveTimelineJog':
+      return { type: 'resolve-timeline-jog' };
     case 'escape':
       return { type: 'text', content: 'esc' };
     case 'exitTouchbar':
@@ -179,6 +185,45 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
 
   // Render content based on display type
   const renderContent = () => {
+    if (display.type === 'resolve-color-dial') {
+      const parameter = (item.parameter || 'lift').toUpperCase();
+      const channel = item.channel || 'Y';
+      const angle = ({Y:-32,R:-15,G:0,B:18})[channel] ?? 0;
+      return (
+        <div className="resolve-dial-preview" aria-hidden="true">
+          <svg className="resolve-dial-ring" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="9" />
+            <circle className="resolve-dial-track" cx="10" cy="10" r="6.8" />
+            <line x1="10" y1="10" x2="10" y2="5" transform={`rotate(${angle} 10 10)`} />
+            <circle className="resolve-dial-center" cx="10" cy="10" r="1.5" />
+          </svg>
+          <span className="resolve-dial-copy"><strong>{parameter} {channel}</strong><small>— · illustrative</small></span>
+        </div>
+      );
+    }
+    if (display.type === 'resolve-numeric-dial') {
+      return (
+        <div className="resolve-dial-preview" aria-hidden="true">
+          <svg className="resolve-dial-ring" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="9" />
+            <circle className="resolve-dial-track" cx="10" cy="10" r="6.8" />
+            <line x1="10" y1="10" x2="10" y2="5" />
+            <circle className="resolve-dial-center" cx="10" cy="10" r="1.5" />
+          </svg>
+          <span className="resolve-dial-copy"><strong>{item.title || 'HDR'}</strong><small>— · illustrative</small></span>
+        </div>
+      );
+    }
+    if (display.type === 'resolve-timeline-jog') {
+      return (
+        <div className="resolve-jog-preview" aria-hidden="true">
+          <span className="resolve-jog-label">TIMELINE JOG</span>
+          <span className="resolve-jog-track"><i /><b /></span>
+          <span className="resolve-jog-caption">Relative · illustrative</span>
+        </div>
+      );
+    }
+
     // Image display
     if (display.type === 'image') {
       return (
@@ -257,7 +302,7 @@ export default function TouchBarItem({ item, isSelected, onSelect, onContextMenu
       onContextMenu={onContextMenu}
       title={item.type === 'systemMonitor'
         ? `${item.runtimePreview ? 'Live readings from the current Touch Bar' : 'Illustrative preview only'}; selected readings: ${selectedSystemMonitorMetrics(item).map(metric => ({cpu:'CPU usage',gpu:'GPU usage',memory:'Memory usage',temperature:'CPU temperature'})[metric]).join(', ') || 'none'}`
-        : ['cpu', 'ramUsage', 'gpuUsage', 'boardTemperature', 'cpuTemperature'].includes(item.type) ? 'Illustrative preview only; system metrics are not read in the editor' : undefined}
+        : ['cpu', 'ramUsage', 'gpuUsage', 'boardTemperature', 'cpuTemperature', 'resolveColorDial', 'resolveNumericDial', 'resolveTimelineJog'].includes(item.type) ? 'Illustrative preview only; no Resolve value is read in the editor' : undefined}
       {...attributes}
       {...listeners}
       aria-label={`${definition.label}${item.title ? `: ${item.title}` : item.type === 'systemMonitor' ? `: ${selectedSystemMonitorMetrics(item).join(', ') || 'icon only'}` : ''} — ${item.type === 'systemMonitor' && item.runtimePreview ? 'live readings from the current Touch Bar' : 'editor preview'}`}

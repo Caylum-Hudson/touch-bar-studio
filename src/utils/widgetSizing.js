@@ -64,8 +64,12 @@ export function widgetContentWidth(item) {
     return Math.max(24, Math.ceil(item.runtimePreview.contentWidth));
   }
   if (item.image?.base64) return null;
+  if (item.type === 'resolveNumericDial') return Math.max(110, item.title?.trim() ? textWidth(item.title) : 0);
   if (item.title?.trim()) return textWidth(item.title);
   switch (item.type) {
+    case 'resolveColorDial': return 90;
+    case 'resolveNumericDial': return 110;
+    case 'resolveTimelineJog': return 140;
     case 'timeButton': {
       const format=item.formatTemplate || 'HH:mm';
       // Native TimeTouchBarItem is a text-only, unbordered NSButton. Match its

@@ -77,6 +77,7 @@ final class StudioPositionedView: NSView {
     private let frameProvider: ([Int: CGFloat]) -> [CGRect]
     private var autoResizingDocks: [Int: AppScrubberTouchBarItem] = [:]
     private var contentWidthItems: [Int: CustomButtonTouchBarItem] = [:]
+    private var fixedContentMinimumWidths: [Int: CGFloat] = [:]
     init(views: [NSView], frames: [CGRect], frameProvider: @escaping ([Int: CGFloat]) -> [CGRect]) {
         controlFrames = frames
         self.frameProvider = frameProvider
@@ -100,12 +101,19 @@ final class StudioPositionedView: NSView {
         item.studioContentWidthDidChange = { [weak self] in self?.needsLayout = true }
         needsLayout = true
     }
+    func attachFixedMinimumContentWidth(_ width: CGFloat, at index: Int) {
+        fixedContentMinimumWidths[index] = max(24,width)
+        needsLayout = true
+    }
     override func layout() {
         super.layout()
         let scale = max(0.01, bounds.width/StudioLayout.width)
         var preferredWidths = contentWidthItems.mapValues { $0.studioNaturalContentWidth / scale }
         for (index, dock) in autoResizingDocks {
             preferredWidths[index] = dock.naturalContentWidth / scale
+        }
+        for (index, minimumWidth) in fixedContentMinimumWidths {
+            preferredWidths[index] = max(preferredWidths[index] ?? 0,minimumWidth / scale)
         }
         let providedFrames = frameProvider(preferredWidths)
         let frames = providedFrames.count == subviews.count ? providedFrames : controlFrames

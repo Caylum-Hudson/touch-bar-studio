@@ -44,6 +44,9 @@
 		B04B7BB72087398C00C835D0 /* BatteryBarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B04B7BB62087398C00C835D0 /* BatteryBarItem.swift */; };
 		B05600D32083E9BB00EB218D /* CustomSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05600D22083E9BB00EB218D /* CustomSlider.swift */; };
 		B059D622205E03F5006E6B86 /* TouchBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B059D621205E03F5006E6B86 /* TouchBarController.swift */; };
+		E0C0102726CC00470025BDA1 /* ResolveNumericDial.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C0102726CC00470025BDA2 /* ResolveNumericDial.swift */; };
+		E0C0102626CC00470025BDA1 /* ResolveColorDial.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C0102626CC00470025BDA2 /* ResolveColorDial.swift */; };
+		E0C0102626CC00470025BDA3 /* ResolveTimelineJog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C0102626CC00470025BDA4 /* ResolveTimelineJog.swift */; };
 		B059D624205E04F3006E6B86 /* CustomButtonTouchBarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B059D623205E04F3006E6B86 /* CustomButtonTouchBarItem.swift */; };
 		B059D62D205F11E8006E6B86 /* DFRFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B059D62C205F11E8006E6B86 /* DFRFoundation.framework */; };
 		B0679BC1215AE73F000FC6B4 /* dsa_pub.pem in Resources */ = {isa = PBXBuildFile; fileRef = B0679BC0215AE73F000FC6B4 /* dsa_pub.pem */; };
@@ -132,6 +135,9 @@
 		B04B7BB62087398C00C835D0 /* BatteryBarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryBarItem.swift; sourceTree = "<group>"; };
 		B05600D22083E9BB00EB218D /* CustomSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSlider.swift; sourceTree = "<group>"; };
 		B059D621205E03F5006E6B86 /* TouchBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchBarController.swift; sourceTree = "<group>"; };
+		E0C0102726CC00470025BDA2 /* ResolveNumericDial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolveNumericDial.swift; sourceTree = "<group>"; };
+		E0C0102626CC00470025BDA2 /* ResolveColorDial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolveColorDial.swift; sourceTree = "<group>"; };
+		E0C0102626CC00470025BDA4 /* ResolveTimelineJog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolveTimelineJog.swift; sourceTree = "<group>"; };
 		B059D623205E04F3006E6B86 /* CustomButtonTouchBarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomButtonTouchBarItem.swift; sourceTree = "<group>"; };
 		B059D629205E13E5006E6B86 /* TouchBarPrivateApi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TouchBarPrivateApi.h; sourceTree = "<group>"; };
 		B059D62A205F0E7D006E6B86 /* TouchBarPrivateApi-Bridging.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "TouchBarPrivateApi-Bridging.h"; sourceTree = "<group>"; };
@@ -257,6 +263,9 @@
 				BAF5AB5824317CAF00B04904 /* SwipeItem.swift */,
 				4CDC6E4F22FCA93F0069ADD4 /* ShellScriptTouchBarItem.swift */,
 				B059D621205E03F5006E6B86 /* TouchBarController.swift */,
+				E0C0102726CC00470025BDA2 /* ResolveNumericDial.swift */,
+				E0C0102626CC00470025BDA2 /* ResolveColorDial.swift */,
+				E0C0102626CC00470025BDA4 /* ResolveTimelineJog.swift */,
 				BAF5AB5624317B4300B04904 /* BasicView.swift */,
 				36C2ECDA207C3FE7003CDA33 /* ItemsParsing.swift */,
 				B0008E542080286C003AD4DD /* SupportHelpers.swift */,
@@ -508,6 +517,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				B059D622205E03F5006E6B86 /* TouchBarController.swift in Sources */,
+				E0C0102726CC00470025BDA1 /* ResolveNumericDial.swift in Sources */,
+				E0C0102626CC00470025BDA1 /* ResolveColorDial.swift in Sources */,
+				E0C0102626CC00470025BDA3 /* ResolveTimelineJog.swift in Sources */,
 				B05600D32083E9BB00EB218D /* CustomSlider.swift in Sources */,
 				36C2ECD9207B74B4003CDA33 /* AppleScriptTouchBarItem.swift in Sources */,
 				BAF5AB5724317B4300B04904 /* BasicView.swift in Sources */,

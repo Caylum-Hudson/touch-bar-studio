@@ -17,9 +17,17 @@ for (const key of ['cpu','ramUsage','gpuUsage','cpuTemperature']) {
 }
 assert.ok(catalog.some(control=>control.key==='systemMonitor'),'System Monitor replaces the four separate metric controls');
 const resolveControls=catalog.filter(control=>control.key.startsWith('resolve'));
-assert.equal(resolveControls.length,12,'Resolve timeline palette coverage');
+assert.equal(resolveControls.length,15,'Resolve shortcuts and Resolve-specific inline widgets remain in the palette');
 for (const control of resolveControls) {
   const item=createElement(control.key);
+  if (['resolveColorDial','resolveNumericDial','resolveTimelineJog'].includes(control.key)) {
+    assert.equal(item.type,control.key,control.key);
+    assert.match(item.matchAppId,/DaVinciResolve/,control.key);
+    const reloaded=parseJSON(generateJSON([item])).items[0];
+    assert.equal(reloaded.type,control.key,control.key);
+    assert.equal(getControlInfo(reloaded.type,reloaded)?.key,control.key,`${control.key} keeps its palette identity after reload`);
+    continue;
+  }
   assert.equal(item.type,'staticButton',control.key);
   assert.match(item.matchAppId,/DaVinciResolve/,control.key);
   assert.equal(item.actions?.[0]?.action,'keyPress',control.key);
@@ -33,8 +41,10 @@ for (const control of resolveControls) {
 const fixtures=catalog.map(({key})=>{
   const info=getControlInfo(key);
   assert.ok(info && info.status && info.benefit,key);
-  assert.ok(symbols[key],key);
-  assert.ok(fs.statSync(`public/control-icons/${key}.png`).size>100,key);
+  if (!['resolveColorDial','resolveNumericDial','resolveTimelineJog'].includes(key)) {
+    assert.ok(symbols[key],key);
+    assert.ok(fs.statSync(`public/control-icons/${key}.png`).size>100,key);
+  }
   return {key,items:JSON.parse(generateJSON([createElement(key)]))};
 });
 const monitor=createElement('systemMonitor');

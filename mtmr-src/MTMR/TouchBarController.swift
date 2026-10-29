@@ -41,6 +41,12 @@ extension ItemType {
             return "com.toxblh.mtmr.cpuTemperature."
         case .systemMonitor(metrics: _):
             return "com.toxblh.mtmr.systemMonitor."
+        case .resolveColorDial(parameter: let parameter, channel: let channel, sensitivity: _):
+            return "com.toxblh.mtmr.resolveColorDial.\(parameter).\(channel)."
+        case .resolveNumericDial(title:_,step:_,binding:_):
+            return "com.toxblh.mtmr.resolveNumericDial."
+        case .resolveTimelineJog(sensitivity: _):
+            return "com.toxblh.mtmr.resolveTimelineJog."
         case .dock(autoResize: _, filter: _):
             return "com.toxblh.mtmr.dock"
         case .volume:
@@ -90,6 +96,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     private var lastFocusConfigurationSignature: String?
     var detectedResolvePage: String?
     var resolvePageOverride: String?
+    private var nativeColorYieldActive = false
     private var pageDetectionInFlightPID: pid_t?
     private var resolvePagePollTimer: Timer?
     private var lastResolveProcessIdentifier: pid_t?
@@ -118,6 +125,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         }
     }
     var itemDefinitions: [NSTouchBarItem.Identifier: BarItemDefinition] = [:]
+    private var pomodoroPersistenceKeys: [NSTouchBarItem.Identifier: String] = [:]
     var items: [NSTouchBarItem.Identifier: NSTouchBarItem] = [:]
     var leftIdentifiers: [NSTouchBarItem.Identifier] = []
     var centerIdentifiers: [NSTouchBarItem.Identifier] = []
@@ -183,6 +191,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         touchBar = NSTouchBar()
         jsonItems = newJsonItems
         itemDefinitions = [:]
+        pomodoroPersistenceKeys = [:]
         leftIdentifiers = []
         centerIdentifiers = []
         rightIdentifiers = []
@@ -259,6 +268,17 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
                     if let item = items[identifier] as? CustomButtonTouchBarItem {
                         positionedView.attachContentWidthItem(item, at:index)
                     }
+                    if let definition = itemDefinitions[identifier] {
+                        switch definition.type {
+                        case .resolveColorDial(parameter:_,channel:_,sensitivity:_):
+                            positionedView.attachFixedMinimumContentWidth(90,at:index)
+                        case .resolveNumericDial(title:_,step:_,binding:_):
+                            positionedView.attachFixedMinimumContentWidth(110,at:index)
+                        case .resolveTimelineJog(sensitivity:_):
+                            positionedView.attachFixedMinimumContentWidth(140,at:index)
+                        default: break
+                        }
+                    }
                     guard let dock = items[identifier] as? AppScrubberTouchBarItem, dock.supportsAutoResize else { continue }
                     positionedView.attachAutoResizingDock(dock,at:index)
                 }
@@ -313,6 +333,9 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     var effectiveResolvePage: String? { resolvePageOverride ?? detectedResolvePage }
+    var nativeResolveColorPageActive: Bool {
+        AppSettings.shouldYieldToResolveNativeColor(frontmostBundleIdentifier:frontmostApplicationIdentifier, detectedPage:detectedResolvePage, enabled:AppSettings.touchBarEnabled)
+    }
 
     private func beginResolvePagePolling(for application: NSRunningApplication) {
         guard resolvePagePollTimer == nil else { return }
@@ -366,7 +389,9 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         guard StudioFocusRefreshPolicy.shouldRefresh(previous: lastFocusConfigurationSignature, next: signature) else {
             // Dock items observe workspace activation themselves, so a focus
             // change with the same visible profile does not need a bar rebuild.
-            updateControlStripPresence()
+            // Re-evaluate presentation too: actual Resolve page detection can
+            // change while a manual page override keeps the same layout.
+            updateActiveApp()
             return
         }
 
@@ -426,6 +451,25 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func updateActiveApp() {
+        if nativeResolveColorPageActive {
+            if !nativeColorYieldActive {
+                nativeColorYieldActive = true
+                for item in items.values {
+                    (item as? ResolveColorDialTouchBarItem)?.cancelStudioInteraction()
+                    (item as? ResolveNumericDialTouchBarItem)?.cancelStudioInteraction()
+                    (item as? ResolveTimelineJogTouchBarItem)?.cancelStudioInteraction()
+                }
+                ResolveColorDialReader.shared.cancelAllWrites()
+                ResolveNumericDialReader.shared.cancelAllForNativeColor()
+            }
+            cancelExpandedNativeSlider(restorePreviousBar:false)
+            if let bar = touchBar { dismissSystemModal(bar) }
+            DFRSystemModalShowsCloseBoxWhenFrontMost(true)
+            DFRElementSetControlStripPresenceForIdentifier(.controlStripItem, false)
+            return
+        }
+        nativeColorYieldActive = false
+        DFRSystemModalShowsCloseBoxWhenFrontMost(!AppSettings.touchBarEnabled)
         guard AppSettings.touchBarEnabled else {
             if let bar = touchBar { dismissSystemModal(bar) }
             updateControlStripPresence()
@@ -486,7 +530,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
             items: store.safeItems(sourceItems),
             bundleIdentifier: bundleIdentifier,
             blacklisted: isBlacklisted,
-            selectionContext:bundleIdentifier == "com.blackmagic-design.DaVinciResolve" ? "\(store.activeResolvePage ?? "unknown")|\(resolvePageOverride == nil ? "automatic" : "manual")" : nil
+            selectionContext:bundleIdentifier == "com.blackmagic-design.DaVinciResolve" ? "\(store.activeResolvePage ?? "unknown")|\(resolvePageOverride == nil ? "automatic" : "manual")|detected:\(detectedResolvePage ?? "unknown")|native:\(AppSettings.useResolveNativeColorPage)" : nil
         )
     }
 
@@ -500,9 +544,15 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH-mm-ss"
         let time = dateFormatter.string(from: Date())
-        for item in jsonItems {
+        for (index, item) in jsonItems.enumerated() {
             let identifierString = item.type.identifierBase.appending(time + "--" + UUID().uuidString)
             let identifier = NSTouchBarItem.Identifier(identifierString)
+            if case .pomodoro(workTime: _, restTime: _) = item.type {
+                // Keep runtime identifiers ephemeral for Touch Bar change checks;
+                // timer persistence uses a separate, profile-scoped identity.
+                let identity = item.studioId ?? "position-\(index)"
+                pomodoroPersistenceKeys[identifier] = "\(StudioStore.shared.activeProfile).\(identity)"
+            }
             itemDefinitions[identifier] = item
             if item.align == .left {
                 leftIdentifiers.append(identifier)
@@ -546,6 +596,10 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func updateControlStripPresence() {
+        if nativeResolveColorPageActive {
+            DFRElementSetControlStripPresenceForIdentifier(.controlStripItem, false)
+            return
+        }
         let showMtmrButtonOnControlStrip = AppSettings.touchBarEnabled && touchBarContainsAnyItems()
         DFRElementSetControlStripPresenceForIdentifier(.controlStripItem, showMtmrButtonOnControlStrip)
     }
@@ -647,6 +701,17 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
                 self?.presentExpandedNativeSlider(kind: .brightness(refreshInterval: interval))
             })
             barItem = button
+        case let .resolveColorDial(parameter:parameter,channel:channel,sensitivity:sensitivity):
+            guard let parameter = ResolveColorDialParameter(rawValue:parameter),
+                  let channel = ResolveColorDialChannel(rawValue:channel) else {
+                barItem = CustomButtonTouchBarItem(identifier:identifier,title:"Invalid color dial")
+                break
+            }
+            barItem = ResolveColorDialTouchBarItem(identifier:identifier,parameter:parameter.rawValue,channel:channel.rawValue,sensitivity:sensitivity)
+        case let .resolveNumericDial(title:title,step:step,binding:binding):
+            barItem = ResolveNumericDialTouchBarItem(identifier:identifier,title:title,step:step,binding:binding)
+        case let .resolveTimelineJog(sensitivity:sensitivity):
+            barItem = ResolveTimelineJogTouchBarItem(identifier:identifier,sensitivity:sensitivity)
         case let .weather(interval: interval, units: units, api_key: api_key, icon_type: icon_type):
             barItem = WeatherBarItem(identifier: identifier, interval: interval, units: units, api_key: api_key, icon_type: icon_type)
         case let .yandexWeather(interval: interval):
@@ -664,7 +729,7 @@ class TouchBarController: NSObject, NSTouchBarDelegate {
         case .dnd:
             barItem = DnDBarItem(identifier: identifier)
         case let .pomodoro(workTime: workTime, restTime: restTime):
-            barItem = PomodoroBarItem(identifier: identifier, workTime: workTime, restTime: restTime)
+            barItem = PomodoroBarItem(identifier: identifier, workTime: workTime, restTime: restTime, persistenceKey: pomodoroPersistenceKeys[identifier])
         case let .network(flip: flip, units: units):
             barItem = NetworkBarItem(identifier: identifier, flip: flip, units: units)
         case .darkMode:

@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         NSLog("MTMR 2026: App Starting Up...")
+        PomodoroBarItem.restoreTimersAtLaunch()
 
         // 1. Status bar icon FIRST — this must succeed before anything risky
         NSLog("MTMR 2026: Creating Status Bar Item...")

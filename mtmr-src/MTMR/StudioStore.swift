@@ -17,6 +17,7 @@ final class StudioStore {
         var result = workspace
         var settings = result["settings"] as? [String:Any] ?? [:]
         settings["keepControlStrip"] = AppSettings.showControlStripState
+        settings["useResolveNativeColorPage"] = AppSettings.useResolveNativeColorPage
         result["settings"] = settings
         return result
     }
@@ -32,6 +33,9 @@ final class StudioStore {
             workspace = json
             if let keepControlStrip = (json["settings"] as? [String:Any])?["keepControlStrip"] as? Bool {
                 AppSettings.showControlStripState = keepControlStrip
+            }
+            if let useNativeColor = (json["settings"] as? [String:Any])?["useResolveNativeColorPage"] as? Bool {
+                AppSettings.useResolveNativeColorPage = useNativeColor
             }
         } catch {
             workspaceLoadError = "The saved workspace could not be read: \(error.localizedDescription)"
@@ -100,6 +104,8 @@ final class StudioStore {
         // the workspace is saved.
         let keepControlStrip = settings["keepControlStrip"] as? Bool ?? AppSettings.showControlStripState
         settings["keepControlStrip"] = keepControlStrip
+        let useNativeColor = settings["useResolveNativeColorPage"] as? Bool ?? AppSettings.useResolveNativeColorPage
+        settings["useResolveNativeColorPage"] = useNativeColor
         workspaceToSave["settings"] = settings
         try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
         let encoded = try JSONSerialization.data(withJSONObject:workspaceToSave,options:[.prettyPrinted,.sortedKeys])
@@ -108,6 +114,7 @@ final class StudioStore {
         workspace = workspaceToSave
         workspaceLoadError = nil
         AppSettings.showControlStripState = keepControlStrip
+        AppSettings.useResolveNativeColorPage = useNativeColor
         StudioLauncher.shared.configure()
         TouchBarController.shared.resetStudioNavigation()
         TouchBarController.shared.reloadStandardConfig()

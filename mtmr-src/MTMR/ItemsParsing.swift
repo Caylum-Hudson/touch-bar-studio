@@ -278,6 +278,9 @@ enum ItemType: Decodable {
     case dock(autoResize: Bool, filter: String?)
     case volume
     case brightness(refreshInterval: Double)
+    case resolveColorDial(parameter: String, channel: String, sensitivity: String)
+    case resolveNumericDial(title: String, step: Double, binding: ResolveNumericBinding?)
+    case resolveTimelineJog(sensitivity: String)
     case weather(interval: Double, units: String, api_key: String, icon_type: String)
     case yandexWeather(interval: Double)
     case currency(interval: Double, from: String, to: String, full: Bool)
@@ -324,6 +327,11 @@ enum ItemType: Decodable {
         case minOffset
         case maxToShow
         case metrics
+        case parameter
+        case channel
+        case sensitivity
+        case step
+        case binding
     }
 
     enum ItemTypeRaw: String, Decodable {
@@ -341,6 +349,9 @@ enum ItemType: Decodable {
         case dock
         case volume
         case brightness
+        case resolveColorDial
+        case resolveNumericDial
+        case resolveTimelineJog
         case weather
         case yandexWeather
         case currency
@@ -412,6 +423,24 @@ enum ItemType: Decodable {
         case .brightness:
             let interval = try container.decodeIfPresent(Double.self, forKey: .refreshInterval) ?? 0.5
             self = .brightness(refreshInterval: interval)
+
+        case .resolveColorDial:
+            let parameter = try container.decodeIfPresent(String.self, forKey: .parameter) ?? "lift"
+            let channel = try container.decodeIfPresent(String.self, forKey: .channel) ?? "Y"
+            let sensitivity = try container.decodeIfPresent(String.self, forKey: .sensitivity) ?? "fine"
+            self = .resolveColorDial(parameter: parameter, channel: channel, sensitivity:sensitivity)
+
+        case .resolveNumericDial:
+            let title = try container.decodeIfPresent(String.self, forKey: .title) ?? "HDR"
+            let step = try container.decodeIfPresent(Double.self, forKey: .step) ?? 0.01
+            guard step.isFinite, step >= 0.0001, step <= 1 else { throw DecodingError.dataCorruptedError(forKey:.step,in:container,debugDescription:"Numeric dial step must be between 0.0001 and 1.") }
+            let binding = try container.decodeIfPresent(ResolveNumericBinding.self, forKey:.binding)
+            guard binding == nil || binding?.isValid == true else { throw DecodingError.dataCorruptedError(forKey:.binding,in:container,debugDescription:"Invalid learned HDR binding.") }
+            self = .resolveNumericDial(title:title,step:step,binding:binding)
+
+        case .resolveTimelineJog:
+            let sensitivity = try container.decodeIfPresent(String.self, forKey: .sensitivity) ?? "fine"
+            self = .resolveTimelineJog(sensitivity:sensitivity)
 
         case .weather:
             let interval = try container.decodeIfPresent(Double.self, forKey: .refreshInterval) ?? 1800.0

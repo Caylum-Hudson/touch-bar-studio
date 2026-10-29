@@ -17,6 +17,14 @@ const commonGroups = [
       ['resolveMarkIn', 'Accessibility required', 'Set a timeline In point (I).'],
       ['resolveMarkOut', 'Accessibility required', 'Set a timeline Out point (O).'],
       ['resolveToggleSnapping', 'Accessibility required', 'Toggle timeline snapping (N).'],
+      ['resolveTimelineJog', 'Edit page · Timeline panel', 'Scrub by relative frame steps with a horizontal drag. Position is not absolute; the timeline panel must stay active.'],
+    ],
+  },
+  {
+    id: 'resolve-color', label: 'DaVinci Resolve color', description: 'Compact grade controls for the Color page Color Bars panel.',
+    controls: [
+      ['resolveColorDial', 'Color page · Color Bars', 'Add an inline dial for Lift, Gamma, or Gain. It reads and adjusts the selected Y/R/G/B bar when Resolve is on the Color page with Color Bars open.'],
+      ['resolveNumericDial', 'Color page · HDR learned value', 'Learn a visible HDR Exp or Sat value by double-clicking it in Resolve. The dial follows the captured panel location and requires the same HDR zone layout to remain visible.'],
     ],
   },
   {
@@ -39,7 +47,7 @@ const commonGroups = [
     id: 'time-status', label: 'Time & status', description: 'Show useful information at a glance.',
     controls: [
       ['timeButton', 'Built in', 'Show the current time.'], ['dateButton', 'Built in', 'Show today’s date.'], ['battery', 'Built in', 'Show battery status.'],
-      ['inputsource', 'Built in', 'Show the active input source.'], ['pomodoro', 'Built in', 'Start a focus timer.'],
+      ['inputsource', 'Built in', 'Show the active input source.'], ['pomodoro', 'Built in', 'Start a focus timer that keeps running across app switches and sleep.'],
       ['systemMonitor', 'Local · Hardware dependent', 'Combine selected CPU, GPU, memory, and CPU temperature readings in one compact control.'],
     ],
   },
@@ -96,6 +104,9 @@ const controlInfo = [...controlCatalog, ...advancedControlCatalog]
   .reduce((lookup, control) => ({ ...lookup, [control.key]: control }), {});
 
 export function getControlInfo(keyOrType, item = null) {
+  if (item?.type === 'resolveColorDial' || item?.type === 'resolveNumericDial' || item?.type === 'resolveTimelineJog') {
+    return controlInfo[item.type] || null;
+  }
   if (item?.matchAppId?.includes('DaVinciResolve')) {
     const resolveControl = Object.entries(elementTypes).find(([key, definition]) => key.startsWith('resolve')
       && (definition.defaultProps.title === item.title

@@ -91,15 +91,15 @@ test('Dock icons and gaps collapse safely when no room remains', () => {
 });
 
 
-test('even placement preserves visual order, sizes and source data with equal outer gaps', () => {
+test('even placement pins edge items and spaces interior controls evenly without changing source data', () => {
   const items = [
     {id:'right',type:'volume',width:100,studioPosition:500,studioGap:12},
     {id:'left',type:'volume',width:50,studioPosition:100,studioGap:12},
   ];
   const before = structuredClone(items);
   const result = distributeItemsEvenly(items,{availableWidth:300});
-  assert.equal(result[1].studioPosition,50);
-  assert.equal(result[0].studioPosition,150);
+  assert.equal(result[1].studioPosition,0);
+  assert.equal(result[0].studioPosition,200);
   assert.deepEqual(result.map(item=>item.width),[100,50]);
   assert.ok(result.every(item=>item.studioGap === undefined));
   assert.deepEqual(items,before);
@@ -135,9 +135,23 @@ test('no-fit placement explicitly asks for removal and never changes the source 
 test('placement stays inside an explicit usable region beside reserved right-side space', () => {
   const items = [{id:'a',type:'volume',width:100},{id:'b',type:'volume',width:100}];
   const result = distributeItemsEvenly(items,{availableWidth:800});
-  assert.equal(result[0].studioPosition,200);
-  assert.equal(result[1].studioPosition,500);
+  assert.equal(result[0].studioPosition,0);
+  assert.equal(result[1].studioPosition,700);
   assert.ok(result.every(item=>item.studioPosition+item.width<=800));
+});
+
+test('edge placement uses equal gaps only between interior controls', () => {
+  const items = [
+    {id:'a',type:'volume',width:40,studioPosition:20},
+    {id:'b',type:'volume',width:80,studioPosition:80},
+    {id:'c',type:'volume',width:60,studioPosition:220},
+  ];
+  const result = distributeItemsEvenly(items,{availableWidth:300});
+  const ordered = [...result].sort((left,right)=>left.studioPosition-right.studioPosition);
+  assert.equal(ordered[0].studioPosition,0);
+  assert.equal(ordered[2].studioPosition+ordered[2].width,300);
+  assert.equal(ordered[1].studioPosition-(ordered[0].studioPosition+ordered[0].width),60);
+  assert.equal(ordered[2].studioPosition-(ordered[1].studioPosition+ordered[1].width),60);
 });
 
 test('content widths and natural Dock width are checked without shrinking to force a fit', () => {
@@ -174,5 +188,5 @@ test('capacity uses native bounds, counts the right strip once, and reserves edi
 
 test('native Dock neighbour clearance is retained instead of silently shrinking icons', () => {
   const items=[{id:'dock',type:'dock',autoResize:true,width:100},{id:'button',type:'volume',width:100}];
-  assert.throws(()=>distributeItemsEvenly(items,{availableWidth:205,dockPreferredWidth:86}),/Remove/);
+  assert.throws(()=>distributeItemsEvenly(items,{availableWidth:203,dockPreferredWidth:86}),/Remove/);
 });

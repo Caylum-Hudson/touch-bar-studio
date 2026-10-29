@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generateJSON} from './jsonGenerator.js';
+import {cloneWithoutRuntimeIdentity,generateJSON} from './jsonGenerator.js';
 import {matchSystemMonitorRuntimePreviews, systemMonitorConfigurationSignature} from './systemMonitorRuntimePreview.js';
 import {restoreWorkspaceProfiles} from './workspaceValidation.js';
 
@@ -28,6 +28,24 @@ test('generated runtime metadata uses current editor IDs and only tags monitor a
   assert.equal(json[0].items[0].studioId,'monitor-id');
   assert.match(json[0].items[0].studioPreviewSignature,/^[a-f0-9]{8}$/);
   assert.equal('studioId' in json[1],false);
+});
+
+test('duplicating a nested monitor clears old runtime identity so the copy receives fresh IDs', () => {
+  const source={id:'old-group',studioId:'old-group-runtime',preserveStudioId:true,type:'group',items:[{
+    id:'old-monitor',studioId:'old-monitor-runtime',preserveStudioId:true,studioPreviewSignature:'deadbeef',type:'systemMonitor',metrics:['cpu'],
+  }]};
+  const duplicate=cloneWithoutRuntimeIdentity(source);
+  assert.equal(duplicate.type,'group');
+  assert.equal('id' in duplicate,false);
+  assert.equal('studioId' in duplicate,false);
+  assert.equal('preserveStudioId' in duplicate,false);
+  assert.equal('id' in duplicate.items[0],false);
+  assert.equal('studioId' in duplicate.items[0],false);
+  assert.equal('preserveStudioId' in duplicate.items[0],false);
+  assert.equal('studioPreviewSignature' in duplicate.items[0],false);
+  const serialized=JSON.parse(generateJSON([{...duplicate,id:'new-group',items:[{...duplicate.items[0],id:'new-monitor'}]}]));
+  assert.equal(serialized[0].studioId,'new-group');
+  assert.equal(serialized[0].items[0].studioId,'new-monitor');
 });
 
 test('live widths and titles match only the active saved monitor configuration', () => {
@@ -64,7 +82,7 @@ test('nested monitor live data requires the exact active group path and uses nes
   assert.equal(wrong.size,0);
 });
 
-test('workspace restore matches retained native IDs at root and nested levels before reapplying', () => {
+test('workspace restore and reapply preserve stable native monitor IDs at root and nested levels', () => {
   for (const nested of [false,true]) {
     const original=monitor();
     const originalItems=nested ? [{id:'outer',type:'group',items:[{id:'inner',type:'group',items:[original]}]}] : [original];
@@ -78,10 +96,8 @@ test('workspace restore matches retained native IDs at root and nested levels be
     const context={rows:[rowFor(original)],profiles,profileId:'default',groupPath:nested?[outer.id,inner.id]:[],activeProfile:'default',activeGroupPath:nested?['outer','inner']:[],runtimeEnabled:true};
     assert.equal(matchSystemMonitorRuntimePreviews(context).get(restored.id).contentWidth,178);
     const reapplied=JSON.parse(generateJSON(profiles.default.items));
-    const newRow=rowFor({...restored,id:restored.id});
-    const currentContext={...context,rows:[newRow],activeGroupPath:nested?[outer.id,inner.id]:[]};
-    assert.equal(matchSystemMonitorRuntimePreviews(currentContext).size,1);
-    assert.equal((nested?reapplied[0].items[0].items[0]:reapplied[0]).studioId,restored.id);
+    assert.equal((nested?reapplied[0].items[0].items[0]:reapplied[0]).studioId,original.id);
+    assert.equal(matchSystemMonitorRuntimePreviews(context).size,1,'the saved native ID remains matchable after Apply & Save');
     restored.background='#123456';
     assert.equal(matchSystemMonitorRuntimePreviews(context).size,0,'a retained ID must not bypass the configuration signature');
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getElementDefinition, commonProperties, actionTypes, actionTriggers } from '../../data/elementDefinitions';
 import './Properties.css';
@@ -9,6 +9,7 @@ import {getControlInfo} from '../../data/controlCatalog';
 import { getControlStatus } from '../../data/controlAvailability';
 import { useRuntimePermissions } from '../../context/useRuntimePermissions';
 import {matchSystemMonitorRuntimePreviews} from '../../utils/systemMonitorRuntimePreview.js';
+import { RESOLVE_NUMERIC_DIAL_STEPS, isCurrentResolveNumericResponse, resolveNumericBindingError } from '../../utils/resolveNumericDial.js';
 
 const shortcutKeys = [
   ['A', 0], ['B', 11], ['C', 8], ['D', 2], ['E', 14], ['F', 3], ['G', 5], ['H', 4],
@@ -20,7 +21,7 @@ const shortcutKeys = [
 
 export default function PropertiesPanel() {
   const { getSelectedItem, updateItem, removeItem, selectedItemId, enterGroup, combineSystemMonitor, profiles, profileId, resolvePageId, groupPath } = useApp();
-  const { accessibilityAccess, layoutCapacity, systemMonitorPreviews, activeStudioGroupPath, activeRuntimeProfile, activeRuntimeResolvePage, activeRuntimeEnabled } = useRuntimePermissions();
+  const { accessibilityAccess, layoutCapacity, systemMonitorPreviews, activeStudioGroupPath, activeRuntimeProfile, activeRuntimeResolvePage, activeRuntimeEnabled, native } = useRuntimePermissions();
   const item = getSelectedItem();
   const liveMonitorPreview = item?.type === 'systemMonitor' && item.autoFitContent
     ? matchSystemMonitorRuntimePreviews({rows:systemMonitorPreviews,profiles,profileId,resolvePageId,groupPath,activeProfile:activeRuntimeProfile,activeResolvePage:activeRuntimeResolvePage,activeGroupPath:activeStudioGroupPath,runtimeEnabled:activeRuntimeEnabled}).get(item.id)
@@ -130,7 +131,7 @@ export default function PropertiesPanel() {
         {/* Type-Specific Properties */}
         {definition.properties && definition.properties.length > 0 && (
           <PropertySection title="Type Settings">
-            <TypeSpecificProperties item={item} definition={definition} updateItem={updateItem} enterGroup={enterGroup} contentScale={contentScale} />
+            <TypeSpecificProperties item={item} definition={definition} updateItem={updateItem} enterGroup={enterGroup} contentScale={contentScale} resolvePageId={resolvePageId} resolveProfile={profiles[profileId]?.bundleId === 'com.blackmagic-design.DaVinciResolve'} native={native} />
           </PropertySection>
         )}
 
@@ -175,6 +176,119 @@ function PropertySection({ title, children }) {
       </div>
     </div>
   );
+}
+
+function ResolveNumericDialProperties({item,updateItem,native,resolvePageId,resolveProfile}) {
+  const [operation,setOperation]=useState(null);
+  const operationRef=useRef(operation);
+  operationRef.current=operation;
+  const operationKind=operation?.kind;
+  const operationId=operation?.id;
+  const operationGeneration=operation?.generation;
+  const operationState=operation?.state;
+  const generationRef=useRef(0);
+  const itemIdRef=useRef(item.id);
+  itemIdRef.current=item.id;
+
+  const send = async payload => {
+    const response=await fetch('/api/resolve-numeric-learn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const result=await response.json();
+    if(!response.ok||!result.success)throw new Error(result.error||'Resolve could not start this action.');
+    return result;
+  };
+
+  useEffect(()=>{
+    if(!operationId||!['starting','learning','testing'].includes(operationState))return undefined;
+    const expected={id:operationId,generation:operationGeneration};
+    const timeout=operationKind==='learn'?32000:5000;
+    const deadline=Date.now()+timeout;
+    let disposed=false;
+    let timer;
+    const current=()=>!disposed&&generationRef.current===expected.generation
+      && itemIdRef.current===expected.id
+      && operationRef.current?.state&&['starting','learning','testing'].includes(operationRef.current.state)
+      && isCurrentResolveNumericResponse(expected,operationRef.current,{id:expected.id});
+    const poll=async()=>{
+      if(!current())return;
+      if(Date.now()>deadline){
+        if(operationKind==='learn')send({action:'cancel',id:expected.id}).catch(()=>{});
+        if(current())setOperation(previous=>({...previous,state:'error',message:'Resolve did not finish before the timeout. Your previous binding is unchanged.'}));
+        return;
+      }
+      try{
+        const response=await fetch(`/api/resolve-numeric-learn?status=${Date.now()}`,{cache:'no-store'});
+        const result=await response.json();
+        if(!current())return;
+        if(result.id!==expected.id){timer=setTimeout(poll,200);return;}
+        if(result.state==='captured'){
+          const error=resolveNumericBindingError(result.binding);
+          if(!result.binding||error){setOperation(previous=>({...previous,state:'error',message:error||'Resolve did not return a complete HDR binding.'}));return;}
+          if(itemIdRef.current===expected.id)updateItem(expected.id,{binding:result.binding});
+          setOperation(previous=>({...previous,state:'captured',message:`Captured ${result.target||`HDR ${result.binding.zone} ${result.binding.readout}`}. The Resolve value was left unchanged.`}));
+          return;
+        }
+        if(result.state==='tested'){
+          const values=Number.isFinite(result.before)&&Number.isFinite(result.after)?` ${result.before.toFixed(2)} → ${result.after.toFixed(2)}.`:'';
+          setOperation(previous=>({...previous,state:'tested',message:`${result.message||'Resolve confirmed the test.'}${values}`}));
+          return;
+        }
+        if(result.state==='error'){
+          setOperation(previous=>({...previous,state:'error',message:result.message||'Resolve could not complete the operation.'}));
+          return;
+        }
+        if(result.state==='idle'&&operationKind==='testing'){
+          timer=setTimeout(poll,200);return;
+        }
+        setOperation(previous=>({...previous,state:result.state==='learning'?'learning':result.state==='testing'?'testing':'starting',message:result.message||previous.message}));
+        timer=setTimeout(poll,200);
+      }catch(error){
+        if(!current())return;
+        setOperation(previous=>({...previous,state:'error',message:error.message||'Could not read Resolve learning status.'}));
+      }
+    };
+    poll();
+    return()=>{disposed=true;clearTimeout(timer);};
+  },[operationId,operationGeneration,operationKind,operationState,item.id,updateItem]);
+
+  useEffect(()=>()=>{
+    const active=operationRef.current;
+    if(active?.id===item.id&&active.kind==='learn'&&['starting','learning'].includes(active.state)){
+      generationRef.current+=1;
+      fetch('/api/resolve-numeric-learn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'cancel',id:item.id}),keepalive:true}).catch(()=>{});
+    }
+  },[item.id]);
+
+  const start=async kind=>{
+    const generation=++generationRef.current;
+    setOperation({id:item.id,generation,kind,state:'starting',message:kind==='learn'?'Opening Resolve for learning…':'Starting one-step test in Resolve…'});
+    try{
+      const payload=kind==='learn'?{action:'start',id:item.id}:{action:'test',id:item.id,binding:item.binding,step:item.step||0.01,direction:kind==='testUp'?1:-1};
+      await send(payload);
+    }catch(error){
+      if(generationRef.current===generation)setOperation(previous=>({...previous,state:'error',message:error.message||'Could not start the Resolve action.'}));
+    }
+  };
+  const cancel=async()=>{
+    const generation=++generationRef.current;
+    try{await send({action:'cancel',id:item.id});}catch(error){void error;}
+    if(itemIdRef.current===item.id)setOperation({id:item.id,generation,kind:'learn',state:'cancelled',message:'Learning cancelled. The saved binding was kept.'});
+  };
+  const busy=operation&&['starting','learning','testing'].includes(operation.state);
+  const target=item.binding?`HDR ${item.binding.zone} ${item.binding.readout}`:'No HDR value learned';
+
+  return <>
+    <p className="placement-help">Use the Title field above to choose a short Touch Bar label for this adjustment.</p>
+    <PropertySelect label="Change per step" value={String(item.step||0.01)} options={RESOLVE_NUMERIC_DIAL_STEPS.map(step=>({value:String(step),label:String(step)}))} onChange={value=>updateItem(item.id,{step:Number(value)})}/>
+    <p className="placement-help">Target: {target}. In Resolve’s Color page, open HDR and show the intended zone. Click Learn, then double-click its Exp or Sat number within 30 seconds. Learning records the control location and does not change its value. Fine .01 steps accumulate with movement; larger steps are available if you want coarser changes. The dial can find the captured HDR zone row using its navigation arrows. Keep the panel shape unchanged; if its arrows or row cannot be verified, show the captured zone layout manually.</p>
+    {resolveProfile&&resolvePageId!=='color'&&<p className="layout-warning" role="status">This dial is assigned to the {resolvePageId==='fallback'?'Profile fallback':resolvePageId} layout. Add it to the Resolve Color page layout to use the HDR panel.</p>}
+    {!native&&<p className="placement-help">Learning and test controls are available in the installed Touch Bar Studio app.</p>}
+    <div className="resolve-numeric-actions">
+      <button type="button" onClick={()=>start('learn')} disabled={!native||busy}>Learn in Resolve</button>
+      {busy&&operation.kind==='learn'&&<button type="button" onClick={cancel}>Cancel</button>}
+      {item.binding&&<><button type="button" onClick={()=>start('testDown')} disabled={!native||busy}>Test −</button><button type="button" onClick={()=>start('testUp')} disabled={!native||busy}>Test +</button><button type="button" onClick={()=>updateItem(item.id,{binding:undefined})} disabled={busy}>Unbind</button></>}
+    </div>
+    <p className="placement-help" role="status">{operation?.message||(item.binding?'A test commits one step and verifies the visible HDR readout.':'Learning and test values are read from the live HDR panel; editor values are illustrative.')}</p>
+  </>;
 }
 
 function PropertyInput({ label, type, value, onChange, placeholder, action }) {
@@ -298,10 +412,44 @@ function PropertyImage({ value, onChange }) {
   );
 }
 
-function TypeSpecificProperties({ item, definition, updateItem, enterGroup, contentScale = 1 }) {
+function TypeSpecificProperties({ item, definition, updateItem, enterGroup, contentScale = 1, resolvePageId = 'fallback', resolveProfile = false, native = false }) {
   const type = item.type;
 
   switch (type) {
+    case 'resolveColorDial':
+      {
+      const adjustment = `${item.parameter || 'lift'}:${item.channel || 'Y'}`;
+      const parameterName = {lift:'Lift',gamma:'Gamma',gain:'Gain'};
+      const channelName = {Y:'Y',R:'Red',G:'Green',B:'Blue'};
+      return (
+        <>
+          <PropertySelect label="Adjustment" value={adjustment} options={[
+            ...['lift','gamma','gain'].flatMap(parameter=>['Y','R','G','B'].map(channel=>({value:`${parameter}:${channel}`,label:`${parameterName[parameter]} ${channelName[channel]}`}))),
+          ]} onChange={value=>{const [parameter,channel]=value.split(':');updateItem(item.id,{parameter,channel});}}/>
+          <PropertySelect label="Dial sensitivity" value={item.sensitivity || 'fine'} options={[
+            {value:'fine',label:'Fine'}, {value:'normal',label:'Normal'}, {value:'coarse',label:'Coarse'},
+          ]} onChange={value=>updateItem(item.id,{sensitivity:value})}/>
+          <p className="placement-help">Controls the named Lift, Gamma, or Gain channel shown in Resolve’s Primaries Color Bars. Fine movement accumulates until the integer slider changes.</p>
+          {resolveProfile && resolvePageId !== 'color' && <p className="layout-warning" role="status">This dial is assigned to the {resolvePageId === 'fallback' ? 'Profile fallback' : resolvePageId} layout. Add a Resolve Color Dial to the Color page layout to use it there.</p>}
+          {resolveProfile && <p className="placement-help">The dial needs Resolve’s Color page with Primaries Color Bars open. HDR controls and Color Wheels do not expose these settable bar controls.</p>}
+        </>
+      );
+      }
+
+    case 'resolveTimelineJog':
+      return (
+        <>
+          <PropertySelect label="Jog sensitivity" value={item.sensitivity || 'fine'} options={[
+            {value:'fine',label:'Fine'}, {value:'normal',label:'Normal'}, {value:'coarse',label:'Coarse'},
+          ]} onChange={value=>updateItem(item.id,{sensitivity:value})}/>
+          <p className="placement-help">Edit page only. Fine movement accumulates to one-frame steps. Starting a drag selects Resolve’s Timeline panel; this is relative jog, not an absolute position.</p>
+          {resolveProfile && resolvePageId !== 'edit' && <p className="layout-warning" role="status">This jog is assigned to the {resolvePageId === 'fallback' ? 'Profile fallback' : resolvePageId} layout. Add a Resolve Timeline Jog to the Edit page layout to use it there.</p>}
+        </>
+      );
+
+    case 'resolveNumericDial':
+      return <ResolveNumericDialProperties item={item} updateItem={updateItem} native={native} resolvePageId={resolvePageId} resolveProfile={resolveProfile}/>;
+
     case 'systemMonitor': {
       const selected = selectedSystemMonitorMetrics(item);
       const labels = {cpu:'CPU usage',gpu:'GPU usage',memory:'Memory usage',temperature:'CPU temperature'};

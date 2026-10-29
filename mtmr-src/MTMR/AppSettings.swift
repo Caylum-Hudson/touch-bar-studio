@@ -4,6 +4,17 @@ struct AppSettings {
     @UserDefault(key: "nz.caylum.touchbarstudio.touchBarEnabled", defaultValue: true)
     static var touchBarEnabled: Bool
 
+    @UserDefault(key: "nz.caylum.touchbarstudio.resolveNativeColor", defaultValue: true)
+    static var useResolveNativeColorPage: Bool
+
+    static func shouldYieldToResolveNativeColor(frontmostBundleIdentifier: String?, detectedPage: String?, enabled: Bool) -> Bool {
+        enabled && useResolveNativeColorPage && frontmostBundleIdentifier == "com.blackmagic-design.DaVinciResolve" && detectedPage == "color"
+    }
+
+    static var customResolveInteractionAllowed: Bool {
+        touchBarEnabled && !TouchBarController.shared.nativeResolveColorPageActive
+    }
+
     @UserDefault(key: "com.toxblh.mtmr.settings.showControlStrip", defaultValue: false)
     static var showControlStripState: Bool
 

@@ -16,12 +16,20 @@ test('Accessibility status follows the live permission state', () => {
 
 test('Resolve timeline controls report the live Accessibility grant', () => {
   const resolveControls = controlCatalog.find((group) => group.id === 'resolve-timeline').controls;
-  assert.equal(resolveControls.length, 12);
+  assert.equal(resolveControls.length, 13, 'the timeline panel jog also requires Accessibility');
   for (const control of resolveControls) {
     assert.equal(getControlStatus(control, true), 'Accessibility granted', control.key);
     assert.equal(getControlStatus(control, false), 'Accessibility not granted', control.key);
     assert.equal(getControlStatus(control, null), 'Accessibility status unknown', control.key);
   }
+});
+
+test('Resolve HDR dial states its Color-page requirement and Accessibility dependency', () => {
+  const hdrDial=controlCatalog.find(group=>group.id==='resolve-color').controls.find(control=>control.key==='resolveNumericDial');
+  assert.ok(hdrDial);
+  assert.match(hdrDial.benefit,/double-clicking it in Resolve/);
+  assert.equal(getControlStatus(hdrDial,true),'Accessibility granted');
+  assert.equal(getControlStatus(hdrDial,false),'Accessibility not granted');
 });
 
 test('hardware requirements remain separate from Accessibility status', () => {

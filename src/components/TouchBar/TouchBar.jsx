@@ -5,6 +5,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { useApp } from '../../context/AppContext';
+import { cloneWithoutRuntimeIdentity } from '../../utils/jsonGenerator';
 import TouchBarItem from './TouchBarItem';
 import './TouchBar.css';
 import {BAR_WIDTH,isPrecise,layoutFrames,overlappingItems,spacingGap,setConsistentSpacing,autoDockDisplayWidth,contentFitWidth,distributeItemsEvenly,layoutContentScale,saveLayoutPositions} from '../../utils/positionLayout';
@@ -19,7 +20,7 @@ const NATIVE_PREVIEW_HEIGHT = 30;
 
 export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}}) {
   const { items, selectItem, selectedItemId, removeItem, addItem, reorderItems, profiles, profileId, resolvePageId, groupPath } = useApp();
-  const { keepControlStrip, updateKeepControlStrip, native, layoutCapacity, systemMonitorPreviews, activeStudioGroupPath, activeRuntimeProfile, activeRuntimeResolvePage, activeRuntimeEnabled } = useRuntimePermissions();
+  const { keepControlStrip, updateKeepControlStrip, native, layoutCapacity, systemMonitorPreviews, activeStudioGroupPath, activeRuntimeProfile, activeRuntimeResolvePage, activeRuntimeEnabled, previewScalePercent = 100, updatePreviewScalePercent } = useRuntimePermissions();
   const { active: draggedThing } = useDndContext();
   const draggingControlStrip = draggedThing?.data.current?.type === 'native-control-strip';
   const precise=isPrecise(items);
@@ -112,12 +113,13 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   const frames=layoutFrames(renderItems,layoutOptions);
   const reservedWidth = groupPath.length ? 62 : profiles[profileId]?.bundleId === 'com.blackmagic-design.DaVinciResolve' ? 94 : 0;
   const physicalWidth = layoutCapacity?.physicalWidth > 0 ? layoutCapacity.physicalWidth : BAR_WIDTH;
-  const projection = previewProjection(physicalWidth, {reserved:reservedWidth, availableWidth:containerWidth, extraWidth:(showControlStrip?176:0)+18});
+  const projection = previewProjection(physicalWidth, {reserved:reservedWidth, availableWidth:containerWidth, extraWidth:(showControlStrip?176:0)+2, calibration:previewScalePercent/100});
   const projectedFrames = new Map([...frames].map(([id, frame]) => [id, projectFrame(frame, projection)]));
   const previewWidth = physicalWidth + (showControlStrip ? 176 : 0);
-  const previewContentHeight = precise ? NATIVE_PREVIEW_HEIGHT + 31 : NATIVE_PREVIEW_HEIGHT;
-  const previewOuterWidth = previewWidth + 18;
-  const previewOuterHeight = previewContentHeight + 18;
+  const hasPreviewRuler = precise && !expanded && !controlStripExpanded;
+  const previewContentHeight = hasPreviewRuler ? NATIVE_PREVIEW_HEIGHT + 31 : NATIVE_PREVIEW_HEIGHT;
+  const previewOuterWidth = previewWidth + 2;
+  const previewOuterHeight = previewContentHeight + 2;
   const previewScaleStyle = {width:previewWidth,transform:`scale(${projection.fitScale})`,transformOrigin:'top left',marginRight:(projection.fitScale-1)*previewOuterWidth,marginBottom:(projection.fitScale-1)*previewOuterHeight};
   const dockItem = renderItems.find(item=>item.type==='dock');
   const automaticOtherWidth = renderItems.filter(item=>item.type!=='dock').reduce((total,item)=>total+contentFitWidth(item),0);
@@ -184,13 +186,14 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
 
   return (
     <div className="touchbar-container" ref={containerRef}>
-      <div className="layout-heading"><strong>Touch Bar layout</strong><button type="button" className="auto-place-button" disabled={!items.length} onClick={autoPlaceItems} title="Distribute current items with equal space around them. Keeps their sizes and can be undone.">Auto-place evenly</button><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
+      <div className="layout-heading"><strong>Touch Bar layout</strong><button type="button" className="auto-place-button" disabled={!items.length} onClick={autoPlaceItems} title="Align the edge items with the usable bar edges and divide remaining space into equal interior gaps. Keeps item sizes and can be undone.">Auto-place evenly</button><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
       <div className="layout-toolbar"><div><strong>Placement</strong><span>{precise?'Drag freely or set X in Properties':'Automatic left, centre and right alignment'}</span></div><button aria-pressed={precise} onClick={()=>reorderItems(items.map(item=>{if(precise){const rest={...item};delete rest.studioPosition;delete rest.studioGap;return rest;}return {...item,studioPosition:frames.get(item.id).x};}))}>{precise?'Use automatic alignment':'Precise placement'}</button></div>
       <div className="spacing-toolbar">
         <label><input type="checkbox" checked={gap !== null} disabled={!items.length} onChange={event => event.target.checked ? applySpacing(12) : disableSpacing()}/>Consistent spacing</label>
         {gap !== null && <><label>Gap <input aria-label="Consistent spacing gap" type="number" min="0" max="64" step="1" value={gap} onChange={event => applySpacing(event.target.value)}/> units</label><button onClick={()=>applySpacing(gap,true)}>Space all evenly</button></>}
         <span>{gap !== null ? 'Snap within 10 units of a neighbour; drag farther away to place freely.' : 'Enable to use equal gaps with optional free placement.'}</span>
       </div>
+      <label className="preview-calibration-control">Preview width <span>{Math.min(100, previewScalePercent)}%</span><input aria-label="Preview width" type="range" min="50" max="100" step="5" value={Math.min(100, previewScalePercent)} onChange={event=>updatePreviewScalePercent?.(+event.target.value)}/><small>At 100%, the Touch Bar preview fills the available width. The ruler and bezel are editor guides; the bar and its controls keep their proportions.</small></label>
       {precise && <p className="position-help">The ruler uses the full 1085-unit Touch Bar coordinate system.</p>}
       {spacingError && <p className="layout-warning" role="alert">{spacingError}</p>}
       </div></details></div>
@@ -198,21 +201,24 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
       {placementStatus && <p className="auto-place-feedback" role="status">{placementStatus}</p>}
       {expanded && <div className="expanded-slider-preview">
         <div className="expanded-slider-caption"><strong>{expanded.type === 'volume' ? 'Volume' : 'Brightness'} · expanded preview</strong><span>Preview only · adjust your Mac on the physical Touch Bar</span></div>
-        <div className="expanded-slider-bar"><button onClick={()=>setPreviewId(null)} aria-label="Close expanded slider preview">‹ Back</button><div className="expanded-slider-center"><ControlIcon type={expanded.type === 'volume' ? 'mute' : 'brightnessDown'}/><input aria-label={`${expanded.type} slider preview`} type="range" min="0" max="100" value={previewValue} onChange={event=>setPreviewValue(+event.target.value)}/><ControlIcon type={expanded.type === 'volume' ? 'volumeUp' : 'brightnessUp'}/></div></div>
+        <div className="preview-scale-stage" style={{...previewScaleStyle,width:previewOuterWidth}}><div className="touchbar-frame preview-projected" style={{width:previewWidth}}><div className="touchbar-screen preview-projected expanded-slider-bar" style={{width:previewWidth,height:NATIVE_PREVIEW_HEIGHT}}><button onClick={()=>setPreviewId(null)} aria-label="Close expanded slider preview">‹ Back</button><div className="expanded-slider-center"><ControlIcon type={expanded.type === 'volume' ? 'mute' : 'brightnessDown'}/><input aria-label={`${expanded.type} slider preview`} type="range" min="0" max="100" value={previewValue} onChange={event=>setPreviewValue(+event.target.value)}/><ControlIcon type={expanded.type === 'volume' ? 'volumeUp' : 'brightnessUp'}/></div></div></div></div>
       </div>}
       {!expanded && <>
       {showControlStrip && controlStripExpanded ? (
         <div className="control-strip-expanded-stage">
           <div className="expanded-slider-caption control-strip-stage-header"><strong>macOS Control Strip · expanded</strong><span>Apple-style layout preview only · controls do not change your Mac</span><button type="button" onClick={()=>updateKeepControlStrip?.(false)} aria-label="Remove macOS Control Strip">Remove</button></div>
-          <div className="touchbar-frame control-strip-full-frame"><div className="touchbar-screen control-strip-full-screen"><ControlStripPreview expanded onCollapse={()=>setControlStripExpanded(false)}/></div></div>
+          <div className="preview-scale-stage" style={{...previewScaleStyle,width:previewOuterWidth}}><div className="touchbar-frame preview-projected" style={{width:previewWidth}}><div className="touchbar-screen preview-projected control-strip-full-screen" style={{width:previewWidth,height:NATIVE_PREVIEW_HEIGHT}}><ControlStripPreview expanded onCollapse={()=>setControlStripExpanded(false)}/></div></div></div>
         </div>
       ) : precise ? (
         <>
-          <div className={`touchbar-frame preview-projected ${showControlStrip?'with-control-strip':''} ${isOver?'drag-over':''}`} style={previewScaleStyle}>
-            <div className={`touchbar-screen preview-projected precise-preview ${showControlStrip?'with-control-strip':''}`} style={{width:previewWidth,height:previewContentHeight}}>
-              <div className="precise-scroll" ref={attachViewport} style={{width:physicalWidth,flex:`0 0 ${physicalWidth}px`}}><div className="position-ruler" style={{width:physicalWidth}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x*physicalWidth/BAR_WIDTH,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div><div id="precise-touchbar-canvas" className="precise-canvas" data-base-scale={projection.baseScale} data-child-scale={projection.childScale} data-fit-scale={projection.fitScale} data-reserved={reservedWidth} style={{width:physicalWidth,height:NATIVE_PREVIEW_HEIGHT}}>{reservedWidth>0&&<div className="preview-native-navigation" style={{width:reservedWidth*projection.baseScale}} aria-label={groupPath.length?'Back to parent group':'Resolve page picker'}><span style={{width:(groupPath.length?54:94)*projection.baseScale}}>{groupPath.length?'‹ Back':'‹ Page'}</span></div>}<SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{projectedItems}</SortableContext></div></div>
+          <div className="preview-scale-stage precise-scale-stage" style={{...previewScaleStyle,width:previewOuterWidth}}>
+            <div className="position-ruler preview-ruler" style={{width:physicalWidth}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x*physicalWidth/BAR_WIDTH,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div>
+            <div className={`touchbar-frame preview-projected ${showControlStrip?'with-control-strip':''} ${isOver?'drag-over':''}`} style={{width:previewWidth}}>
+              <div className={`touchbar-screen preview-projected precise-preview ${showControlStrip?'with-control-strip':''}`} style={{width:previewWidth,height:NATIVE_PREVIEW_HEIGHT}}>
+                <div className="precise-scroll" ref={attachViewport} style={{width:physicalWidth,flex:`0 0 ${physicalWidth}px`}}><div id="precise-touchbar-canvas" className="precise-canvas" data-base-scale={projection.baseScale} data-child-scale={projection.childScale} data-fit-scale={projection.fitScale} data-reserved={reservedWidth} style={{width:physicalWidth,height:NATIVE_PREVIEW_HEIGHT}}>{reservedWidth>0&&<div className="preview-native-navigation" style={{width:reservedWidth*projection.baseScale}} aria-label={groupPath.length?'Back to parent group':'Resolve page picker'}><span style={{width:(groupPath.length?54:94)*projection.baseScale}}>{groupPath.length?'‹ Back':'‹ Page'}</span></div>}<SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{projectedItems}</SortableContext></div></div>
               {showControlStrip&&<div className="control-strip-widget-slot" ref={setControlStripSlotRef}><button type="button" className="control-strip-remove" onClick={()=>updateKeepControlStrip?.(false)} aria-label="Remove macOS Control Strip" title="Remove Control Strip">×</button><ControlStripPreview expanded={false} onExpand={()=>setControlStripExpanded(true)}/></div>}
               {controlStripDropTarget}
+            </div>
             </div>
           </div>
           {overlappingItems(items,layoutOptions)&&<p className="layout-warning" role="status">Some controls overlap or need more room. Move them apart or adjust their widths so all content stays visible.</p>}
@@ -279,9 +285,7 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   function duplicateItem(itemId) {
     const item = items.find((i) => i.id === itemId);
     if (item) {
-      const itemWithoutId = {...item};
-      delete itemWithoutId.id;
-      addItem(item.type, itemWithoutId);
+      addItem(item.type, cloneWithoutRuntimeIdentity(item));
     }
   }
 }
