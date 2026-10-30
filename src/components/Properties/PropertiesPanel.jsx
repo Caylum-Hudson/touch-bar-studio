@@ -291,7 +291,7 @@ function ResolveNumericDialProperties({item,updateItem,native,resolvePageId,reso
   </>;
 }
 
-function PropertyInput({ label, type, value, onChange, placeholder, action }) {
+function PropertyInput({ label, type, value, onChange, placeholder, action, min, step }) {
   return (
     <div className="property-field">
       <label className="property-label">{label}</label>
@@ -301,6 +301,8 @@ function PropertyInput({ label, type, value, onChange, placeholder, action }) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
+          min={min}
+          step={step}
           className="property-input"
         />
         {action}
@@ -609,16 +611,22 @@ function TypeSpecificProperties({ item, definition, updateItem, enterGroup, cont
       return (
         <>
           <PropertyInput
-            label="Work Time (s)"
+            label="Work Time (minutes)"
             type="number"
-            value={item.workTime || ''}
-            onChange={(value) => updateItem(item.id, { workTime: value ? Number(value) : undefined })}
+            min="0.01"
+            step="any"
+            placeholder="25"
+            value={item.workTime == null ? '' : Math.round(item.workTime / 60 * 1000000) / 1000000}
+            onChange={(value) => updateItem(item.id, { workTime: value && Number(value) > 0 ? Number(value) * 60 : undefined })}
           />
           <PropertyInput
-            label="Rest Time (s)"
+            label="Rest Time (minutes)"
             type="number"
-            value={item.restTime || ''}
-            onChange={(value) => updateItem(item.id, { restTime: value ? Number(value) : undefined })}
+            min="0.01"
+            step="any"
+            placeholder="5"
+            value={item.restTime == null ? '' : Math.round(item.restTime / 60 * 1000000) / 1000000}
+            onChange={(value) => updateItem(item.id, { restTime: value && Number(value) > 0 ? Number(value) * 60 : undefined })}
           />
         </>
       );

@@ -55,7 +55,36 @@
 .palette-no-results { padding: 24px 12px; color: #96919f; text-align: center; font-size: 12px; }
 .palette-content::-webkit-scrollbar { width: 5px; }
 .palette-content::-webkit-scrollbar-thumb { background: #393642; border-radius: 3px; }
+.pack-view-tabs { display:flex; gap:5px; margin:0 0 14px; padding:3px; border:1px solid #302d38; border-radius:9px; background:#141319; }
+.pack-view-tabs button { flex:1; padding:7px 10px; border:0; border-radius:6px; color:#aaa5b4; background:transparent; font-size:11px; cursor:pointer; }
+.pack-view-tabs button.selected { color:#f2edff; background:#342c45; }
+.pack-view-tabs button span { margin-left:4px; color:#a898cb; }
+.palette-quick-access { margin:0 0 12px; padding:0 8px; border:1px solid #302d38; border-radius:9px; background:#1d1b23; }
+.palette-quick-access summary { padding:9px 0; color:#ddd9e5; font-size:11px; font-weight:600; cursor:pointer; }
+.palette-quick-access summary span { float:right; color:#918d9c; font-size:10px; font-weight:400; }
+.palette-quick-access>p { margin:0 0 10px; color:#918d9c; font-size:10px; }
+.palette-quick-access .palette-category-header { padding-left:0; padding-right:0; }
+.pack-actions { margin-left:auto; }
+.pack-actions button { display:inline-flex; width:25px; height:25px; align-items:center; justify-content:center; padding:0; border:1px solid #3c3745; border-radius:6px; color:#aaa3ba; background:#24212b; font-size:13px; cursor:pointer; }
+.pack-actions button:hover { color:#e2d6ff; border-color:#7253bd88; }
+.palette-favorite { flex:0 0 auto; border:0; color:#827d8e; background:transparent; font-size:17px; cursor:pointer; }
+.palette-favorite.is-favorite { color:#e6c779; }
+.pack-browser>p { margin:0 0 12px; color:#9994a2; font-size:11px; line-height:1.45; }
+.pack-card { display:flex; align-items:center; gap:12px; margin:0 0 8px; padding:11px; border:1px solid #302d37; border-radius:10px; background:#211f27; }
+.pack-card>div { min-width:0; flex:1; }
+.pack-card strong { color:#e5e2eb; font-size:11px; }
+.pack-card p { margin:4px 0; color:#9994a2; font-size:10px; line-height:1.4; }
+.pack-card small { color:#a898cb; font-size:9px; }
+.pack-card button { padding:6px 9px; border:1px solid #7253bd66; border-radius:7px; color:#e4dcff; background:#7253bd30; font-size:10px; cursor:pointer; }
+.pack-card button:hover { background:#7253bd70; }
+.pack-card button.is-installed { color:#b8b2c2; border-color:#403c47; background:#292630; }
 
 @media (prefers-reduced-motion: reduce) {
   .palette-item, .category-chevron, .palette-search { transition: none; }
 }
+.pack-category-toggle { display:flex; align-items:center; gap:10px; flex:1; min-width:0; text-align:left; color:inherit; }
+.pack-browser-page{display:flex;flex-direction:column;flex:1;min-height:0;padding:18px 24px;gap:16px}.pack-browser-bar{display:flex;align-items:center;gap:12px}.pack-browser-bar input{flex:1;min-width:0}.pack-browser-bar label{display:flex;align-items:center;gap:8px;white-space:nowrap}.pack-browser-results{flex:1;min-height:0;overflow-y:auto}.pack-browser-note{color:var(--studio-muted,#aaa);font-size:12px}.pack-browser-page .pack-card{padding:16px;margin-bottom:10px}.pack-browser-page .pack-card strong{font-size:15px}.pack-browser-page .pack-card p,.pack-browser-page .pack-card small{font-size:12px}
+/* The shell's general button padding otherwise collapses the eye SVG. */
+.studio-shell .pack-actions button { box-sizing:border-box; width:30px; height:30px; padding:0; flex:none; color:var(--studio-text,#e5e2eb); }
+.studio-shell .pack-actions button svg { display:block; width:18px; height:18px; flex:none; }
+.studio-shell .palette .palette-icon-drag{display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;cursor:grab;touch-action:none}.studio-shell .palette .palette-icon-drag:active{cursor:grabbing}

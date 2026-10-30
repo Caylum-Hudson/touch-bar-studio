@@ -116,7 +116,7 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
   const projection = previewProjection(physicalWidth, {reserved:reservedWidth, availableWidth:containerWidth, extraWidth:(showControlStrip?176:0)+2, calibration:previewScalePercent/100});
   const projectedFrames = new Map([...frames].map(([id, frame]) => [id, projectFrame(frame, projection)]));
   const previewWidth = physicalWidth + (showControlStrip ? 176 : 0);
-  const hasPreviewRuler = precise && !expanded && !controlStripExpanded;
+  const hasPreviewRuler = false;
   const previewContentHeight = hasPreviewRuler ? NATIVE_PREVIEW_HEIGHT + 31 : NATIVE_PREVIEW_HEIGHT;
   const previewOuterWidth = previewWidth + 2;
   const previewOuterHeight = previewContentHeight + 2;
@@ -186,15 +186,15 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
 
   return (
     <div className="touchbar-container" ref={containerRef}>
-      <div className="layout-heading"><strong>Touch Bar layout</strong><button type="button" className="auto-place-button" disabled={!items.length} onClick={autoPlaceItems} title="Align the edge items with the usable bar edges and divide remaining space into equal interior gaps. Keeps item sizes and can be undone.">Auto-place evenly</button><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
+      <div className="layout-heading"><strong>Touch Bar layout</strong><button type="button" onClick={async()=>{try {const response=await fetch("/api/control-strip-settings",{method:"POST"}).then(result=>result.json()); if(!response.success) setPlacementError(response.error || "Could not open Keyboard settings.");} catch {setPlacementError("Open System Settings → Keyboard → Touch Bar Settings to customise the Control Strip.");}}} title="Open macOS Keyboard settings to customise Apple’s Control Strip">Apple settings</button><button type="button" className="auto-place-button" disabled={!items.length} onClick={autoPlaceItems} title="Align the edge items with the usable bar edges and divide remaining space into equal interior gaps. Keeps item sizes and can be undone.">Auto-place evenly</button><details className="layout-settings"><summary>Layout settings <span>{precise?'Precise':'Automatic'}</span></summary><div className="layout-settings-content">
       <div className="layout-toolbar"><div><strong>Placement</strong><span>{precise?'Drag freely or set X in Properties':'Automatic left, centre and right alignment'}</span></div><button aria-pressed={precise} onClick={()=>reorderItems(items.map(item=>{if(precise){const rest={...item};delete rest.studioPosition;delete rest.studioGap;return rest;}return {...item,studioPosition:frames.get(item.id).x};}))}>{precise?'Use automatic alignment':'Precise placement'}</button></div>
       <div className="spacing-toolbar">
         <label><input type="checkbox" checked={gap !== null} disabled={!items.length} onChange={event => event.target.checked ? applySpacing(12) : disableSpacing()}/>Consistent spacing</label>
         {gap !== null && <><label>Gap <input aria-label="Consistent spacing gap" type="number" min="0" max="64" step="1" value={gap} onChange={event => applySpacing(event.target.value)}/> units</label><button onClick={()=>applySpacing(gap,true)}>Space all evenly</button></>}
         <span>{gap !== null ? 'Snap within 10 units of a neighbour; drag farther away to place freely.' : 'Enable to use equal gaps with optional free placement.'}</span>
       </div>
-      <label className="preview-calibration-control">Preview width <span>{Math.min(100, previewScalePercent)}%</span><input aria-label="Preview width" type="range" min="50" max="100" step="5" value={Math.min(100, previewScalePercent)} onChange={event=>updatePreviewScalePercent?.(+event.target.value)}/><small>At 100%, the Touch Bar preview fills the available width. The ruler and bezel are editor guides; the bar and its controls keep their proportions.</small></label>
-      {precise && <p className="position-help">The ruler uses the full 1085-unit Touch Bar coordinate system.</p>}
+      <label className="preview-calibration-control">Preview width <span>{Math.min(100, previewScalePercent)}%</span><input aria-label="Preview width" type="range" min="50" max="100" step="5" value={Math.min(100, previewScalePercent)} onChange={event=>updatePreviewScalePercent?.(+event.target.value)}/><small>At 100%, the Touch Bar preview fills the available width. The bar and its controls keep their proportions.</small></label>
+
       {spacingError && <p className="layout-warning" role="alert">{spacingError}</p>}
       </div></details></div>
       {placementError && <p className="layout-warning auto-place-feedback" role="alert">{placementError}</p>}
@@ -212,7 +212,6 @@ export default function TouchBar({dockPreview = {apps: [], preferredWidth: null}
       ) : precise ? (
         <>
           <div className="preview-scale-stage precise-scale-stage" style={{...previewScaleStyle,width:previewOuterWidth}}>
-            <div className="position-ruler preview-ruler" style={{width:physicalWidth}}>{[0,100,200,300,400,500,600,700,800,900,1000,1085].map(x=><span key={x} style={{left:x===BAR_WIDTH?undefined:x*physicalWidth/BAR_WIDTH,right:x===BAR_WIDTH?0:undefined}}>{x}</span>)}</div>
             <div className={`touchbar-frame preview-projected ${showControlStrip?'with-control-strip':''} ${isOver?'drag-over':''}`} style={{width:previewWidth}}>
               <div className={`touchbar-screen preview-projected precise-preview ${showControlStrip?'with-control-strip':''}`} style={{width:previewWidth,height:NATIVE_PREVIEW_HEIGHT}}>
                 <div className="precise-scroll" ref={attachViewport} style={{width:physicalWidth,flex:`0 0 ${physicalWidth}px`}}><div id="precise-touchbar-canvas" className="precise-canvas" data-base-scale={projection.baseScale} data-child-scale={projection.childScale} data-fit-scale={projection.fitScale} data-reserved={reservedWidth} style={{width:physicalWidth,height:NATIVE_PREVIEW_HEIGHT}}>{reservedWidth>0&&<div className="preview-native-navigation" style={{width:reservedWidth*projection.baseScale}} aria-label={groupPath.length?'Back to parent group':'Resolve page picker'}><span style={{width:(groupPath.length?54:94)*projection.baseScale}}>{groupPath.length?'‹ Back':'‹ Page'}</span></div>}<SortableContext items={items.map(i=>i.id)} strategy={horizontalListSortingStrategy}>{projectedItems}</SortableContext></div></div>

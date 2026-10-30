@@ -843,3 +843,5 @@ div.touchbar-screen.preview-projected { min-width: 0; min-height: 0; max-width: 
 .auto-place-button { margin-left: auto; white-space: nowrap; }
 .auto-place-feedback { margin: 0 0 10px; font-size: 12px; color: #aaa; }
 .auto-place-feedback.layout-warning { color: #f4be79; }
+.touchbar-container{padding:8px 20px}.control-strip-widget-slot{padding:0 3px}.control-strip-widget-slot .control-strip-compact{height:30px;min-height:30px;padding:0;gap:0;background:#55575d;border-radius:5px;box-shadow:none}.control-strip-compact>span,.control-strip-compact>.control-strip-expand{height:30px;flex:1;display:flex;align-items:center;justify-content:center;border-radius:0;border-right:1px solid #ffffff12}.control-strip-compact>span:last-child{border-right:0}.control-strip-remove{opacity:0}.control-strip-widget-slot:hover .control-strip-remove,.control-strip-remove:focus-visible{opacity:1}
+.control-strip-compact .control-strip-siri{background:transparent;box-shadow:none}.control-strip-compact .control-strip-siri::after{content:"";width:18px;height:18px;border-radius:50%;background:conic-gradient(#fc4a8b,#8857f2,#3fc6fc,#60e4a3,#fc4a8b);box-shadow:0 0 8px #7f74ff66}

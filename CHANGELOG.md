@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.2 — Separate pack browser
+
+- Move Browse to its own page with pack search and alphabetical, recently added and widget-count sorting. Existing packs without an add date sort after dated additions.
+- Keep Studio focused on editing and remove Launcher and Photos from the top navigation.
+
+## 0.12.0 — Widget packs
+
+- Browse control packs and add or remove them from the library without changing placed widgets. Existing installations keep their available packs.
+- Hide a pack with its eye button and restore it from More controls. Star individual controls for quick access in Favorites. Pack preferences are stored locally on this Mac.
+
 ## 0.11.3 — Focus timer persistence
 
 - Keep Focus and break countdowns separate from the Touch Bar widget lifecycle, using saved finish times so switching apps and sleeping do not reset them.

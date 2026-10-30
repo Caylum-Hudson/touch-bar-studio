@@ -66,6 +66,12 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         let path = url.path
+        if path == "/api/control-strip-settings" {
+            guard taskMethod(urlSchemeTask) == "POST", let destination = URL(string:"x-apple.systempreferences:com.apple.Keyboard-Settings.extension") else { respondJSON(urlSchemeTask,dict:["success":false],statusCode:400); return }
+            let opened = NSWorkspace.shared.open(destination)
+            respondJSON(urlSchemeTask,dict:["success":opened,"error":opened ? "" : "Could not open Keyboard settings."])
+            return
+        }
         if path == "/api/keyboard-permission" {
             let opened = taskMethod(urlSchemeTask) != "POST" || StudioPermissions.openSettings()
             var response: [String: Any] = ["success": opened]
@@ -193,6 +199,13 @@ class AppSchemeHandler: NSObject, WKURLSchemeHandler {
         }
         let query = URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
         func value(_ name: String) -> String { query.first { $0.name == name }?.value ?? "" }
+        if path == "/api/profile-icon" {
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier:value("bundleId")) else { respondJSON(urlSchemeTask,dict:["success":false]); return }
+            let icon = NSWorkspace.shared.icon(forFile:url.path)
+            icon.size = NSSize(width:32,height:32)
+            guard let tiff = icon.tiffRepresentation, let bitmap = NSBitmapImageRep(data:tiff), let png = bitmap.representation(using:.png,properties:[:]) else { respondJSON(urlSchemeTask,dict:["success":false]); return }
+            respondJSON(urlSchemeTask,dict:["success":true,"iconData":"data:image/png;base64," + png.base64EncodedString()]); return
+        }
         if path == "/api/apps" {
             var apps: [[String:Any]] = []
             for root in ["/Applications", "/System/Applications", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications").path] {

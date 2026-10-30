@@ -325,10 +325,10 @@ export function AppContent({dockPreviewOverride = null} = {}) {
 
         <main className="app-main">
           <section className="content-center">
+            <div className="control-library"><Palette /></div>
             <div className="touchbar-wrapper">
               <TouchBar dockPreview={dockPreview} />
             </div>
-            <div className="control-library"><Palette /></div>
           </section>
 
           {selectedItemId && (
